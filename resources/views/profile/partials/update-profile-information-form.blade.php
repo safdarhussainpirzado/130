@@ -6,7 +6,7 @@
         <div class="space-y-6">
             <div class="group">
                 <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-2 transition-colors group-focus-within:text-blue-600">Full Operational Name</label>
-                <input type="text" name="name" value="{{ old('name', $user->name) }}" required
+                <input type="text" name="full_name" value="{{ old('full_name', $user->full_name) }}" required
                     class="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none font-bold text-navy-900 transition-all shadow-sm">
             </div>
 

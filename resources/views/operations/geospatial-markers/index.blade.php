@@ -9,15 +9,13 @@
 
     <div x-data="kmManager(@js([
         'items' => $geospatialMarkers->items(),
-        'carriageways' => $carriageways,
         'zones' => $zones,
-        'sectors' => $sectors,
         'beats' => $beats
     ]), @js($stats), @js([
         'current_page' => $geospatialMarkers->currentPage(),
-        'last_page' => $geospatialMarkers->lastPage(),
-        'total' => $geospatialMarkers->total(),
-        'per_page' => $geospatialMarkers->perPage()
+        'last_page'    => $geospatialMarkers->lastPage(),
+        'total'        => $geospatialMarkers->total(),
+        'per_page'     => $geospatialMarkers->perPage()
     ]))" class="space-y-8 relative mt-4 max-w-[1700px] mx-auto" x-cloak>
 
 
@@ -166,15 +164,15 @@
                                     <div class="flex items-start justify-between mb-8 relative z-10">
                                         <div class="w-20 h-20 rounded-[1.75rem] p-1 flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform bg-blue-600">
                                             <div class="w-full h-full rounded-[1.5rem] bg-blue-900 flex flex-col items-center justify-center text-white">
-                                                <span class="text-[8px] font-black opacity-60 uppercase mb-0.5" x-text="item.carriageway ? item.carriageway.road : 'MW'"></span>
-                                                <span class="text-lg font-black tracking-tighter" x-text="Math.round(item.km_marker)"></span>
+                                                <span class="text-[8px] font-black opacity-60 uppercase mb-0.5" x-text="item.road_name || 'MW'"></span>
+                                                <span class="text-lg font-black tracking-tighter" x-text="item.km_marker || '0'"></span>
                                             </div>
                                         </div>
 
                                     </div>
 
                                     <div class="relative z-10">
-                                        <h4 class="text-2xl font-extrabold text-blue-900 tracking-tight leading-tight mb-1" x-text="item.loc || 'TRANSIT POINT'"></h4>
+                                        <h4 class="text-2xl font-extrabold text-blue-900 tracking-tight leading-tight mb-1" x-text="item.location_name || 'TRANSIT POINT'"></h4>
                                         <div class="flex items-center gap-2 mb-6">
                                             <span class="text-xs font-black text-blue-600 uppercase tracking-widest">Geospatial Token</span>
                                         </div>
@@ -183,15 +181,19 @@
                                             <div class="space-y-3">
                                                 <div class="flex items-center justify-between">
                                                     <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Zone Alignment</span>
-                                                    <span class="text-[10px] font-bold text-blue-900 uppercase" x-text="item.zone ? item.zone.name : 'N/A'"></span>
+                                                    <span class="text-[10px] font-bold text-blue-900 uppercase" x-text="item.zone_name || 'N/A'"></span>
                                                 </div>
                                                 <div class="flex items-center justify-between">
                                                     <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Sector Cover</span>
-                                                    <span class="text-[10px] font-bold text-blue-900 uppercase" x-text="item.sector ? item.sector.name : 'N/A'"></span>
+                                                    <span class="text-[10px] font-bold text-blue-900 uppercase" x-text="item.sector_name || 'N/A'"></span>
                                                 </div>
                                                 <div class="flex items-center justify-between">
                                                     <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Beat Assign</span>
-                                                    <span class="text-[10px] font-bold text-blue-900 uppercase" x-text="item.beat ? item.beat.name : 'N/A'"></span>
+                                                    <span class="text-[10px] font-bold text-blue-900 uppercase" x-text="item.beat_name || 'N/A'"></span>
+                                                </div>
+                                                <div class="flex items-center justify-between">
+                                                    <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Contact</span>
+                                                    <span class="text-[10px] font-bold text-emerald-600 uppercase" x-text="item.contact_numbers || 'N/A'"></span>
                                                 </div>
                                             </div>
                                         </div>
@@ -258,6 +260,12 @@
                                     </th>
                                     <th class="px-4 py-4 border-b border-slate-50 text-center">
                                         <div class="flex items-center justify-center gap-2.5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                                            <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 shadow-sm border border-blue-100"><i class="fas fa-phone text-[10px]"></i></div>
+                                            <span>Contact</span>
+                                        </div>
+                                    </th>
+                                    <th class="px-4 py-4 border-b border-slate-50 text-center">
+                                        <div class="flex items-center justify-center gap-2.5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
                                             <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 shadow-sm border border-blue-100"><i class="fas fa-toggle-on text-[10px]"></i></div>
                                             <span>Status</span>
                                         </div>
@@ -275,10 +283,10 @@
                                     <tr class="hover:bg-blue-50/40 transition-colors group">
                                         <td class="px-6" :class="density === 'condensed' ? 'py-3' : 'py-5'">
                                             <div class="flex items-center gap-4">
-                                                <div class="w-10 h-10 rounded-lg bg-blue-900 text-white flex items-center justify-center font-black text-[10px] uppercase" x-text="item.carriageway ? item.carriageway.road : 'MW'"></div>
+                                                <div class="w-10 h-10 rounded-lg bg-blue-900 text-white flex items-center justify-center font-black text-[10px] uppercase" x-text="item.road_name || 'MW'"></div>
                                                 <div class="flex flex-col">
-                                                    <span class="font-bold text-blue-900 text-sm" x-text="item.loc || 'TRANSIT POINT'"></span>
-                                                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-tight" x-text="item.carriageway ? item.carriageway.road_name : 'Arterial Road'"></span>
+                                                    <span class="font-bold text-blue-900 text-sm" x-text="item.location_name || 'TRANSIT POINT'"></span>
+                                                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-tight" x-text="item.road_name || 'Arterial Road'"></span>
                                                 </div>
                                             </div>
                                         </td>
@@ -287,9 +295,12 @@
                                         </td>
                                         <td class="px-6 text-center" :class="density === 'condensed' ? 'py-3' : 'py-5'">
                                             <div class="flex flex-col items-center gap-1">
-                                                <span class="px-2 py-0.5 bg-slate-100 rounded text-[8px] font-black text-slate-500 uppercase tracking-tighter" x-text="'Z: ' + (item.zone ? item.zone.name : 'N/A')"></span>
-                                                <span class="px-2 py-0.5 bg-slate-900 rounded text-[8px] font-black text-white uppercase tracking-tighter" x-text="'S: ' + (item.sector ? item.sector.name : 'N/A')"></span>
+                                                <span class="px-2 py-0.5 bg-slate-100 rounded text-[8px] font-black text-slate-500 uppercase tracking-tighter" x-text="'Z: ' + (item.zone_name || 'N/A')"></span>
+                                                <span class="px-2 py-0.5 bg-slate-900 rounded text-[8px] font-black text-white uppercase tracking-tighter" x-text="'S: ' + (item.sector_name || 'N/A')"></span>
                                             </div>
+                                        </td>
+                                        <td class="px-6 text-center" :class="density === 'condensed' ? 'py-3' : 'py-5'">
+                                            <span class="text-[10px] font-bold text-emerald-600 whitespace-pre-wrap leading-tight" x-text="item.contact_numbers || 'N/A'"></span>
                                         </td>
 
                                         <td class="px-6" :class="density === 'condensed' ? 'py-3' : 'py-5'">
@@ -322,20 +333,28 @@
                     <!-- Pagination -->
                     <div x-show="pagination.last_page > 1" class="p-8 border-t border-slate-100 bg-slate-50/30 flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div class="text-xs font-bold text-slate-400">
-                            Showing <span class="text-blue-900" x-text="((pagination.current_page - 1) * 15) + 1"></span> to <span class="text-blue-900" x-text="Math.min(pagination.current_page * 15, pagination.total)"></span> of <span class="text-blue-900" x-text="pagination.total"></span> Marker Tokens
+                            Showing <span class="text-blue-900" x-text="((pagination.current_page - 1) * perPage) + 1"></span> to <span class="text-blue-900" x-text="Math.min(pagination.current_page * perPage, pagination.total)"></span> of <span class="text-blue-900" x-text="pagination.total"></span> Marker Tokens
                         </div>
                         <div class="flex items-center gap-2">
-                            <button @click="page--" :disabled="page === 1" class="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-all"><i class="fa-solid fa-chevron-left"></i></button>
+                            <!-- First/Next -->
+                            <button @click="page = 1" :disabled="page === 1" class="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-400 disabled:opacity-30 hover:bg-slate-50 transition-all font-black text-[10px] uppercase">First</button>
+                            <button @click="page++" :disabled="page === pagination.last_page" class="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-all"><i class="fa-solid fa-chevron-right"></i></button>
                             
-                            <!-- Dynamic Page Numbers -->
-                            <template x-for="p in getVisiblePages()" :key="p">
-                                <button @click="if(p !== '...') page = p" 
-                                    :class="page === p ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/30' : (p === '...' ? 'cursor-default border-transparent' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50')" 
-                                    class="w-10 h-10 rounded-xl border font-black text-xs transition-all" 
-                                    x-text="p"></button>
+                            <!-- Sliding Window -->
+                            <template x-for="p in pagesToShow()" :key="p">
+                                <div class="flex items-center">
+                                    <template x-if="p === '...'">
+                                        <span class="px-2 text-slate-300 font-bold">...</span>
+                                    </template>
+                                    <template x-if="p !== '...'">
+                                        <button @click="page = p" :class="page === p ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/30' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'" class="w-10 h-10 rounded-xl border font-black text-xs transition-all" x-text="p"></button>
+                                    </template>
+                                </div>
                             </template>
 
-                            <button @click="page++" :disabled="page === pagination.last_page" class="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-all"><i class="fa-solid fa-chevron-right"></i></button>
+                            <!-- Prev/Last -->
+                            <button @click="page--" :disabled="page === 1" class="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-all"><i class="fa-solid fa-chevron-left"></i></button>
+                            <button @click="page = pagination.last_page" :disabled="page === pagination.last_page" class="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-400 disabled:opacity-30 hover:bg-slate-50 transition-all font-black text-[10px] uppercase">Last</button>
                         </div>
                     </div>
 
@@ -379,17 +398,12 @@
                             </div>
                         </div>
 
-                        <!-- Carriageway Filter -->
+                        <!-- Road Name Filter -->
                         <div class="space-y-3 pt-4">
                             <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                <i class="fas fa-road text-blue-500"></i> Arterial Filter
+                                <i class="fas fa-road text-blue-500"></i> Road Filter
                             </label>
-                            <select x-model="filterCarriageway" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none font-bold text-slate-600 text-xs transition-all focus:border-blue-500">
-                                <option value="">Global Network</option>
-                                <template x-for="mw in carriageways" :key="mw.id">
-                                    <option :value="mw.id" x-text="mw.road"></option>
-                                </template>
-                            </select>
+                            <input type="text" x-model.debounce.400="search" placeholder="e.g. M-1, N-5, KKH..." class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none font-bold text-slate-600 text-xs transition-all focus:border-blue-500 placeholder:font-normal">
                         </div>
 
                         <!-- Zone Filter -->
@@ -399,8 +413,8 @@
                             </label>
                             <select x-model="filterZone" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none font-bold text-slate-600 text-xs transition-all focus:border-blue-500">
                                 <option value="">All Regions</option>
-                                <template x-for="z in zones" :key="z.id">
-                                    <option :value="z.id" x-text="z.name"></option>
+                                <template x-for="z in zones" :key="z">
+                                    <option :value="z" x-text="z"></option>
                                 </template>
                             </select>
                         </div>
@@ -464,7 +478,7 @@
                                 <i class="fas fa-toggle-on text-teal-500"></i> Quick Command
                             </label>
                             <div class="space-y-3">
-                                <button @click="search = ''; filterCarriageway = ''; filterZone = ''; sortBy = 'km_marker'; sortDirection = 'asc';" class="w-full py-5 text-rose-500 hover:bg-rose-50 rounded-3xl text-[10px] font-black uppercase tracking-[0.3em] transition-all duration-300 flex items-center justify-center gap-3 active:scale-95 border-2 border-rose-100">
+                                <button @click="search = ''; filterZone = ''; sortBy = 'km_numeric'; sortDirection = 'asc';" class="w-full py-5 text-rose-500 hover:bg-rose-50 rounded-3xl text-[10px] font-black uppercase tracking-[0.3em] transition-all duration-300 flex items-center justify-center gap-3 active:scale-95 border-2 border-rose-100">
                                     <i class="fas fa-broom"></i> Reset Filters
                                 </button>
                                 <button @click="showSidebar = false" class="w-full py-4 mt-2 bg-blue-600 text-white rounded-3xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center justify-between px-6 shadow-md shadow-blue-600/20">
@@ -504,15 +518,13 @@
                         <!-- Primary Identity -->
                         <div class="grid grid-cols-2 gap-6">
                             <div class="col-span-2 sm:col-span-1">
-                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Carriageway Grid</label>
-                                <select x-model="form.carriageway_id" :disabled="modalMode === 'view'" required class="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
-                                    <option value="">Select Carriageway</option>
-                                    <template x-for="mw in carriageways" :key="mw.id">
-                                        <option :value="mw.id" x-text="mw.road + ' - ' + mw.road_name"></option>
-                                    </template>
-                                </select>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Road / Highway Name</label>
+                                <input type="text" x-model="form.road_name" :disabled="modalMode === 'view'" required placeholder="e.g. M-1, N-5, KKH" class="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors uppercase">
                             </div>
-
+                            <div class="col-span-2 sm:col-span-1">
+                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Contact Numbers</label>
+                                <input type="text" x-model="form.contact_numbers" :disabled="modalMode === 'view'" placeholder="e.g. 051-9278808" class="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
+                            </div>
                         </div>
 
                         <!-- Coordination -->
@@ -523,7 +535,7 @@
                             </div>
                             <div>
                                 <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Point Nomenclature</label>
-                                <input type="text" x-model="form.loc" :disabled="modalMode === 'view'" placeholder="e.g. Near Salt Range" class="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors uppercase">
+                                <input type="text" x-model="form.location_name" :disabled="modalMode === 'view'" placeholder="e.g. Near Salt Range" class="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors uppercase">
                             </div>
                         </div>
 
@@ -577,26 +589,26 @@
 
     </div>
 
-    @push('scripts')
-    <script>
-        window.kmManager = function(config, stats, pagination) {
+@endsection
+
+@push('scripts')
+<script>
+    window.kmManager = function(config, stats, pagination) {
 
             return {
                 items: config.items || [],
-                carriageways: config.carriageways || [],
                 zones: config.zones || [],
-                sectors: config.sectors || [],
                 beats: config.beats || [],
-                stats: config.stats || { total_markers: 0, total_carriageways: 0, total_zones: 0 },
-                pagination: config.pagination || { current_page: 1, last_page: 1, total: 0 },
+                stats: stats || { total_markers: 0, total_carriageways: 0, total_zones: 0 },
+                pagination: pagination || { current_page: 1, last_page: 1, total: 0 },
                 search: '',
                 density: 'spacious',
-                filterCarriageway: '',
                 filterZone: '',
                 viewMode: 'table',
-                sortBy: 'km_marker',
+                sortBy: 'km_numeric',
                 sortDirection: 'asc',
                 page: 1,
+                perPage: 15,
                 loading: false,
                 showModal: false,
                 modalMode: 'add',
@@ -608,22 +620,22 @@
                 confirmConfig: { title: '', message: '', icon: '', isDanger: false, action: null },
                 form: {
                     id: null,
-                    carriageway_id: '',
+                    road_name: '',
                     km_marker: '',
 
                     beat_id: '',
                     sector_id: '',
                     zone_id: '',
-                    loc: ''
+                    location_name: ''
                 },
 
                 init() {
                     this.$watch('search', () => { this.page = 1; this.fetchData(); });
-                    this.$watch('filterCarriageway', () => { this.page = 1; this.fetchData(); });
                     this.$watch('filterZone', () => { this.page = 1; this.fetchData(); });
                     this.$watch('sortBy', () => { this.fetchData(); });
                     this.$watch('sortDirection', () => { this.fetchData(); });
                     this.$watch('page', () => { this.fetchData(); });
+                    this.$watch('perPage', () => { this.page = 1; this.fetchData(); });
                 },
 
                 async fetchData() {
@@ -631,8 +643,8 @@
                     try {
                         const params = new URLSearchParams({
                             page: this.page,
+                            per_page: this.perPage,
                             search: this.search,
-                            carriageway_id: this.filterCarriageway,
                             zone_id: this.filterZone,
                             sort_by: this.sortBy,
                             sort_dir: this.sortDirection
@@ -658,28 +670,33 @@
                     }
                 },
 
-                getVisiblePages() {
-                    const current = this.pagination.current_page;
-                    const last = this.pagination.last_page;
+                pagesToShow() {
+                    const pages = [];
                     const delta = 2;
+                    const left = this.page - delta;
+                    const right = this.page + delta + 1;
                     const range = [];
                     const rangeWithDots = [];
-
-                    range.push(1);
-                    for (let i = current - delta; i <= current + delta; i++) {
-                        if (i > 1 && i < last) range.push(i);
-                    }
-                    if (last > 1) range.push(last);
-
                     let l;
+
+                    for (let i = 1; i <= this.pagination.last_page; i++) {
+                        if (i === 1 || i === this.pagination.last_page || (i >= left && i < right)) {
+                            range.push(i);
+                        }
+                    }
+
                     for (let i of range) {
                         if (l) {
-                            if (i - l === 2) rangeWithDots.push(l + 1);
-                            else if (i - l !== 1) rangeWithDots.push('...');
+                            if (i - l === 2) {
+                                rangeWithDots.push(l + 1);
+                            } else if (i - l !== 1) {
+                                rangeWithDots.push('...');
+                            }
                         }
                         rangeWithDots.push(i);
                         l = i;
                     }
+
                     return rangeWithDots;
                 },
 
@@ -696,7 +713,7 @@
 
 
                 resetForm() {
-                    this.form = { id: null, carriageway_id: '', km_marker: '', beat_id: '', sector_id: '', zone_id: '', loc: '' };
+                    this.form = { id: null, road_name: '', km_marker: '', beat_id: '', sector_id: '', zone_id: '', location_name: '' };
                 },
 
                 viewItem(item) {
@@ -717,8 +734,8 @@
                     this.confirmConfig = {
                         title: willBeActive ? 'Activate Marker' : 'Deactivate Marker',
                         message: willBeActive 
-                            ? `Are you sure you want to activate capability for spatial marker <strong>${item.loc}</strong>? Operational tracking will resume.`
-                            : `Are you sure you want to restrict spatial marker <strong>${item.loc}</strong>? Capabilities may be taken offline.`,
+                            ? `Are you sure you want to activate capability for spatial marker <strong>${item.location_name}</strong>? Operational tracking will resume.`
+                            : `Are you sure you want to restrict spatial marker <strong>${item.location_name}</strong>? Capabilities may be taken offline.`,
                         icon: 'fa-power-off',
                         isDanger: !willBeActive,
                         action: async () => {
@@ -824,5 +841,4 @@
             };
         }
     </script>
-    @endpush
-@endsection
+@endpush

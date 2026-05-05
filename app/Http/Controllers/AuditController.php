@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use Spatie\Activitylog\Models\Activity;
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 
 class AuditController extends Controller
@@ -10,22 +10,23 @@ class AuditController extends Controller
     public function index(Request $request)
     {
         $this->authorize('system.audit_view');
-        $query = Activity::with(['causer', 'subject'])
+        
+        $query = AuditLog::with('user')
             ->orderBy('created_at', 'desc');
 
-        // Filter by event type (created, updated, deleted)
+        // Filter by action (equivalent to event)
         if ($request->filled('event')) {
-            $query->where('event', $request->input('event'));
+            $query->where('action', $request->input('event'));
         }
 
-        // Filter by subject type (model class name, case-insensitive partial match)
+        // Filter by table (equivalent to subject_type)
         if ($request->filled('subject_type')) {
-            $query->where('subject_type', 'like', '%' . $request->input('subject_type') . '%');
+            $query->where('table_name', 'like', '%' . $request->input('subject_type') . '%');
         }
 
         // Filter by causer username
         if ($request->filled('causer')) {
-            $query->whereHasMorph('causer', '*', function ($q) use ($request) {
+            $query->whereHas('user', function ($q) use ($request) {
                 $q->where('username', 'like', '%' . $request->input('causer') . '%');
             });
         }

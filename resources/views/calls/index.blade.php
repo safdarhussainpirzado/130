@@ -412,11 +412,25 @@
                             Showing <span class="text-blue-900" x-text="((page - 1) * perPage) + 1"></span> to <span class="text-blue-900" x-text="Math.min(page * perPage, totalRecords)"></span> of <span class="text-blue-900" x-text="totalRecords"></span> Trace Entities
                         </div>
                         <div class="flex items-center gap-2">
-                            <button @click="page--" :disabled="page === 1" class="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-all"><i class="fa-solid fa-chevron-left"></i></button>
-                            <template x-for="p in totalPages" :key="p">
-                                <button @click="page = p" :class="page === p ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/30' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'" class="w-10 h-10 rounded-xl border font-black text-xs transition-all" x-text="p"></button>
+                            <!-- First/Next -->
+                            <button @click="page = 1" :disabled="page === 1" class="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-400 disabled:opacity-30 hover:bg-slate-50 transition-all font-black text-[10px] uppercase">First</button>
+                            <button @click="page++" :disabled="page === totalPages" class="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-all"><i class="fa-solid fa-chevron-right"></i></button>
+                            
+                            <!-- Sliding Window -->
+                            <template x-for="p in pagesToShow()" :key="p">
+                                <div class="flex items-center">
+                                    <template x-if="p === '...'">
+                                        <span class="px-2 text-slate-300 font-bold">...</span>
+                                    </template>
+                                    <template x-if="p !== '...'">
+                                        <button @click="page = p" :class="page === p ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/30' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'" class="w-10 h-10 rounded-xl border font-black text-xs transition-all" x-text="p"></button>
+                                    </template>
+                                </div>
                             </template>
-                            <button @click="page++" :disabled="page === totalPages" class="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-all"><i class="fa-solid fa-chevron-right"></i></button>
+
+                            <!-- Prev/Last -->
+                            <button @click="page--" :disabled="page === 1" class="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-all"><i class="fa-solid fa-chevron-left"></i></button>
+                            <button @click="page = totalPages" :disabled="page === totalPages" class="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-400 disabled:opacity-30 hover:bg-slate-50 transition-all font-black text-[10px] uppercase">Last</button>
                         </div>
                     </div>
 
@@ -1207,6 +1221,36 @@
                         }
                     };
                     this.showConfirmModal = true;
+                },
+
+                pagesToShow() {
+                    const pages = [];
+                    const delta = 2;
+                    const left = this.page - delta;
+                    const right = this.page + delta + 1;
+                    const range = [];
+                    const rangeWithDots = [];
+                    let l;
+
+                    for (let i = 1; i <= this.totalPages; i++) {
+                        if (i === 1 || i === this.totalPages || (i >= left && i < right)) {
+                            range.push(i);
+                        }
+                    }
+
+                    for (let i of range) {
+                        if (l) {
+                            if (i - l === 2) {
+                                rangeWithDots.push(l + 1);
+                            } else if (i - l !== 1) {
+                                rangeWithDots.push('...');
+                            }
+                        }
+                        rangeWithDots.push(i);
+                        l = i;
+                    }
+
+                    return rangeWithDots;
                 },
 
                 async sendReminder(item) {

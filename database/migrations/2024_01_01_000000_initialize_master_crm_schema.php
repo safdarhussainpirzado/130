@@ -355,20 +355,6 @@ return new class extends Migration {
             $table->timestamp('failed_at')->useCurrent();
         });
 
-        // Spatie Activity Log table
-        Schema::connection(config('activitylog.database_connection'))->create(config('activitylog.table_name'), function (Blueprint $table) {
-            $table->bigIncrements('id');
-            $table->string('log_name')->nullable();
-            $table->text('description');
-            $table->nullableMorphs('subject', 'subject');
-            $table->string('event')->nullable();
-            $table->nullableMorphs('causer', 'causer');
-            $table->json('properties')->nullable();
-            $table->uuid('batch_uuid')->nullable();
-            $table->timestamps();
-            $table->index('log_name');
-        });
-
         Schema::enableForeignKeyConstraints();
 
         /* ── 7. Performance Optimizations (Partitioning & Triggers) ───── */
@@ -446,7 +432,6 @@ return new class extends Migration {
     public function down(): void {
         Schema::disableForeignKeyConstraints();
         $tables = [
-            config('activitylog.table_name'),
             'password_histories', 'login_logs', 'outgoing_calls', 'system_settings', 'notifications', 'tts_scripts', 'audit_logs',
             'call_status_history', 'calls', 'vehicle_types', 'call_sub_types', 'call_types', 'user_scopes', 'users', 'role_permissions', 'permissions', 'roles', 
             'designations', 'offices', 'carriageways',

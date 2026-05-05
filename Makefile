@@ -30,7 +30,7 @@ migrate-legacy:
 	@rm -f staging_raw.sql
 	@for table in designations calls call_status_history users user_scopes beats sectors zones call_types call_sub_types vehicle_types regions; do \
 		echo "  -> Extracting $$table..." ; \
-		sed -n "/-- Table structure for table \`$$table\`/,/-- Table structure for table \`/p" Dump20260505_legacy.sql | grep -v "\-\- Table structure for table \`" >> staging_raw.sql || true ; \
+		sed -n "/-- Table structure for table \`$$table\`/,/-- Table structure for table \`/p" Dump20260505_leg.sql | grep -v "\-\- Table structure for table \`" >> staging_raw.sql || true ; \
 	done
 	
 	@# Rename target tables to legacy_* in all contexts (DROP, CREATE, INSERT, etc.)

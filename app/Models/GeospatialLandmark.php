@@ -33,4 +33,19 @@ class GeospatialLandmark extends Model
     {
         return $this->belongsTo(Office::class, 'office_id');
     }
+
+    public function getZoneAttribute()
+    {
+        return $this->office?->zone();
+    }
+
+    public function getSectorAttribute()
+    {
+        return $this->office?->sector();
+    }
+
+    public function getStatusAttribute()
+    {
+        return 'active'; // Default for now
+    }
 }

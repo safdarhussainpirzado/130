@@ -14,9 +14,11 @@ class ProfileController extends Controller
     /**
      * Display the user's profile form.
      */
-    public function edit(Request $request): RedirectResponse
+    public function edit(Request $request): View
     {
-        return redirect()->to($request->user()->getLandingPageRoute());
+        return view('profile.edit', [
+            'user' => $request->user(),
+        ]);
     }
 
     /**

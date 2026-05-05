@@ -274,6 +274,18 @@ class RolesAndPermissionsSeeder extends Seeder
                 'module'       => 'geography',
                 'description'  => 'Create, update, or delete highway segments.',
             ],
+            [
+                'name'         => 'geography.geospatial.view',
+                'display_name' => 'View Geospatial Markers',
+                'module'       => 'geography',
+                'description'  => 'Browse landmarks and map markers.',
+            ],
+            [
+                'name'         => 'geography.geospatial.manage',
+                'display_name' => 'Manage Geospatial Markers',
+                'module'       => 'geography',
+                'description'  => 'Create, update, or delete map landmarks.',
+            ],
 
             /* ── SYSTEM module ────────────────────────────────────────── */
             [
@@ -307,6 +319,18 @@ class RolesAndPermissionsSeeder extends Seeder
                 'display_name' => 'Update Profile',
                 'module'       => 'profile',
                 'description'  => 'Update personal account settings.',
+            ],
+            [
+                'name'         => 'profile.self_manage',
+                'display_name' => 'Self Management',
+                'module'       => 'profile',
+                'description'  => 'Manage own profile details.',
+            ],
+            [
+                'name'         => 'profile.password_change',
+                'display_name' => 'Password Change',
+                'module'       => 'profile',
+                'description'  => 'Change own password.',
             ],
         ];
 
@@ -379,9 +403,13 @@ class RolesAndPermissionsSeeder extends Seeder
                 'geography.offices.update',
                 'geography.carriageways.view',
                 'geography.carriageways.manage',
+                'geography.geospatial.view',
+                'geography.geospatial.manage',
                 'reports.view',
                 'system.settings.view',
                 'profile.update',
+                'profile.self_manage',
+                'profile.password_change',
             ],
             'super_admin' => array_column($permissions, 'name'),
         ];

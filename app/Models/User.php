@@ -9,20 +9,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-use Spatie\Activitylog\Traits\LogsActivity;
-use Spatie\Activitylog\LogOptions;
-
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, LogsActivity;
-
-    public function getActivitylogOptions(): LogOptions
-    {
-        return LogOptions::defaults()
-            ->logFillable()
-            ->logOnlyDirty()
-            ->dontLogIfAttributesChangedOnly(['last_login_at', 'last_login_ip']);
-    }
+    use HasFactory, Notifiable;
 
     protected $fillable = [
         'designation_id',

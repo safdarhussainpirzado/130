@@ -640,6 +640,13 @@
                             <span class="nav-label">Highway Registry</span>
                             <span class="nav-tooltip">Highways</span>
                         </a>
+
+                        <a href="{{ route('admin.geospatial-markers.index') }}"
+                            class="nav-item {{ request()->routeIs('admin.geospatial-markers.*') ? 'active' : '' }}">
+                            <span class="nav-icon text-emerald-500"><i class="fa-solid fa-location-dot"></i></span>
+                            <span class="nav-label">Geospatial Markers</span>
+                            <span class="nav-tooltip">Map Markers</span>
+                        </a>
                     @endcanany
 
                     @can('reports.view')
@@ -665,15 +672,22 @@
                             <a href="{{ route('admin.roles.index') }}"
                                 class="nav-item {{ request()->routeIs('admin.roles.*') ? 'active' : '' }}">
                                 <span class="nav-icon"><i class="fa-solid fa-fingerprint"></i></span>
-                                <span class="nav-label">Security Vault</span>
+                                <span class="nav-label">Roles Management</span>
                                 <span class="nav-tooltip">Roles</span>
                             </a>
 
                             <a href="{{ route('admin.permissions.index') }}"
                                 class="nav-item {{ request()->routeIs('admin.permissions.*') ? 'active' : '' }}">
                                 <span class="nav-icon"><i class="fa-solid fa-key"></i></span>
-                                <span class="nav-label">Capability Registry</span>
+                                <span class="nav-label">Permission Management</span>
                                 <span class="nav-tooltip">Permissions</span>
+                            </a>
+
+                            <a href="{{ route('admin.audit.index') }}"
+                                class="nav-item {{ request()->routeIs('admin.audit.*') ? 'active' : '' }}">
+                                <span class="nav-icon"><i class="fa-solid fa-fingerprint"></i></span>
+                                <span class="nav-label">Security Audit Logs</span>
+                                <span class="nav-tooltip">Security Audit Logs</span>
                             </a>
                         @endcan
 
@@ -692,15 +706,17 @@
                 <!-- User Profile Footer -->
                 <div class="border-t border-slate-100 p-3 shrink-0">
                     <div class="flex items-center gap-3 px-1">
-                        <div
-                            class="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-black text-sm shrink-0 shadow-sm">
-                            {{ strtoupper(substr(Auth::user()->username ?? 'U', 0, 1)) }}
-                        </div>
-                        <div class="flex flex-col min-w-0 sidebar-user-label flex-1">
-                            <span
-                                class="text-xs font-black text-navy-900 tracking-tight truncate">{{ strtoupper(str_replace('_', ' ', Auth::user()->username ?? 'nhmp_admin')) }}</span>
-                            <span class="text-[8px] font-black text-blue-500 uppercase tracking-widest mt-0.5">{{ Auth::user()?->getRoleTitle() ?? 'System Commander' }}</span>
-                        </div>
+                        <a href="{{ route('profile.edit') }}" class="flex items-center gap-3 flex-1 min-w-0 hover:bg-slate-50 p-1 rounded-xl transition-colors group">
+                            <div
+                                class="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-black text-sm shrink-0 shadow-sm group-hover:scale-110 transition-transform">
+                                {{ strtoupper(substr(Auth::user()->username ?? 'U', 0, 1)) }}
+                            </div>
+                            <div class="flex flex-col min-w-0 sidebar-user-label flex-1">
+                                <span
+                                    class="text-xs font-black text-navy-900 tracking-tight truncate">{{ strtoupper(str_replace('_', ' ', Auth::user()->username ?? 'nhmp_admin')) }}</span>
+                                <span class="text-[8px] font-black text-blue-500 uppercase tracking-widest mt-0.5">{{ Auth::user()?->getRoleTitle() ?? 'System Commander' }}</span>
+                            </div>
+                        </a>
                         <form method="POST" action="{{ route('logout') }}" data-no-pjax
                             class="sidebar-user-label shrink-0">
                             @csrf

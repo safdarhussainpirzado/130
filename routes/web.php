@@ -11,6 +11,7 @@ use App\Http\Controllers\OfficeController;
 use App\Http\Controllers\CarriagewayController;
 use App\Http\Controllers\AuditController;
 use App\Http\Controllers\TtsScriptController;
+use App\Http\Controllers\GeospatialMarkerController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -73,6 +74,9 @@ Route::middleware('auth')->group(function () {
             
             Route::resource('carriageways', CarriagewayController::class);
             Route::post('carriageways/{carriageway}/toggle-status', [CarriagewayController::class, 'toggleStatus'])->name('carriageways.toggleStatus')->middleware('can:geography.carriageways.manage');
+
+            Route::resource('geospatial-markers', GeospatialMarkerController::class)->middleware('can:geography.geospatial.view');
+            Route::post('geospatial-markers/{geospatialMarker}/toggle-status', [GeospatialMarkerController::class, 'toggleStatus'])->name('admin.geospatial-markers.toggleStatus')->middleware('can:geography.geospatial.manage');
         });
     });
     

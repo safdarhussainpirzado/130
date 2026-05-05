@@ -5,20 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-
-use Spatie\Activitylog\Traits\LogsActivity;
-use Spatie\Activitylog\LogOptions;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Call extends Model
 {
-    use LogsActivity;
+    use HasFactory;
 
-    public function getActivitylogOptions(): LogOptions
-    {
-        return LogOptions::defaults()
-            ->logFillable()
-            ->logOnlyDirty();
-    }
     protected $fillable = [
         'call_number',
         'agent_id',
