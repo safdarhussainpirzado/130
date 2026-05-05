@@ -249,7 +249,8 @@
         shiftDeployment: @js($shiftDeployment),
         slaValue: @js($slaValue),
         hourlyLabels: @js($hourlyLabels),
-        hourlyData: @js($hourlyData)
+        hourlyData: @js($hourlyData),
+        sunburstData: @js($sunburstData)
     };
 </script>
 
@@ -375,12 +376,6 @@
                 <div class="flex-1 min-w-0">
                     <div class="ct">Activity Heatmap</div>
                     <div class="cst">Hourly Density · Last 7 Days</div>
-                </div>
-                {{-- Filter --}}
-                <div class="fp shrink-0" id="hmFilter">
-                    <button class="on" data-range="7"  onclick="setHmRange(7,this)">7d</button>
-                    <button            data-range="14" onclick="setHmRange(14,this)">14d</button>
-                    <button            data-range="30" onclick="setHmRange(30,this)">30d</button>
                 </div>
                 {{-- Legend --}}
                 <div class="flex items-center gap-1 text-[8px] font-black text-slate-400 shrink-0 ml-2">
@@ -616,8 +611,8 @@
             <div class="ch">
                 <div class="ci bg-orange-100"><i class="fa-solid fa-road text-orange-600"></i></div>
                 <div>
-                    <div class="ct">Region Wise Help Percentage</div>
-                    <div class="cst">By Region</div>
+                    <div class="ct">Zone Wise Helps</div>
+                    <div class="cst">By Zone Distribution</div>
                 </div>
             </div>
             <div style="height:170px; position:relative;">
@@ -643,18 +638,18 @@
         {{-- Sector Coverage Radar --}}
         <div class="bc ac-pnk">
             <div class="ch">
-                <div class="ci bg-pink-100"><i class="fa-solid fa-earth-asia text-pink-600"></i></div>
+                <div class="ci bg-pink-100"><i class="fa-solid fa-sun text-pink-600"></i></div>
                 <div class="flex-1">
-                    <div class="ct">Sector Coverage Load</div>
-                    <div class="cst">Help Density Per Sector</div>
+                    <div class="ct">Operations Sunburst</div>
+                    <div class="cst">Zone → Sector → Category</div>
                 </div>
                 <div class="fp shrink-0">
                     <button class="on">Today</button>
                     <button>Week</button>
                 </div>
             </div>
-            <div style="height:200px; position:relative;" class="flex-1">
-                <canvas id="sectorRadarChart" role="img" aria-label="Radar chart sector help load">Sector coverage radar.</canvas>
+            <div style="height:280px; position:relative;" class="flex-1">
+                <canvas id="sunburstChart" role="img" aria-label="Sunburst chart operations distribution">Operational sunburst chart.</canvas>
             </div>
         </div>
 
@@ -854,7 +849,7 @@ function dashboardApp(data) {
                 this.buildPriorityChart(this.priorityDist);
                 this.buildWeeklyChart(this.labels, this.values);
                 this.buildRoadChart(this.carriageTypeSplit);
-                this.buildSectorRadarChart(this.sectorLoad);
+                this.buildSunburstChart(this.sunburstData);
                 this.buildSectorPolarChart(this.sectorLoad);
 
                 this.buildAgentChart(this.agentPerf);
@@ -1034,18 +1029,29 @@ function dashboardApp(data) {
                 data: {
                     labels: dates.map(d => d.slice(5).replace('-','/')),
                     datasets: [
-                        { label:'P1', data:get(1), backgroundColor:'#f43f5e', borderRadius:4, stack:'s', barPercentage:.7 },
-                        { label:'P2', data:get(2), backgroundColor:'#f59e0b', borderRadius:4, stack:'s', barPercentage:.7 },
-                        { label:'P3', data:get(3), backgroundColor:'#0ea5e9', borderRadius:4, stack:'s', barPercentage:.7 }
+                        { label:'P1 Critical', data:get(1), backgroundColor:'#f43f5e', borderRadius:4, stack:'s', barPercentage:.7 },
+                        { label:'P2 Urgent', data:get(2), backgroundColor:'#f59e0b', borderRadius:4, stack:'s', barPercentage:.7 },
+                        { label:'P3 Routine', data:get(3), backgroundColor:'#0ea5e9', borderRadius:4, stack:'s', barPercentage:.7 }
                     ]
                 },
                 options: {
                     responsive:true, maintainAspectRatio:false,
+                    interaction: { mode: 'index', intersect: false },
                     scales: {
                         x:{ stacked:true, grid:{ display:false }, ticks:{ font:{ size:9, weight:'bold' }, maxRotation:0, autoSkip:false } },
                         y:{ stacked:true, grid:{ color:'#f8fafc' }, border:{ display:false }, ticks:{ font:{ size:9 } } }
                     },
-                    plugins:{ legend:{ display:false } }
+                    plugins:{ 
+                        legend:{ display:false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            padding: 12,
+                            titleFont: { size: 12, weight: 'bold' },
+                            bodyFont: { size: 11 },
+                            cornerRadius: 8,
+                            boxPadding: 4
+                        }
+                    }
                 }
             });
         },
@@ -1094,26 +1100,147 @@ function dashboardApp(data) {
             });
         },
 
-        /* ── Sector Radar ──────────────────────── */
-        buildSectorRadarChart(data) {
-            const ctx = document.getElementById('sectorRadarChart');
+        /* ── Operations Sunburst Chart (Logical & Dynamic) ────────── */
+        buildSunburstChart(raw) {
+            const ctx = document.getElementById('sunburstChart');
             if (!ctx) return;
+            
+            const zones = Object.keys(raw);
+            const palette = ['#0ea5e9','#10b981','#8b5cf6','#f59e0b','#f43f5e','#f97316','#ec4899','#6366f1','#14b8a6','#facc15'];
+            
+            const ds1Labels = []; const ds1Data = []; const ds1Colors = [];
+            const ds2Labels = []; const ds2Data = []; const ds2Colors = []; const ds2ParentZones = [];
+            
+            zones.forEach((zName, zi) => {
+                const z = raw[zName];
+                const baseColor = palette[zi % palette.length];
+                ds1Labels.push(zName);
+                ds1Data.push(z.count);
+                ds1Colors.push(baseColor);
+                
+                Object.keys(z.sectors).forEach((sName, si) => {
+                    const s = z.sectors[sName];
+                    ds2Labels.push(sName);
+                    ds2Data.push(s.count);
+                    ds2Colors.push(baseColor + (si % 2 === 0 ? 'DD' : 'BB'));
+                    ds2ParentZones.push({ name: zName, total: z.count });
+                });
+            });
+
             new Chart(ctx, {
-                type: 'radar',
+                type: 'doughnut',
                 data: {
-                    labels: data.map(d => d.name),
-                    datasets:[{
-                        label:'Helps', data:data.map(d=>+d.count),
-                        backgroundColor:'rgba(236,72,153,.12)', borderColor:'#ec4899', borderWidth:2.5,
-                        pointBackgroundColor:'#ec4899', pointBorderColor:'#fff', pointBorderWidth:2, pointRadius:4
-                    }]
+                    datasets: [
+                        { // Outer: Sectors
+                            data: ds2Data, backgroundColor: ds2Colors, labels: ds2Labels,
+                            parents: ds2ParentZones, weight: 1.6, borderWidth: 2, borderColor: '#fff'
+                        },
+                        { // Inner: Zones
+                            data: ds1Data, backgroundColor: ds1Colors, labels: ds1Labels,
+                            weight: 1, borderWidth: 3, borderColor: '#fff'
+                        }
+                    ]
                 },
                 options: {
-                    responsive:true, maintainAspectRatio:false,
-                    scales:{ r:{ min: 0, grid:{ color:'rgba(0,0,0,.06)' }, ticks:{ display:false, backdropColor:'transparent' }, pointLabels:{ font:{ size:10, weight:'bold' }, color:'#64748b' } } },
-                    plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: (ctx) => `Helps: ${ctx.raw}` } } }
-                }
+                    responsive: true, maintainAspectRatio: false, cutout: '45%',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: false } // Disable default to use custom center text
+                    },
+                    onHover: (event, elements) => {
+                        const canvas = ctx;
+                        if (elements.length) {
+                            const el = elements[0];
+                            const dataset = el.datasetIndex;
+                            const idx = el.index;
+                            const label = chart.data.datasets[dataset].labels[idx];
+                            const val = chart.data.datasets[dataset].data[idx];
+                            
+                            let pathText = label;
+                            if (chart.data.datasets[dataset].parents) {
+                                pathText = `${chart.data.datasets[dataset].parents[idx].name} > ${label}`;
+                            }
+                            
+                            window._activeSunburstPath = { path: pathText, count: val };
+                        } else {
+                            window._activeSunburstPath = null;
+                        }
+                    }
+                },
+                plugins: [{
+                    id: 'sunburstLogicalLabels',
+                    afterDraw(chart) {
+                        const { ctx, data } = chart;
+                        ctx.save();
+                        
+                        // Draw Center Breadcrumb
+                        const centerX = chart.chartArea.left + chart.chartArea.width / 2;
+                        const centerY = chart.chartArea.top + chart.chartArea.height / 2;
+                        
+                        if (window._activeSunburstPath) {
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            
+                            // Mission Count
+                            ctx.font = '900 24px Montserrat, sans-serif';
+                            ctx.fillStyle = '#1e293b';
+                            ctx.fillText(window._activeSunburstPath.count, centerX, centerY - 10);
+                            
+                            // Path
+                            ctx.font = 'bold 9px Montserrat, sans-serif';
+                            ctx.fillStyle = '#64748b';
+                            ctx.fillText(window._activeSunburstPath.path.toUpperCase(), centerX, centerY + 15);
+                        } else {
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.font = '900 12px Montserrat, sans-serif';
+                            ctx.fillStyle = '#94a3b8';
+                            ctx.fillText('HOVER FOR DETAILS', centerX, centerY);
+                        }
+
+                        // Draw Rotated Arc Labels
+                        [1, 0].forEach(datasetIndex => {
+                            const meta = chart.getDatasetMeta(datasetIndex);
+                            meta.data.forEach((element, i) => {
+                                const label = data.datasets[datasetIndex].labels[i];
+                                const value = data.datasets[datasetIndex].data[i];
+                                
+                                if (element.circumference < 0.25) return;
+
+                                const view = element;
+                                const centerAngle = view.startAngle + (view.endAngle - view.startAngle) / 2;
+                                const radius = view.innerRadius + (view.outerRadius - view.innerRadius) / 2;
+
+                                ctx.save();
+                                ctx.translate(centerX, centerY);
+                                ctx.rotate(centerAngle);
+                                ctx.translate(radius, 0);
+
+                                // Flip text if it's in the left half to keep it readable
+                                const flip = (centerAngle > Math.PI / 2 && centerAngle < 1.5 * Math.PI);
+                                if (flip) ctx.rotate(Math.PI);
+
+                                ctx.textAlign = 'center';
+                                ctx.textBaseline = 'middle';
+                                ctx.fillStyle = '#fff';
+                                
+                                // Draw Name
+                                ctx.font = '900 8px Montserrat, sans-serif';
+                                const shortLabel = label.length > 10 ? label.substring(0,8)+'..' : label;
+                                ctx.fillText(shortLabel, 0, -5);
+                                
+                                // Draw Number
+                                ctx.font = 'bold 9px Montserrat, sans-serif';
+                                ctx.fillText(value, 0, 5);
+
+                                ctx.restore();
+                            });
+                        });
+                        ctx.restore();
+                    }
+                }]
             });
+            const chart = Chart.getChart(ctx);
         },
 
         /* ── Sector Polar ──────────────────────── */
@@ -1136,28 +1263,100 @@ function dashboardApp(data) {
             });
         },
 
-        /* ── Agent Leaderboard ───────────────── */
+        /* ── Agent Lollipop Leaderboard (High-Fidelity) ────────── */
         buildAgentChart(data) {
             const ctx = document.getElementById('agentChart');
             if (!ctx) return;
-            const cols = ['#0ea5e9','#10b981','#8b5cf6','#f59e0b','#f43f5e'];
-            window._dashboardCharts.agent = new Chart(ctx, {
+            
+            const labels = data.map(d => {
+                const name = d.username || '';
+                return name.replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+            });
+            const values = data.map(d => +d.total_calls);
+            const palette = ['#0ea5e9','#10b981','#8b5cf6','#f59e0b','#f43f5e'];
+
+            new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: data.map(d => {
-                        const name = d.username || '';
-                        return name.replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
-                    }),
-                    datasets:[{ label:'Resolved', data:data.map(d=>+d.total_calls), backgroundColor:cols, borderRadius:7, barThickness:16 }]
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Stick',
+                            data: values,
+                            backgroundColor: palette, // Full solid color
+                            barThickness: 12, // Increased thickness
+                            borderRadius: 20,
+                            order: 2
+                        }
+                    ]
                 },
                 options: {
-                    indexAxis:'y', responsive:true, maintainAspectRatio:false,
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: { padding: { right: 50, top: 20, bottom: 20 } },
                     scales: {
-                        x:{ grid:{ display:false }, ticks:{ font:{ size:9 } } },
-                        y:{ grid:{ display:false }, ticks:{ font:{ size:10, weight:'bold' } } }
+                        x: { display: false, grid: { display: false } },
+                        y: { 
+                            display: false, // Hide Y axis completely
+                            grid: { display: false }
+                        }
                     },
-                    plugins:{ legend:{ display:false } }
-                }
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.98)',
+                            padding: 12, cornerRadius: 10,
+                            callbacks: { label: (context) => ` Resolved Missions: ${context.raw}` }
+                        }
+                    }
+                },
+                plugins: [{
+                    id: 'lollipopDesign',
+                    afterDatasetsDraw(chart) {
+                        const { ctx, data, scales: { x, y } } = chart;
+                        ctx.save();
+                        
+                        data.labels.forEach((label, i) => {
+                            const val = data.datasets[0].data[i];
+                            const px = x.getPixelForValue(val);
+                            const py = y.getPixelForValue(label);
+                            const color = palette[i % palette.length];
+                            const startX = x.left;
+                            
+                            // 1. Draw Stick (Already drawn by bar type, but we can enhance it if needed)
+                            
+                            // 2. Draw Glow for Head
+                            ctx.shadowBlur = 15;
+                            ctx.shadowColor = color + '88';
+                            
+                            // 3. Draw Circle Head
+                            ctx.beginPath();
+                            ctx.arc(px, py, 16, 0, Math.PI * 2);
+                            ctx.fillStyle = color;
+                            ctx.fill();
+                            
+                            // 4. Reset shadow for text
+                            ctx.shadowBlur = 0;
+                            
+                            // 5. Draw Value inside head
+                            ctx.fillStyle = '#fff';
+                            ctx.font = '900 11px Montserrat, sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText(val, px, py);
+                            
+                            // 6. Draw Agent Name above the stick
+                            ctx.fillStyle = '#1e293b';
+                            ctx.font = '900 10px Montserrat, sans-serif';
+                            ctx.textAlign = 'left';
+                            ctx.textBaseline = 'bottom';
+                            // Place it slightly above the stick (py - 10)
+                            ctx.fillText(label, startX, py - 10);
+                        });
+                        ctx.restore();
+                    }
+                }]
             });
         },
 
@@ -1209,7 +1408,8 @@ function dashboardApp(data) {
                     labels: labels,
                     datasets:[{
                         label:'Tasks', data:values,
-                        backgroundColor:'#3b82f6', borderRadius:4, barThickness:16
+                        backgroundColor:'#3b82f6', borderRadius:4, 
+                        categoryPercentage: 0.8, barPercentage: 0.9
                     }]
                 },
                 options: {

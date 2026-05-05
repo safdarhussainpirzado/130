@@ -33,14 +33,14 @@
 
         <!-- STATS CARDS -->
         <div class="grid grid-cols-2 md:grid-cols-6 lg:grid-cols-6 gap-4">
-            <!-- Administrative Card -->
+            <!-- HQ Administrators Card -->
             <div @click="filterStatus = (filterStatus === 'admin' ? '' : 'admin')" :class="filterStatus === 'admin' ? 'card-3d-active amber' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
                 <div class="absolute -top-4 left-4 h-10 w-10 grid place-items-center rounded-xl bg-amber-500 shadow-[0_8px_16px_rgba(245,158,11,0.2)]">
-                    <i class="fas fa-user-shield text-xs text-white"></i>
+                    <i class="fas fa-building-shield text-xs text-white"></i>
                 </div>
                 <div class="p-5 text-right pt-4">
-                    <p class="text-[8px] font-black tracking-widest text-amber-500 uppercase">Administrative</p>
-                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="items.filter(i => i.role && (i.role.name === 'operation_admin' || i.role.name === 'super_admin')).length"></h4>
+                    <p class="text-[8px] font-black tracking-widest text-amber-500 uppercase">Administrators</p>
+                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="items.filter(i => (i.role_name === 'operation_admin' || i.role_name === 'super_admin') && i.scope_unit_type === 'national').length"></h4>
                 </div>
             </div>
 
@@ -373,7 +373,7 @@
 
             <!-- Right Column - Operational Filters -->
             <div class="lg:col-span-3 pb-8 transition-all duration-300" x-show="showSidebar" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-x-4" x-transition:enter-end="opacity-100 translate-x-0" x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100 translate-x-0" x-transition:leave-end="opacity-0 translate-x-4" x-cloak>
-                <div class="lg:sticky lg:top-4 lg:max-h-[calc(100vh-100px)] lg:overflow-y-auto bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col">
+                <div class="lg:sticky lg:top-8 bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col">
                     <div class="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
                         <div class="flex items-center gap-3">
                             <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-blue-600 shadow-sm">
@@ -972,17 +972,39 @@
         window.userManager = function(config) {
             return {
                 items: (config.items || []).map(i => {
-                    const primaryScope = i.active_scopes?.[0];
+                    const primaryScope = i.active_scopes?.[0] || i.scopes?.[0];
                     let unitName = 'National';
                     let unitType = 'national';
+                    let unitId = null;
+                    let parentZoneId = null;
+                    let parentSectorId = null;
+
                     if (primaryScope && primaryScope.office) {
-                        unitName = primaryScope.office.name;
-                        unitType = primaryScope.office.type;
+                        const office = primaryScope.office;
+                        unitName = office.name;
+                        unitType = office.type;
+                        unitId = office.id;
+                        
+                        if (office.type === 'zone') {
+                            parentZoneId = office.id;
+                        } else if (office.type === 'sector') {
+                            parentZoneId = office.parent_id || office.zone_id;
+                            parentSectorId = office.id;
+                        } else if (office.type === 'beat') {
+                            parentSectorId = office.parent_id;
+                            // Attempt to find zone via sector
+                            const sector = config.sectors.find(s => s.id == office.parent_id);
+                            if (sector) parentZoneId = sector.zone_id;
+                        }
                     }
                     return { 
                         ...i, 
                         scope_unit_type: unitType,
-                        scope_unit_name: unitName
+                        scope_unit_name: unitName,
+                        scope_unit_id: unitId,
+                        parent_zone_id: parentZoneId,
+                        parent_sector_id: parentSectorId,
+                        role_name: i.role ? i.role.name : ''
                     };
                 }),
                 roles: config.roles || [],
@@ -1124,33 +1146,24 @@
                         }
                         
                         // Hierarchical & Area Filters
-                        const scopes = item.active_scopes || item.scopes || [];
                         let matchesArea = true;
                         if (this.filterZone || this.filterSector || this.filterBeat || this.filterCallCentre) {
                             matchesArea = false;
-                            for (let s of scopes) {
-                                if (this.filterBeat && s.unit_type === 'beat' && s.unit_id == this.filterBeat) { matchesArea = true; break; }
-                                if (this.filterSector && s.unit_type === 'sector' && s.unit_id == this.filterSector) { matchesArea = true; break; }
-                                if (this.filterZone && s.unit_type === 'zone' && s.unit_id == this.filterZone) { matchesArea = true; break; }
-                                if (this.filterCallCentre && s.unit_type === 'call_centre' && s.unit_id == this.filterCallCentre) { matchesArea = true; break; }
-                                
-                                // Fallback: if we just selected Zone, but user's scope is Beat, check if that beat belongs to the Zone
-                                if (this.filterZone && !this.filterSector && !this.filterBeat) {
-                                    if (s.unit_type === 'sector') {
-                                        const sec = this.sectors.find(sect => sect.id == s.unit_id);
-                                        if (sec && sec.zone_id == this.filterZone) { matchesArea = true; break; }
-                                    }
-                                    if (s.unit_type === 'beat') {
-                                        const bt = this.beats.find(b => b.id == s.unit_id);
-                                        if (bt && bt.zone_id == this.filterZone) { matchesArea = true; break; }
-                                    }
-                                }
-                                // Fallback: if we selected Sector, but user's scope is Beat
-                                if (this.filterSector && !this.filterBeat) {
-                                    if (s.unit_type === 'beat') {
-                                        const bt = this.beats.find(b => b.id == s.unit_id);
-                                        if (bt && bt.sector_id == this.filterSector) { matchesArea = true; break; }
-                                    }
+                            
+                            // Check if user's primary scope matches the selected filters
+                            if (this.filterBeat && item.scope_unit_type === 'beat' && item.scope_unit_id == this.filterBeat) matchesArea = true;
+                            else if (this.filterSector && item.scope_unit_type === 'sector' && item.scope_unit_id == this.filterSector) matchesArea = true;
+                            else if (this.filterZone && item.scope_unit_type === 'zone' && item.scope_unit_id == this.filterZone) matchesArea = true;
+                            else if (this.filterCallCentre && item.scope_unit_type === 'call_centre' && item.scope_unit_id == this.filterCallCentre) matchesArea = true;
+                            
+                            // Hierarchical Fallback: If user is in a Beat, they should show up when filtering by its parent Sector or Zone
+                            if (!matchesArea) {
+                                if (this.filterBeat) {
+                                    // Already checked direct match above
+                                } else if (this.filterSector) {
+                                    if (item.parent_sector_id == this.filterSector) matchesArea = true;
+                                } else if (this.filterZone) {
+                                    if (item.parent_zone_id == this.filterZone) matchesArea = true;
                                 }
                             }
                         }

@@ -23,6 +23,7 @@ return new class extends Migration
         DB::statement("SET SESSION sql_mode = '';");
 
         // 1. Move data from staging to real tables with OFFICE mapping and DATE sanitization
+        $this->migrateDesignationsFromStaging();
         $this->migrateCallsFromStaging();
         $this->migrateHistoryFromStaging();
         $this->migrateUsersFromStaging();
@@ -162,10 +163,26 @@ return new class extends Migration
         }
     }
 
+    private function migrateDesignationsFromStaging(): void
+    {
+        if (Schema::hasTable('legacy_designations')) {
+            $this->command()->info('Mapping designations from legacy data...');
+            // Insert names that don't exist in the new table
+            DB::statement("
+                INSERT IGNORE INTO designations (name, short_code, type, created_at, updated_at)
+                SELECT name, COALESCE(short_code, name), 'Uniform', NOW(), NOW()
+                FROM legacy_designations
+                WHERE name NOT IN (SELECT name FROM designations)
+            ");
+        }
+    }
+
     private function migrateUsersFromStaging(): void
     {
         if (Schema::hasTable('legacy_users')) {
-            $this->command()->info('Migrating users from staging (Sanitizing dates)...');
+            $this->command()->info('Migrating users from staging (Sanitizing dates and mapping designations)...');
+            
+            // Map designations by name to ensure IDs are correct in the new system
             DB::statement("
                 INSERT IGNORE INTO users (
                     id, full_name, email, mobile_no, cnic, designation_id, username, 
@@ -173,13 +190,19 @@ return new class extends Migration
                     last_login_at, created_at, updated_at
                 )
                 SELECT 
-                    id, full_name, email, mobile_no, cnic, designation_id, username, 
-                    password, role_id, is_active, failed_attempts, 
-                    NULLIF(locked_until, '0000-00-00 00:00:00'), 
-                    NULLIF(last_login_at, '0000-00-00 00:00:00'), 
-                    NULLIF(created_at, '0000-00-00 00:00:00'), 
-                    NULLIF(updated_at, '0000-00-00 00:00:00')
-                FROM legacy_users
+                    lu.id, lu.full_name, lu.email, lu.mobile_no, lu.cnic, 
+                    COALESCE(
+                        (SELECT d.id FROM designations d 
+                         JOIN legacy_designations ld ON d.name = ld.name 
+                         WHERE ld.id = lu.designation_id LIMIT 1),
+                        lu.designation_id -- Fallback to legacy ID if no name match (not ideal but better than null if IDs happened to match)
+                    ) as mapped_designation_id,
+                    lu.username, lu.password, lu.role_id, lu.is_active, lu.failed_attempts, 
+                    NULLIF(lu.locked_until, '0000-00-00 00:00:00'), 
+                    NULLIF(lu.last_login_at, '0000-00-00 00:00:00'), 
+                    NULLIF(lu.created_at, '0000-00-00 00:00:00'), 
+                    NULLIF(lu.updated_at, '0000-00-00 00:00:00')
+                FROM legacy_users lu
             ");
         }
     }

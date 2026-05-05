@@ -86,7 +86,7 @@ class DashboardController extends Controller
         $callCategories = DB::table('calls')
             ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
             ->select('call_types.category', DB::raw('count(*) as count'))
-            ->where($analyticalFilter)
+            // Removed analyticalFilter to show ALL calls including unassigned/junk/silent
             ->groupBy('call_types.category')
             ->get();
 
@@ -218,23 +218,20 @@ class DashboardController extends Controller
             ->limit(6)
             ->get();
 
-        // ── 11. Carriage Type Split (Using Region as proxy for type) ────────────────
+        // ── 11. Zone Wise Helps Percentage ────────────────
         $carriageTypeSplit = DB::table('calls')
             ->join('offices as o', 'calls.office_id', '=', 'o.id')
             ->leftJoin('offices as p1', 'o.parent_id', '=', 'p1.id')
             ->leftJoin('offices as p2', 'p1.parent_id', '=', 'p2.id')
-            ->leftJoin('offices as p3', 'p2.parent_id', '=', 'p3.id')
             ->select(
                 DB::raw("CASE 
-                    WHEN o.type = 'region' THEN o.name 
-                    WHEN p1.type = 'region' THEN p1.name 
-                    WHEN p2.type = 'region' THEN p2.name 
-                    WHEN p3.type = 'region' THEN p3.name 
-                    ELSE 'Other' 
+                    WHEN o.type = 'zone' THEN o.name 
+                    WHEN p1.type = 'zone' THEN p1.name 
+                    WHEN p2.type = 'zone' THEN p2.name 
+                    ELSE 'Unassigned/Other' 
                 END as type"),
                 DB::raw('count(*) as count')
             )
-            ->where('calls.office_id', '!=', 1)
             ->groupBy('type')
             ->get();
 
@@ -258,7 +255,53 @@ class DashboardController extends Controller
             ->groupBy('name')
             ->get();
 
-        // ── 13. NHMP Help Line Performance ──────────────────────────────
+        // ── 13. Sunburst Hierarchical Data (Zone -> Sector -> Category) ──
+        $sunburstRaw = DB::table('calls')
+            ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
+            ->join('offices as o', 'calls.office_id', '=', 'o.id')
+            ->leftJoin('offices as p1', 'o.parent_id', '=', 'p1.id')
+            ->leftJoin('offices as p2', 'p1.parent_id', '=', 'p2.id')
+            ->select(
+                DB::raw("CASE 
+                    WHEN o.type = 'zone' THEN o.name 
+                    WHEN p1.type = 'zone' THEN p1.name 
+                    WHEN p2.type = 'zone' THEN p2.name 
+                    ELSE 'Other' 
+                END as zone_name"),
+                DB::raw("CASE 
+                    WHEN o.type = 'sector' THEN o.name 
+                    WHEN p1.type = 'sector' THEN p1.name 
+                    ELSE 'Other' 
+                END as sector_name"),
+                'call_types.category',
+                DB::raw('count(*) as count')
+            )
+            ->where('calls.office_id', '!=', 1) // Exclude HQ / Unassigned
+            ->whereNotNull('calls.office_id')
+            ->groupBy('zone_name', 'sector_name', 'call_types.category')
+            ->get();
+
+        $sunburstData = [];
+        foreach ($sunburstRaw as $row) {
+            if ($row->zone_name === 'Other' || $row->sector_name === 'Other') continue;
+            
+            if (!isset($sunburstData[$row->zone_name])) {
+                $sunburstData[$row->zone_name] = ['count' => 0, 'sectors' => []];
+            }
+            $sunburstData[$row->zone_name]['count'] += $row->count;
+            
+            if (!isset($sunburstData[$row->zone_name]['sectors'][$row->sector_name])) {
+                $sunburstData[$row->zone_name]['sectors'][$row->sector_name] = ['count' => 0, 'categories' => []];
+            }
+            $sunburstData[$row->zone_name]['sectors'][$row->sector_name]['count'] += $row->count;
+            
+            if (!isset($sunburstData[$row->zone_name]['sectors'][$row->sector_name]['categories'][$row->category])) {
+                $sunburstData[$row->zone_name]['sectors'][$row->sector_name]['categories'][$row->category] = 0;
+            }
+            $sunburstData[$row->zone_name]['sectors'][$row->sector_name]['categories'][$row->category] += $row->count;
+        }
+
+        // ── 14. NHMP Help Line Performance ──────────────────────────────
         $avgWaitTime = DB::table('calls')->whereNotNull('wait_time_seconds')->avg('wait_time_seconds') ?? 0;
         $avgTalkTime = DB::table('calls')->whereNotNull('agent_call_duration')->avg('agent_call_duration') ?? 0;
         $avgResponseTime = DB::table('calls')->whereNotNull('response_time_sec')->avg('response_time_sec') ?? 0;
@@ -360,6 +403,25 @@ class DashboardController extends Controller
             ]);
         }
 
+        if (empty($sunburstData)) {
+            $sunburstData = [
+                'North Zone' => [
+                    'count' => 100,
+                    'sectors' => [
+                        'Sector N1' => ['count' => 60, 'categories' => ['Medical' => 30, 'Breakdown' => 30]],
+                        'Sector N2' => ['count' => 40, 'categories' => ['Crime' => 20, 'General' => 20]]
+                    ]
+                ],
+                'South Zone' => [
+                    'count' => 80,
+                    'sectors' => [
+                        'Sector S1' => ['count' => 50, 'categories' => ['Medical' => 25, 'Breakdown' => 25]],
+                        'Sector S2' => ['count' => 30, 'categories' => ['Crime' => 15, 'General' => 15]]
+                    ]
+                ]
+            ];
+        }
+
         if ($pendingAlerts->isEmpty()) {
             $pendingAlerts = collect([
                 (object)[
@@ -429,7 +491,8 @@ class DashboardController extends Controller
             'shiftDeployment',
             'slaValue',
             'slaBreakdown',
-            'helpLineMetrics'
+            'helpLineMetrics',
+            'sunburstData'
         ));
     }
 }
