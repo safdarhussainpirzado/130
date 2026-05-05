@@ -30,8 +30,20 @@ class DashboardController extends Controller
             ? round(($activeSentinelsCount / $totalSystemUsers) * 100)
             : 0;
 
-        $totalSlaCalls = DB::table('calls')->whereIn('status', ['completed', 'pending', 'in_progress'])->count();
-        $completedCalls = DB::table('calls')->where('status', 'completed')->count();
+        $slaFilter = function($query) {
+            $query->whereIn('calls.status', ['completed', 'pending', 'in_progress'])
+                  ->whereNotIn('calls.call_sub_type_id', function($subQuery) {
+                      $subQuery->select('id')->from('call_sub_types')->whereIn('name', ['Junk', 'Silent']);
+                  })
+                  ->where(function($q) {
+                      $q->whereNotIn('calls.call_type_id', function($subQ) {
+                          $subQ->select('id')->from('call_types')->where('name', 'Information');
+                      })->orWhereNotNull('calls.office_id');
+                  });
+        };
+
+        $totalSlaCalls = DB::table('calls')->where($slaFilter)->count();
+        $completedCalls = DB::table('calls')->where($slaFilter)->where('status', 'completed')->count();
         $slaValue = $totalSlaCalls > 0 ? round(($completedCalls / $totalSlaCalls) * 100) : 0;
 
         $slaBreakdown = DB::table('calls')
@@ -41,7 +53,7 @@ class DashboardController extends Controller
                 DB::raw('COUNT(*) as total_calls'),
                 DB::raw('SUM(CASE WHEN calls.status = \'completed\' THEN 1 ELSE 0 END) as completed_calls')
             )
-            ->whereIn('calls.status', ['completed', 'pending', 'in_progress'])
+            ->where($slaFilter)
             ->groupBy('call_types.priority')
             ->get()->keyBy('priority');
 
@@ -58,10 +70,23 @@ class DashboardController extends Controller
             ->limit(10)
             ->get();
 
+        // ── Analytical Filter (Excludes Junk/Silent and Unassigned Info) ──
+        $analyticalFilter = function($query) {
+            $query->whereNotIn('calls.call_sub_type_id', function($subQuery) {
+                      $subQuery->select('id')->from('call_sub_types')->whereIn('name', ['Junk', 'Silent']);
+                  })
+                  ->where(function($q) {
+                      $q->whereNotIn('calls.call_type_id', function($subQ) {
+                          $subQ->select('id')->from('call_types')->where('name', 'Information');
+                      })->orWhereNotNull('calls.office_id');
+                  });
+        };
+
         // ── 3. Call Category Distribution (Donut) ──────────────────────
         $callCategories = DB::table('calls')
             ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
             ->select('call_types.category', DB::raw('count(*) as count'))
+            ->where($analyticalFilter)
             ->groupBy('call_types.category')
             ->get();
 
@@ -76,15 +101,48 @@ class DashboardController extends Controller
             });
 
         // ── 5. Hourly Heatmap (Last 7 Days) ────────────────────────────
-        $heatmapData = DB::table('calls')
+        $heatmapRaw = DB::table('calls')
+            ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
             ->select(
-                DB::raw('DAYOFWEEK(created_at) as day'),
-                DB::raw('HOUR(created_at) as hour'),
+                DB::raw('DAYOFWEEK(calls.created_at) as day'),
+                DB::raw('HOUR(calls.created_at) as hour'),
+                'call_types.name as type',
                 DB::raw('count(*) as count')
             )
-            ->where('created_at', '>=', now()->subDays(7))
-            ->groupBy('day', 'hour')
+            ->where('calls.created_at', '>=', now()->subDays(7))
+            ->where($analyticalFilter)
+            ->groupBy('day', 'hour', 'call_types.name')
             ->get();
+
+        $heatmapData = collect();
+        $dateMap = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $dt = now()->subDays($i);
+            $dateMap[$dt->dayOfWeekIso == 7 ? 1 : $dt->dayOfWeekIso + 1] = $dt->format('M d, Y');
+        }
+
+        foreach (range(1, 7) as $d) {
+            foreach (range(0, 23) as $h) {
+                $heatmapData->push((object)[
+                    'day' => $d,
+                    'hour' => $h,
+                    'date_str' => $dateMap[$d] ?? '',
+                    'count' => 0,
+                    'types' => []
+                ]);
+            }
+        }
+        $heatmapData = $heatmapData->keyBy(function($item) { return $item->day . '-' . $item->hour; });
+
+        foreach ($heatmapRaw as $row) {
+            $key = $row->day . '-' . $row->hour;
+            if ($heatmapData->has($key)) {
+                $item = $heatmapData->get($key);
+                $item->count += $row->count;
+                $item->types[$row->type] = $row->count;
+            }
+        }
+        $heatmapData = $heatmapData->values();
 
         // ── 6. Priority Trajectory (Last 7 Days) ───────────────────────
         $priorityDist = DB::table('calls')
@@ -95,6 +153,7 @@ class DashboardController extends Controller
                 DB::raw('count(*) as count')
             )
             ->where('calls.created_at', '>=', now()->subDays(7))
+            ->where($analyticalFilter)
             ->groupBy('call_types.priority', 'date')
             ->get();
 
@@ -103,6 +162,7 @@ class DashboardController extends Controller
             ->join('users', 'calls.agent_id', '=', 'users.id')
             ->select('users.full_name as username', DB::raw('count(*) as total_calls'))
             ->where('calls.status', 'completed')
+            ->where($analyticalFilter)
             ->groupBy('users.full_name') // Switch to using full_name instead of username
             ->orderBy('total_calls', 'desc')
             ->limit(5)
@@ -120,6 +180,7 @@ class DashboardController extends Controller
                 DB::raw('count(*) as count')
             )
             ->where('beat.type', 'beat')
+            ->where($analyticalFilter)
             ->groupBy('beat.name', 'sector.name', 'zone.name')
             ->orderBy('count', 'desc')
             ->limit(8)
@@ -137,21 +198,22 @@ class DashboardController extends Controller
             ->map(fn($d) => \Carbon\Carbon::parse($d)->format('M d'));
         $chartData = $weeklyDist->pluck('count');
 
-        // ── 10. Zone Load ───────────────────────────────────────────────
-        $zoneLoad = DB::table('calls')
+        // ── 10. Sector Load ───────────────────────────────────────────────
+        $sectorLoad = DB::table('calls')
             ->join('offices as o', 'calls.office_id', '=', 'o.id')
             ->leftJoin('offices as p1', 'o.parent_id', '=', 'p1.id')
-            ->leftJoin('offices as p2', 'p1.parent_id', '=', 'p2.id')
             ->select(
                 DB::raw("CASE 
-                    WHEN o.type = 'zone' THEN o.name 
-                    WHEN p1.type = 'zone' THEN p1.name 
-                    WHEN p2.type = 'zone' THEN p2.name 
-                    ELSE 'National' 
+                    WHEN o.type = 'sector' THEN o.name 
+                    WHEN p1.type = 'sector' THEN p1.name 
+                    ELSE 'Other' 
                 END as name"),
                 DB::raw('count(*) as count')
             )
+            ->where('calls.office_id', '!=', 1)
+            ->where($analyticalFilter)
             ->groupBy('name')
+            ->having('name', '!=', 'Other')
             ->orderBy('count', 'desc')
             ->limit(6)
             ->get();
@@ -168,10 +230,11 @@ class DashboardController extends Controller
                     WHEN p1.type = 'region' THEN p1.name 
                     WHEN p2.type = 'region' THEN p2.name 
                     WHEN p3.type = 'region' THEN p3.name 
-                    ELSE 'General' 
+                    ELSE 'Other' 
                 END as type"),
                 DB::raw('count(*) as count')
             )
+            ->where('calls.office_id', '!=', 1)
             ->groupBy('type')
             ->get();
 
@@ -185,12 +248,13 @@ class DashboardController extends Controller
                     WHEN o.type = 'zone' THEN o.name 
                     WHEN p1.type = 'zone' THEN p1.name 
                     WHEN p2.type = 'zone' THEN p2.name 
-                    ELSE 'National' 
+                    ELSE 'Other' 
                 END as name"),
                 DB::raw('SUM(CASE WHEN calls.status = \'pending\' THEN 1 ELSE 0 END) as pending'),
                 DB::raw('SUM(CASE WHEN calls.status = \'in_progress\' THEN 1 ELSE 0 END) as in_progress'),
                 DB::raw('SUM(CASE WHEN calls.status = \'completed\' THEN 1 ELSE 0 END) as completed')
             )
+            ->where('calls.office_id', '!=', 1)
             ->groupBy('name')
             ->get();
 
@@ -269,13 +333,13 @@ class DashboardController extends Controller
             $chartData   = collect([34, 41, 38, 52, 47, 61, 55]);
         }
 
-        if ($zoneLoad->isEmpty()) {
-            $zoneLoad = collect([
-                (object)['name' => 'North Zone',   'count' => 78],
-                (object)['name' => 'South Zone',   'count' => 62],
-                (object)['name' => 'East Zone',    'count' => 45],
-                (object)['name' => 'West Zone',    'count' => 55],
-                (object)['name' => 'Central Zone', 'count' => 89],
+        if ($sectorLoad->isEmpty()) {
+            $sectorLoad = collect([
+                (object)['name' => 'Rawalpindi Sector', 'count' => 78],
+                (object)['name' => 'Lahore Sector',     'count' => 62],
+                (object)['name' => 'Faisalabad Sector', 'count' => 45],
+                (object)['name' => 'Multan Sector',     'count' => 55],
+                (object)['name' => 'Peshawar Sector',   'count' => 89],
             ]);
         }
 
@@ -360,7 +424,7 @@ class DashboardController extends Controller
             'priorityDist',
             'agentPerformance',
             'beatIntensity',
-            'zoneLoad',
+            'sectorLoad',
             'carriageTypeSplit',
             'shiftDeployment',
             'slaValue',

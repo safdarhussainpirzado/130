@@ -193,6 +193,7 @@ class UserController extends Controller
             'label'        => ['nullable', 'string', 'max:100'],
         ]);
 
+        /* 
         // Enforce exclusivity for specific units if active
         if ($validated['office_id']) {
             $alreadyAssigned = UserScope::where('office_id', $validated['office_id'])
@@ -201,6 +202,7 @@ class UserController extends Controller
                 ->exists();
             abort_if($alreadyAssigned, 422, "This office is already assigned to another user.");
         }
+        */
 
         $scope = $user->scopes()->updateOrCreate(
             ['office_id' => $validated['office_id']],
@@ -269,7 +271,8 @@ class UserController extends Controller
 
             if (!$access) continue;
 
-            // Enforce exclusivity
+            /* 
+            // Enforce exclusivity - REMOVED: High-level offices like HQ can be shared by multiple admins
             if ($officeId) {
                 $alreadyAssigned = UserScope::where('office_id', $officeId)
                     ->where('user_id', '!=', $user->id)
@@ -279,6 +282,7 @@ class UserController extends Controller
                     abort(422, "Conflict: Office (ID: $officeId) is already assigned to another user.");
                 }
             }
+            */
 
             $user->scopes()->create([
                 'office_id'    => $officeId,

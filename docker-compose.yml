@@ -15,6 +15,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      network: host
     restart: unless-stopped
     depends_on:
       db:

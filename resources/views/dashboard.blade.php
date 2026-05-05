@@ -149,12 +149,33 @@
         transition: transform .12s, box-shadow .12s;
     }
     .hm-cell:hover { transform: scale(1.5); box-shadow: 0 2px 6px rgba(0,0,0,.15); z-index: 5; position: relative; }
-    .hm-0 { background: #f1f5f9; }
-    .hm-1 { background: #bfdbfe; }
-    .hm-2 { background: #93c5fd; }
-    .hm-3 { background: #60a5fa; }
-    .hm-4 { background: #3b82f6; }
-    .hm-5 { background: #1d4ed8; }
+    .hm-0 { background: #f8fafc; border: 1px solid #f1f5f9; }
+    .hm-1 { background: #eff6ff; } /* blue-50 */
+    .hm-2 { background: #dbeafe; } /* blue-100 */
+    .hm-3 { background: #bfdbfe; } /* blue-200 */
+    .hm-4 { background: #93c5fd; } /* blue-300 */
+    .hm-5 { background: #60a5fa; } /* blue-400 */
+    .hm-6 { background: #3b82f6; } /* blue-500 */
+    .hm-7 { background: #2563eb; } /* blue-600 */
+    .hm-8 { background: #1d4ed8; } /* blue-700 */
+    .hm-9 { background: #1e40af; } /* blue-800 */
+    .hm-10 { background: #1e3a8a; } /* blue-900 */
+    .hm-11 { background: #172554; } /* blue-950 */
+
+    /* Custom Tooltip */
+    #hm-tooltip {
+        position: fixed; pointer-events: none; z-index: 9999;
+        background: rgba(15, 23, 42, 0.98); backdrop-blur: 12px;
+        color: white; padding: 14px; border-radius: 16px;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(255,255,255,0.12);
+        display: none; min-width: 220px; max-height: 400px; overflow-y: auto;
+        font-size: 11px; line-height: 1.6;
+    }
+    .htt-title { font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; color: #94a3b8; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 6px; margin-bottom: 8px; }
+    .htt-total { font-size: 14px; font-weight: 900; color: #fff; display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    .htt-row { display: flex; align-items: center; justify-content: space-between; color: #cbd5e1; }
+    .htt-dot { width: 6px; height: 6px; border-radius: 50%; margin-right: 8px; }
 
     /* ── Live pulse dot ─────────────────────────────────────────── */
     .live-dot {
@@ -223,7 +244,7 @@
         priorityDist: @js($priorityDist),
         agentPerf: @js($agentPerformance),
         beatIntensity: @js($beatIntensity),
-        zoneLoad: @js($zoneLoad),
+        sectorLoad: @js($sectorLoad),
         carriageTypeSplit: @js($carriageTypeSplit),
         shiftDeployment: @js($shiftDeployment),
         slaValue: @js($slaValue),
@@ -362,10 +383,20 @@
                     <button            data-range="30" onclick="setHmRange(30,this)">30d</button>
                 </div>
                 {{-- Legend --}}
-                <div class="flex items-center gap-2 text-[9px] font-bold text-slate-400 shrink-0 ml-2">
-                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded inline-block bg-slate-200"></span>Low</span>
-                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded inline-block bg-blue-400"></span>Mid</span>
-                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded inline-block bg-blue-700"></span>High</span>
+                <div class="flex items-center gap-1 text-[8px] font-black text-slate-400 shrink-0 ml-2">
+                    <span class="w-2 h-2 rounded bg-slate-100 border border-slate-200"></span>
+                    <span class="w-2 h-2 rounded bg-[#eff6ff]"></span>
+                    <span class="w-2 h-2 rounded bg-[#dbeafe]"></span>
+                    <span class="w-2 h-2 rounded bg-[#bfdbfe]"></span>
+                    <span class="w-2 h-2 rounded bg-[#93c5fd]"></span>
+                    <span class="w-2 h-2 rounded bg-[#60a5fa]"></span>
+                    <span class="w-2 h-2 rounded bg-[#3b82f6]"></span>
+                    <span class="w-2 h-2 rounded bg-[#2563eb]"></span>
+                    <span class="w-2 h-2 rounded bg-[#1d4ed8]"></span>
+                    <span class="w-2 h-2 rounded bg-[#1e40af]"></span>
+                    <span class="w-2 h-2 rounded bg-[#1e3a8a]"></span>
+                    <span class="w-2 h-2 rounded bg-[#172554]"></span>
+                    <span class="ml-1 uppercase tracking-widest">Density Scale</span>
                 </div>
             </div>
             {{-- Grid: day labels + cells --}}
@@ -585,8 +616,8 @@
             <div class="ch">
                 <div class="ci bg-orange-100"><i class="fa-solid fa-road text-orange-600"></i></div>
                 <div>
-                    <div class="ct">Zone Wise Help Percentage</div>
-                    <div class="cst">By Zone</div>
+                    <div class="ct">Region Wise Help Percentage</div>
+                    <div class="cst">By Region</div>
                 </div>
             </div>
             <div style="height:170px; position:relative;">
@@ -609,13 +640,13 @@
             </div>
         </div>
 
-        {{-- Zone Coverage Radar --}}
+        {{-- Sector Coverage Radar --}}
         <div class="bc ac-pnk">
             <div class="ch">
                 <div class="ci bg-pink-100"><i class="fa-solid fa-earth-asia text-pink-600"></i></div>
                 <div class="flex-1">
-                    <div class="ct">Zone Coverage Load</div>
-                    <div class="cst">Incident Density Per Zone</div>
+                    <div class="ct">Sector Coverage Load</div>
+                    <div class="cst">Help Density Per Sector</div>
                 </div>
                 <div class="fp shrink-0">
                     <button class="on">Today</button>
@@ -623,7 +654,7 @@
                 </div>
             </div>
             <div style="height:200px; position:relative;" class="flex-1">
-                <canvas id="zoneChart" role="img" aria-label="Radar chart zone incident load">Zone coverage radar.</canvas>
+                <canvas id="sectorRadarChart" role="img" aria-label="Radar chart sector help load">Sector coverage radar.</canvas>
             </div>
         </div>
 
@@ -634,17 +665,17 @@
     ══════════════════════════════════════════════ --}}
     <div class="grid lg:grid-cols-3 gap-5 items-stretch">
 
-        {{-- Beat Polar --}}
+        {{-- Sector Polar --}}
         <div class="bc ac-vio">
             <div class="ch">
                 <div class="ci bg-violet-100"><i class="fa-solid fa-location-dot text-violet-600"></i></div>
                 <div>
-                    <div class="ct">Zonal Load</div>
-                    <div class="cst">Zone-wise Help Intensity</div>
+                    <div class="ct">Sector Load</div>
+                    <div class="cst">Sector-wise Help Intensity</div>
                 </div>
             </div>
             <div class="flex-1 relative min-h-[220px]">
-                <canvas id="beatChart" role="img" aria-label="Polar area zone intensity chart">Zone intensity distribution.</canvas>
+                <canvas id="sectorPolarChart" role="img" aria-label="Polar area sector intensity chart">Sector intensity distribution.</canvas>
             </div>
         </div>
 
@@ -761,6 +792,8 @@
     </div>
 
 </div>{{-- /x-data --}}
+    {{-- Global Heatmap Tooltip --}}
+    <div id="hm-tooltip" style="display: none; position: fixed; pointer-events: none; transition: opacity 0.1s ease;"></div>
 @endsection
 
 @push('scripts')
@@ -821,8 +854,8 @@ function dashboardApp(data) {
                 this.buildPriorityChart(this.priorityDist);
                 this.buildWeeklyChart(this.labels, this.values);
                 this.buildRoadChart(this.carriageTypeSplit);
-                this.buildZoneChart(this.zoneLoad);
-                this.buildBeatChart(this.zoneLoad);
+                this.buildSectorRadarChart(this.sectorLoad);
+                this.buildSectorPolarChart(this.sectorLoad);
 
                 this.buildAgentChart(this.agentPerf);
                 this.buildShiftChart(this.shiftDeployment);
@@ -836,17 +869,84 @@ function dashboardApp(data) {
         /* ── Heatmap ─────────────────────────── */
         buildHeatmap(data) {
             const grid = document.getElementById('heatmapGrid');
-            if (!grid) return;
-            const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-            /* cells must be row-major: for each day (row), iterate hours */
+            const tooltip = document.getElementById('hm-tooltip');
+            if (!grid || !tooltip) return;
+
+            const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sa'];
+            grid.innerHTML = ''; 
+
             for (let d = 1; d <= 7; d++) {
                 for (let h = 0; h < 24; h++) {
                     const found = data.find(i => +i.day === d && +i.hour === h);
                     const c = found ? +found.count : 0;
-                    const lvl = c > 12 ? 5 : c > 8 ? 4 : c > 5 ? 3 : c > 2 ? 2 : c > 0 ? 1 : 0;
+                    
+                    // Refined Thresholds for Max ~80-100 load
+                    let lvl = 0;
+                    if (c >= 80) lvl = 11;
+                    else if (c >= 70) lvl = 10;
+                    else if (c >= 60) lvl = 9;
+                    else if (c >= 50) lvl = 8;
+                    else if (c >= 40) lvl = 7;
+                    else if (c >= 30) lvl = 6;
+                    else if (c >= 20) lvl = 5;
+                    else if (c >= 12) lvl = 4;
+                    else if (c >= 6)  lvl = 3;
+                    else if (c >= 3)  lvl = 2;
+                    else if (c > 0)   lvl = 1;
+
                     const el = document.createElement('div');
                     el.className = `hm-cell hm-${lvl}`;
-                    el.title = `${days[d-1]} ${String(h).padStart(2,'0')}:00 — ${c} incidents`;
+                    
+                    el.addEventListener('mouseenter', (e) => {
+                        let typesHtml = '';
+                        if (found && found.types) {
+                            const sortedTypes = Object.entries(found.types).sort((a,b) => b[1] - a[1]);
+                            // Only show top 10 to prevent extreme overflow
+                            sortedTypes.slice(0, 10).forEach(([type, tCount]) => {
+                                typesHtml += `<div class="htt-row"><span>• ${type}</span><span class="font-bold">${tCount}</span></div>`;
+                            });
+                            if (sortedTypes.length > 10) {
+                                typesHtml += `<div class="htt-row text-slate-500 italic mt-1">+ ${sortedTypes.length - 10} more types</div>`;
+                            }
+                        }
+
+                        tooltip.innerHTML = `
+                            <div class="htt-title">${found ? found.date_str : days[d-1]} | ${String(h).padStart(2,'0')}:00</div>
+                            <div class="htt-total"><span>Total Helps</span> <span>${c}</span></div>
+                            <div class="divider" style="background:rgba(255,255,255,0.1); margin:8px 0"></div>
+                            ${typesHtml}
+                        `;
+                        tooltip.style.display = 'block';
+                    });
+
+                    el.addEventListener('mousemove', (e) => {
+                        tooltip.style.display = 'block';
+                        
+                        let x = e.clientX + 12;
+                        let y = e.clientY + 12;
+                        
+                        const tw = tooltip.offsetWidth || 220;
+                        const th = tooltip.offsetHeight || 100;
+
+                        // Horizontal Flip
+                        if (x + tw > window.innerWidth) {
+                            x = e.clientX - tw - 12;
+                        }
+                        // Vertical Flip
+                        if (y + th > window.innerHeight) {
+                            y = e.clientY - th - 12;
+                        }
+                        
+                        tooltip.style.left = x + 'px';
+                        tooltip.style.top = y + 'px';
+                        tooltip.style.opacity = '1';
+                    });
+
+                    el.addEventListener('mouseleave', () => {
+                        tooltip.style.display = 'none';
+                        tooltip.style.opacity = '0';
+                    });
+
                     grid.appendChild(el);
                 }
             }
@@ -994,16 +1094,16 @@ function dashboardApp(data) {
             });
         },
 
-        /* ── Zone Radar ──────────────────────── */
-        buildZoneChart(data) {
-            const ctx = document.getElementById('zoneChart');
+        /* ── Sector Radar ──────────────────────── */
+        buildSectorRadarChart(data) {
+            const ctx = document.getElementById('sectorRadarChart');
             if (!ctx) return;
             new Chart(ctx, {
                 type: 'radar',
                 data: {
-                    labels: data.map(d => d.name.replace(' Zone','')),
+                    labels: data.map(d => d.name),
                     datasets:[{
-                        label:'Calls', data:data.map(d=>+d.count),
+                        label:'Helps', data:data.map(d=>+d.count),
                         backgroundColor:'rgba(236,72,153,.12)', borderColor:'#ec4899', borderWidth:2.5,
                         pointBackgroundColor:'#ec4899', pointBorderColor:'#fff', pointBorderWidth:2, pointRadius:4
                     }]
@@ -1011,14 +1111,14 @@ function dashboardApp(data) {
                 options: {
                     responsive:true, maintainAspectRatio:false,
                     scales:{ r:{ min: 0, grid:{ color:'rgba(0,0,0,.06)' }, ticks:{ display:false, backdropColor:'transparent' }, pointLabels:{ font:{ size:10, weight:'bold' }, color:'#64748b' } } },
-                    plugins:{ legend:{ display:false } }
+                    plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: (ctx) => `Helps: ${ctx.raw}` } } }
                 }
             });
         },
 
-        /* ── Beat Polar ──────────────────────── */
-        buildBeatChart(data) {
-            const ctx = document.getElementById('beatChart');
+        /* ── Sector Polar ──────────────────────── */
+        buildSectorPolarChart(data) {
+            const ctx = document.getElementById('sectorPolarChart');
             if (!ctx) return;
             const border = ['#f97316', '#0ea5e9', '#14b8a6', '#8b5cf6', '#f43f5e', '#f59e0b', '#10b981', '#ec4899', '#6366f1', '#06b6d4', '#84cc16', '#eab308'];
             const cols = border.map(c => c + 'b3'); // roughly 0.7 opacity

@@ -47,12 +47,21 @@ class CallService
             // lockForUpdate holds a row lock within this transaction so concurrent
             // agents always get unique sequential numbers.
             if (!isset($data['call_number'])) {
-                $year    = (int) date('Y');
-                $seq     = DB::table('calls')
-                    ->whereYear('created_at', $year)
+                $year = (int) date('Y');
+                // Use MAX(id) or a more robust count that doesn't rely on valid created_at
+                $lastCall = DB::table('calls')
+                    ->where('call_number', 'like', "CRM-{$year}-%")
                     ->lockForUpdate()
-                    ->count() + 1;
-                $data['call_number'] = sprintf('CRM-%d-%05d', $year, $seq);
+                    ->orderBy('id', 'desc')
+                    ->first();
+
+                $nextSeq = 1;
+                if ($lastCall) {
+                    $parts = explode('-', $lastCall->call_number);
+                    $nextSeq = (int) end($parts) + 1;
+                }
+
+                $data['call_number'] = sprintf('CRM-%d-%05d', $year, $nextSeq);
             }
 
             $call = Call::create($data);

@@ -1,5 +1,6 @@
 # STAGE 1: PHP Dependencies (Composer)
 FROM composer:2.7 AS vendor
+RUN sed -i 's/dl-cdn.alpinelinux.org/uk.alpinelinux.org/g' /etc/apk/repositories || true
 WORKDIR /app
 COPY composer.json composer.lock* ./
 COPY database/ database/
@@ -27,6 +28,7 @@ RUN npm run build
 
 # STAGE 3: Extension Builder (Heavy Compilation)
 FROM php:8.3.1-fpm-alpine3.19 AS builder
+RUN sed -i 's/dl-cdn.alpinelinux.org/uk.alpinelinux.org/g' /etc/apk/repositories || true
 RUN for i in 1 2 3; do \
         apk add --no-cache \
             icu-dev \

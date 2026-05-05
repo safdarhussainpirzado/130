@@ -2,7 +2,7 @@
 
 # Deploy Production Image locally
 build:
-	docker-compose build --no-cache
+	docker-compose build
 
 # Setup Environment
 up:
@@ -26,22 +26,31 @@ migrate-legacy:
 	docker-compose exec app php artisan migrate:fresh --force -v
 	docker-compose exec app php artisan db:seed --class=ProductionSeeder --force -v
 	
-	@echo "Step 2: Creating Legacy Staging Tables..."
-	@docker-compose exec -T db mysql -u root -psecret 130_crm_db -e "CREATE TABLE legacy_calls LIKE calls; ALTER TABLE legacy_calls ADD COLUMN zone_id INT, ADD COLUMN sector_id INT, ADD COLUMN beat_id INT AFTER km_marker_text; ALTER TABLE legacy_calls DROP COLUMN office_id;"
-	@docker-compose exec -T db mysql -u root -psecret 130_crm_db -e "CREATE TABLE legacy_call_status_history LIKE call_status_history;"
-	@docker-compose exec -T db mysql -u root -psecret 130_crm_db -e "CREATE TABLE legacy_beats (id INT, sector_id INT, zone_id INT, name VARCHAR(255), code VARCHAR(50), status VARCHAR(20), created_at TIMESTAMP, updated_at TIMESTAMP, deleted_at TIMESTAMP);"
-
+	@echo "Step 2 & 3: Extracting Legacy Schema & Data into Staging..."
+	@rm -f staging_raw.sql
+	@for table in calls call_status_history users user_scopes beats sectors zones call_types call_sub_types vehicle_types regions; do \
+		echo "  -> Extracting $$table..." ; \
+		sed -n "/-- Table structure for table \`$$table\`/,/-- Table structure for table/p" Dump20260504_legacy.sql | grep -v "\-\- Table structure for table \`" >> staging_raw.sql || true ; \
+	done
+	
+	@# Rename target tables to legacy_* in all contexts (DROP, CREATE, INSERT, etc.)
+	@for t in calls call_status_history users user_scopes beats sectors zones call_types call_sub_types vehicle_types regions; do \
+		sed -i "s/\`$$t\`/\`legacy_$$t\`/gI" staging_raw.sql ; \
+		sed -i "s/ $$t / legacy_$$t /gI" staging_raw.sql ; \
+	done
+	@sed -i "s/INSERT INTO/INSERT IGNORE INTO/gI" staging_raw.sql
+	
+	@# Remove constraints, locking, and multi-line syntax issues
+	@sed -i '/LOCK TABLES/d' staging_raw.sql
+	@sed -i '/UNLOCK TABLES/d' staging_raw.sql
+	@sed -i '/CONSTRAINT/d' staging_raw.sql
+	@sed -i '/FOREIGN KEY/d' staging_raw.sql
+	@sed -i '/REFERENCES/d' staging_raw.sql
+	@perl -i -0777 -pe 's/,\s*\)/\n\)/g' staging_raw.sql
+	
 	@echo "Step 3: Importing legacy data into Staging..."
-	@grep -a -iE "INSERT INTO \`(calls|call_status_history|beats)\`|INSERT INTO (calls|call_status_history|beats) " Dump20260502_legacy.sql > data_only.sql || true
-	@sed -i "s/INSERT INTO \`calls\`/INSERT INTO \`legacy_calls\`/gI" data_only.sql
-	@sed -i "s/INSERT INTO \`call_status_history\`/INSERT INTO \`legacy_call_status_history\`/gI" data_only.sql
-	@sed -i "s/INSERT INTO \`beats\`/INSERT INTO \`legacy_beats\`/gI" data_only.sql
-	@sed -i "s/INSERT INTO calls/INSERT INTO legacy_calls/gI" data_only.sql
-	@sed -i "s/INSERT INTO call_status_history/INSERT INTO legacy_call_status_history/gI" data_only.sql
-	@sed -i "s/INSERT INTO beats/INSERT INTO legacy_beats/gI" data_only.sql
-	@sed -i 's/INSERT INTO/INSERT IGNORE INTO/gI' data_only.sql
-	@(echo "SET SESSION sql_mode = '';"; cat data_only.sql) | docker-compose exec -T db mysql -f -u root -psecret 130_crm_db
-	@rm data_only.sql
+	@(echo "SET SESSION sql_mode = ''; SET FOREIGN_KEY_CHECKS=0;"; cat staging_raw.sql) | docker-compose exec -T db mysql -f -u root -psecret 130_crm_db
+	@rm staging_raw.sql
 
 	@echo "Step 4: Mapping categories, offices and converting timestamps (GMT -> PKT)..."
 	docker-compose exec app php artisan migrate --path=database/migrations/legacy_fixes --force -v

@@ -24,7 +24,7 @@ class CallController extends Controller
         /** @var \App\Models\User $user */
         $user = auth()->user();
 
-        if ($user->role?->name === 'agent_supervisor') {
+        if (in_array($user->role?->name, ['super_admin', 'agent_supervisor'])) {
             return $query;
         }
 

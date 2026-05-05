@@ -95,7 +95,12 @@ class User extends Authenticatable
      */
     public function hasPermission(string $permission): bool
     {
-        // Per-request cache to avoid N+1 on Blade @can() checks
+        // 1. Super admins always return true as specified in docstring
+        if ($this->role?->name === Role::SUPER_ADMIN) {
+            return true;
+        }
+
+        // 2. Per-request cache to avoid N+1 on Blade @can() checks
         static $cache = [];
         $key = $this->id . ':' . $permission;
         return $cache[$key] ??= (
