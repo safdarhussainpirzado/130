@@ -51,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: options.method || 'GET',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest',
+                    'X-PJAX': 'true',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
                 }
             };

@@ -40,7 +40,7 @@ class GeospatialMarkerController extends Controller
             'total_zones'       => Office::where('type', 'zone')->count(),
         ];
 
-        if ($request->ajax()) {
+        if ($request->wantsJson()) {
             return response()->json([
                 'items'      => $markers->items(),
                 'pagination' => [
@@ -144,5 +144,28 @@ class GeospatialMarkerController extends Controller
     {
         $geospatialMarker->delete();
         return response()->json(['success' => true]);
+    }
+
+    public function toggleStatus(GeospatialLandmark $geospatialMarker)
+    {
+        // Toggle the bound_direction field as an active/inactive flag
+        // since geospatial_landmarks has no dedicated status column.
+        // We repurpose a lightweight JSON metadata approach via agent_prompt prefix.
+        $isCurrentlyActive = !str_starts_with($geospatialMarker->agent_prompt ?? '', '[INACTIVE]');
+        
+        if ($isCurrentlyActive) {
+            $newPrompt = '[INACTIVE] ' . ltrim(str_replace('[INACTIVE] ', '', $geospatialMarker->agent_prompt ?? ''));
+            $newStatus = 'inactive';
+        } else {
+            $newPrompt = ltrim(str_replace('[INACTIVE] ', '', $geospatialMarker->agent_prompt ?? ''));
+            $newStatus = 'active';
+        }
+
+        $geospatialMarker->update(['agent_prompt' => $newPrompt]);
+
+        return response()->json([
+            'success' => true,
+            'status'  => $newStatus,
+        ]);
     }
 }

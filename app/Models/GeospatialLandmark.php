@@ -44,8 +44,8 @@ class GeospatialLandmark extends Model
         return $this->office?->sector();
     }
 
-    public function getStatusAttribute()
+    public function getStatusAttribute(): string
     {
-        return 'active'; // Default for now
+        return str_starts_with($this->agent_prompt ?? '', '[INACTIVE]') ? 'inactive' : 'active';
     }
 }
