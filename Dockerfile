@@ -58,7 +58,8 @@ RUN for i in 1 2 3; do \
             zip \
             unzip \
         && break || { echo "apk attempt $i failed, retrying..."; sleep 15; }; \
-    done
+    done \
+    && sed -i 's/listen = 127.0.0.1:9000/listen = 9000/g' /usr/local/etc/php-fpm.d/www.conf
     
 # Copy compiled extensions from builder stage
 COPY --from=builder /usr/local/lib/php/extensions /usr/local/lib/php/extensions

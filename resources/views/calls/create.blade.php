@@ -151,7 +151,12 @@ input:focus, textarea:focus, button:focus-visible {
                                         <div @click="applyGeospatialSuggestion(lm)" class="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 transition-colors">
                                             <div class="flex items-start justify-between">
                                                 <div>
-                                                    <div class="text-[11px] font-bold text-slate-800 leading-tight mb-0.5" x-text="lm.location_name || 'KM ' + lm.km_marker"></div>
+                                                    <div class="flex items-center gap-1.5 mb-0.5">
+                                                        <div class="text-[11px] font-bold text-slate-800 leading-tight" x-text="lm.location_name || 'KM ' + lm.km_marker"></div>
+                                                        <template x-if="lm.is_range_match">
+                                                            <span class="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 text-[7px] font-black uppercase tracking-tighter">Jurisdiction</span>
+                                                        </template>
+                                                    </div>
                                                     <div class="text-[9px] font-semibold text-emerald-600 uppercase tracking-widest" x-text="lm.office?.name || 'Unmapped Beat'"></div>
                                                 </div>
                                                 <div class="text-[10px] font-mono font-bold text-blue-600 bg-blue-50 px-1.5 rounded" x-text="lm.road_name"></div>
@@ -963,22 +968,23 @@ function intakeComponent() {
 
         applyGeospatialSuggestion(marker) {
             this.updateSpatialContext(marker);
-            this.details = marker.agent_prompt ? marker.agent_prompt + '\n\n' + this.details : this.details;
             this.geospatialSuggestions = [];
         },
 
         updateSpatialContext(marker) {
             this.spatial.geospatial_marker_id = marker.id;
-            this.spatial.road_name = marker.road_name;
             
             if (marker.office) {
+                // Set Beat
                 this.spatial.beat_id = marker.office.id;
                 this.spatial.beat_name = marker.office.name;
                 
+                // Set Sector (Parent)
                 if (marker.office.parent) {
                     this.spatial.sector_id = marker.office.parent.id;
                     this.spatial.sector_name = marker.office.parent.name;
                     
+                    // Set Zone (Grandparent)
                     if (marker.office.parent.parent) {
                         this.spatial.zone_id = marker.office.parent.parent.id;
                         this.spatial.zone_name = marker.office.parent.parent.name;
@@ -986,10 +992,10 @@ function intakeComponent() {
                 }
             }
             
-            // Auto trigger UI updates if necessary
-            if (this.spatial.zone_id) this.onZoneChange();
-            if (this.spatial.sector_id) this.onSectorChange();
-            if (this.spatial.beat_id) this.onBeatChange();
+            // If it's a range match, ensure the KM text is updated if it was empty
+            if (marker.is_range_match && !this.spatial.km) {
+                this.spatial.km = marker.km_marker;
+            }
         },
 
         onCoordInput(value) {

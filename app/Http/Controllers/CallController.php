@@ -679,21 +679,46 @@ class CallController extends Controller
         $kmMarker = $request->input('km_marker');
         $direction = $request->input('direction');
 
-        $query = \App\Models\GeospatialLandmark::with('office.parent.parent');
+        $landmarkQuery = \App\Models\GeospatialLandmark::with('office.parent.parent');
 
         if ($road) {
-            $query->where('road_name', 'like', "%{$road}%");
+            $landmarkQuery->where('road_name', 'like', "%{$road}%");
         }
 
         if ($kmMarker) {
-            $query->where('km_marker', 'like', "%{$kmMarker}%");
+            $landmarkQuery->where('km_marker', 'like', "%{$kmMarker}%");
         }
 
         if ($direction) {
-            $query->where('bound_direction', 'like', "%{$direction}%");
+            $landmarkQuery->where('bound_direction', 'like', "%{$direction}%");
         }
 
-        $landmarks = $query->limit(5)->get();
+        $landmarks = $landmarkQuery->limit(5)->get();
+
+        // Also search offices (Beats) by KM range if kmMarker is numeric
+        if ($kmMarker && is_numeric($kmMarker)) {
+            $offices = \App\Models\Office::with('parent.parent')
+                ->where('type', 'beat')
+                ->where('is_active', true)
+                ->where('km_start', '<=', $kmMarker)
+                ->where('km_end', '>=', $kmMarker)
+                ->get();
+
+            foreach ($offices as $office) {
+                // Check if this office is already in the landmarks to avoid confusion, 
+                // but usually landmarks are more specific points.
+                // We add it as a "Virtual Landmark"
+                $landmarks->push((object)[
+                    'id' => 'office_' . $office->id,
+                    'location_name' => "KM Range: " . (int)$office->km_start . " - " . (int)$office->km_end,
+                    'road_name' => $office->sector()?->name ?? $office->zone()?->name ?? 'NHMP',
+                    'km_marker' => $kmMarker,
+                    'office' => $office,
+                    'agent_prompt' => "This KM falls within the operational boundary of " . $office->name,
+                    'is_range_match' => true
+                ]);
+            }
+        }
 
         return response()->json([
             'success' => true,
