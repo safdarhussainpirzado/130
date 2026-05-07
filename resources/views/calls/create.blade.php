@@ -85,7 +85,7 @@ input:focus, textarea:focus, button:focus-visible {
             {{-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 CALLER INTEL — 3 cols, spans 2 rows
             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ --}}
-            <div class="col-span-3 row-span-2 flex flex-col rounded-2xl p-3 overflow-hidden"
+            <div class="col-span-3 row-span-2 flex flex-col rounded-2xl p-3 relative z-30"
                  style="background: rgba(255,255,255,0.72); backdrop-filter: blur(20px) saturate(1.4); border: 1px solid rgba(255,255,255,0.65); box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 8px rgba(0,0,0,0.03), 0 8px 24px rgba(0,0,0,0.04);">
                 {{-- Card Header --}}
                 <div class="shrink-0 flex items-center gap-2.5 mb-2.5">
@@ -104,7 +104,7 @@ input:focus, textarea:focus, button:focus-visible {
                 </div>
 
                 {{-- Form Content — NO overflow-y-auto, everything fits --}}
-                <div class="flex-1 min-h-0 flex flex-col gap-2 overflow-hidden">
+                <div class="flex-1 min-h-0 flex flex-col gap-2 relative">
                     {{-- Phone --}}
                     <div class="shrink-0">
                         <label class="block text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500 mb-1">Mobile Number</label>
@@ -289,7 +289,7 @@ input:focus, textarea:focus, button:focus-visible {
                          x-transition:leave-end="opacity-0 -translate-y-2"
                          class="shrink-0 overflow-hidden">
                         <label class="block text-[9px] font-semibold uppercase tracking-[0.12em] text-blue-600 mb-1.5">Secondary Category</label>
-                        <div class="grid grid-cols-6 gap-2">
+                        <div class="grid grid-cols-7 gap-2">
                             <template x-for="st in filteredSubTypes" :key="st.id">
                                 <button type="button"
                                         @click="selectedSubType = st.id"
@@ -854,16 +854,17 @@ function intakeComponent() {
             if (!this.selectedCallTypeId) this.errors.push('Please select a Call Primary Category.');
             if (!this.selectedSubType) this.errors.push('Please select a Call Secondary Category.');
 
-            const isJunkSilent = this.selectedCallTypeName === 'Junk/Silent';
-            if (!isJunkSilent) {
+            const isExempt = ['Junk/Silent', 'Information'].includes(this.selectedCallTypeName);
+            if (!isExempt) {
                 if (!this.spatial.beat_id) this.errors.push('Beat selection is mandatory.');
+                if (!this.spatial.sector_id) this.errors.push('Sector selection is mandatory.');
                 if (!this.spatial.zone_id) this.errors.push('Zone selection is mandatory.');
             }
 
             if (this.errors.length) {
-                this.errors.forEach(err => {
-                    if (window.Notification) window.Notification.error(err, 'Data Validation Error');
-                });
+                if (window.Notification) {
+                    window.Notification.error(this.errors, 'Data Validation Error', 3000);
+                }
                 return;
             }
 
@@ -911,13 +912,15 @@ function intakeComponent() {
                 } else {
                     const errorMsg = result.message || 'Mission authority rejected the trace.';
                     if (window.Notification) {
-                        window.Notification.error(errorMsg, 'Critical System Failure');
                         if (result.errors) {
-                            Object.keys(result.errors).forEach(field => {
-                                result.errors[field].forEach(err => {
-                                    window.Notification.error(err, 'Field Error: ' + field);
-                                });
+                            const allErrors = [];
+                            Object.values(result.errors).forEach(errs => {
+                                if (Array.isArray(errs)) allErrors.push(...errs);
+                                else allErrors.push(errs);
                             });
+                            window.Notification.error(allErrors, 'Data Validation Error', 5000);
+                        } else {
+                            window.Notification.error(errorMsg, 'Critical System Failure');
                         }
                     }
                 }

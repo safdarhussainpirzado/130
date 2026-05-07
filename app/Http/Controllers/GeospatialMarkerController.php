@@ -30,14 +30,32 @@ class GeospatialMarkerController extends Controller
             $query->where('zone_name', 'LIKE', "%{$zoneId}%");
         }
 
+        if ($status = $request->input('status')) {
+            if ($status === 'active') {
+                $query->where(function($q) {
+                    $q->whereNull('agent_prompt')->orWhere('agent_prompt', 'NOT LIKE', '[INACTIVE]%');
+                });
+            } elseif ($status === 'inactive') {
+                $query->where('agent_prompt', 'LIKE', '[INACTIVE]%');
+            } elseif ($status === 'motorway') {
+                $query->where('road_name', 'LIKE', 'M-%');
+            } elseif ($status === 'highway') {
+                $query->where('road_name', 'LIKE', 'N-%');
+            }
+        }
+
         $markers = $query->orderBy($sortBy, $sortDir)->paginate($perPage);
 
         $zones = GeospatialLandmark::select('zone_name')->distinct()->whereNotNull('zone_name')->pluck('zone_name');
 
         $stats = [
             'total_markers'     => GeospatialLandmark::count(),
-            'total_carriageways'=> \App\Models\Carriageway::count(),
-            'total_zones'       => Office::where('type', 'zone')->count(),
+            'active_markers'    => GeospatialLandmark::where(function($q) {
+                                        $q->whereNull('agent_prompt')->orWhere('agent_prompt', 'NOT LIKE', '[INACTIVE]%');
+                                    })->count(),
+            'inactive_markers'  => GeospatialLandmark::where('agent_prompt', 'LIKE', '[INACTIVE]%')->count(),
+            'motorways'         => GeospatialLandmark::where('road_name', 'LIKE', 'M-%')->count(),
+            'highways'          => GeospatialLandmark::where('road_name', 'LIKE', 'N-%')->count(),
         ];
 
         if ($request->wantsJson()) {

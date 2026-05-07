@@ -28,6 +28,7 @@ return new class extends Migration
         $this->migrateHistoryFromStaging();
         $this->migrateUsersFromStaging();
         $this->migrateUserScopesFromStaging();
+        $this->migrateAuditLogsFromStaging();
 
         // 2. Build Category mappings and update IDs
         $subMapping = $this->buildCallSubTypeMapping();
@@ -250,6 +251,22 @@ return new class extends Migration
                 FROM legacy_user_scopes lus
             ");
             DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        }
+    }
+
+    private function migrateAuditLogsFromStaging(): void
+    {
+        if (Schema::hasTable('legacy_audit_logs')) {
+            $this->command()->info('Migrating audit logs from staging...');
+            DB::statement("
+                INSERT IGNORE INTO audit_logs (
+                    id, user_id, action, table_name, record_id, old_values, new_values, ip_address, user_agent, created_at
+                )
+                SELECT 
+                    id, user_id, action, table_name, record_id, old_values, new_values, ip_address, user_agent, 
+                    NULLIF(created_at, '0000-00-00 00:00:00')
+                FROM legacy_audit_logs
+            ");
         }
     }
 

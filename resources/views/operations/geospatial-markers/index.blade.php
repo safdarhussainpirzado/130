@@ -30,68 +30,59 @@
             <span style="writing-mode: vertical-rl;" class="text-[9px] font-black uppercase tracking-[0.3em] rotate-180 drop-shadow-md text-blue-50">Marker Filters</span>
         </button>
 
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div class="relative flex flex-col bg-white rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-2 transition-all duration-300">
-                <div class="absolute -top-6 left-6 h-14 w-14 grid place-items-center rounded-[1.25rem] bg-blue-600 shadow-[0_10px_20px_rgba(37,99,235,0.3)]">
-                    <i class="fas fa-map-marker-alt text-xl text-white"></i>
+        <div class="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-5 gap-4">
+            <!-- Total Markers Card -->
+            <div @click="status = ''; fetchData()" :class="!status ? 'card-3d-active blue' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                <div class="absolute -top-4 left-4 h-10 w-10 grid place-items-center rounded-xl bg-blue-600 shadow-[0_8px_16px_rgba(37,99,235,0.2)]">
+                    <i class="fas fa-map-marker-alt text-xs text-white"></i>
                 </div>
-                <div class="p-6 text-right pt-6">
-                    <p class="text-[10px] font-black tracking-widest text-blue-500 uppercase mt-2">Active Markers</p>
-                    <h4 class="text-4xl font-extrabold text-blue-900" x-text="stats.total_markers"></h4>
-                </div>
-                <div class="mx-6 mb-6 border-t border-slate-100 pt-3">
-                    <div class="flex items-center gap-2">
-                        <span class="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse"></span>
-                        <span class="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Geospatial Data</span>
-                    </div>
+                <div class="p-5 text-right pt-4">
+                    <p class="text-[8px] font-black tracking-widest text-blue-500 uppercase">Total Markers</p>
+                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="stats.total_markers"></h4>
                 </div>
             </div>
 
-            <div class="relative flex flex-col bg-white rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-2 transition-all duration-300">
-                <div class="absolute -top-6 left-6 h-14 w-14 grid place-items-center rounded-[1.25rem] bg-blue-500 shadow-[0_10px_20px_rgba(59,130,246,0.3)]">
-                    <i class="fas fa-road text-xl text-white"></i>
+            <!-- Active Markers Card -->
+            <div @click="status = (status === 'active' ? '' : 'active'); fetchData()" :class="status === 'active' ? 'card-3d-active emerald' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                <div class="absolute -top-4 left-4 h-10 w-10 grid place-items-center rounded-xl bg-emerald-500 shadow-[0_8px_16px_rgba(16,185,129,0.2)]">
+                    <i class="fas fa-check-circle text-xs text-white"></i>
                 </div>
-                <div class="p-6 text-right pt-6">
-                    <p class="text-[10px] font-black tracking-widest text-blue-500 uppercase mt-2">Carriageways Covered</p>
-                    <h4 class="text-4xl font-extrabold text-blue-900" x-text="stats.total_carriageways"></h4>
-                </div>
-                <div class="mx-6 mb-6 border-t border-slate-100 pt-3">
-                    <div class="flex items-center gap-2">
-                        <span class="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse"></span>
-                        <span class="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Network Coverage</span>
-                    </div>
+                <div class="p-5 text-right pt-4">
+                    <p class="text-[8px] font-black tracking-widest text-emerald-500 uppercase">Active</p>
+                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="stats.active_markers"></h4>
                 </div>
             </div>
 
-            <div class="relative flex flex-col bg-white rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-2 transition-all duration-300">
-                <div class="absolute -top-6 left-6 h-14 w-14 grid place-items-center rounded-[1.25rem] bg-amber-500 shadow-[0_10px_20px_rgba(245,158,11,0.3)]">
-                    <i class="fas fa-satellite-dish text-xl text-white"></i>
+            <!-- Inactive Markers Card -->
+            <div @click="status = (status === 'inactive' ? '' : 'inactive'); fetchData()" :class="status === 'inactive' ? 'card-3d-active rose' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                <div class="absolute -top-4 left-4 h-10 w-10 grid place-items-center rounded-xl bg-rose-500 shadow-[0_8px_16px_rgba(225,29,72,0.2)]">
+                    <i class="fas fa-times-circle text-xs text-white"></i>
                 </div>
-                <div class="p-6 text-right pt-6">
-                    <p class="text-[10px] font-black tracking-widest text-amber-500 uppercase mt-2">Active Zones</p>
-                    <h4 class="text-4xl font-extrabold text-blue-900" x-text="stats.total_zones"></h4>
-                </div>
-                <div class="mx-6 mb-6 border-t border-slate-100 pt-3">
-                    <div class="flex items-center gap-2">
-                        <span class="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                        <span class="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Regional Hubs</span>
-                    </div>
+                <div class="p-5 text-right pt-4">
+                    <p class="text-[8px] font-black tracking-widest text-rose-500 uppercase">Inactive</p>
+                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="stats.inactive_markers"></h4>
                 </div>
             </div>
 
-            <div class="relative flex flex-col bg-white rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-2 transition-all duration-300">
-                <div class="absolute -top-6 left-6 h-14 w-14 grid place-items-center rounded-[1.25rem] bg-blue-900 shadow-[0_10px_20px_rgba(30,58,138,0.3)]">
-                    <i class="fas fa-location-crosshairs text-xl text-white"></i>
+            <!-- Motorways Card -->
+            <div @click="status = (status === 'motorway' ? '' : 'motorway'); fetchData()" :class="status === 'motorway' ? 'card-3d-active amber' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                <div class="absolute -top-4 left-4 h-10 w-10 grid place-items-center rounded-xl bg-amber-500 shadow-[0_8px_16px_rgba(245,158,11,0.2)]">
+                    <i class="fas fa-road text-xs text-white"></i>
                 </div>
-                <div class="p-6 text-right pt-6">
-                    <p class="text-[10px] font-black tracking-widest text-slate-400 uppercase mt-2">Network Resolution</p>
-                    <h4 class="text-4xl font-extrabold text-blue-900" x-text="pagination.total"></h4>
+                <div class="p-5 text-right pt-4">
+                    <p class="text-[8px] font-black tracking-widest text-amber-500 uppercase">Motorways</p>
+                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="stats.motorways"></h4>
                 </div>
-                <div class="mx-6 mb-6 border-t border-slate-100 pt-3">
-                    <div class="flex items-center gap-2">
-                        <span class="h-1.5 w-1.5 rounded-full bg-blue-900 animate-pulse"></span>
-                        <span class="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Spatial Coverage</span>
-                    </div>
+            </div>
+
+            <!-- Highways Card -->
+            <div @click="status = (status === 'highway' ? '' : 'highway'); fetchData()" :class="status === 'highway' ? 'card-3d-active indigo' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                <div class="absolute -top-4 left-4 h-10 w-10 grid place-items-center rounded-xl bg-indigo-500 shadow-[0_8px_16px_rgba(79,70,229,0.2)]">
+                    <i class="fas fa-earth-asia text-xs text-white"></i>
+                </div>
+                <div class="p-5 text-right pt-4">
+                    <p class="text-[8px] font-black tracking-widest text-indigo-500 uppercase">Highways</p>
+                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="stats.highways"></h4>
                 </div>
             </div>
         </div>
@@ -599,11 +590,12 @@
                 items: config.items || [],
                 zones: config.zones || [],
                 beats: config.beats || [],
-                stats: stats || { total_markers: 0, total_carriageways: 0, total_zones: 0 },
+                stats: stats || { total_markers: 0, active_markers: 0, inactive_markers: 0, motorways: 0, highways: 0 },
                 pagination: pagination || { current_page: 1, last_page: 1, total: 0 },
-                search: '',
                 density: 'spacious',
                 filterZone: '',
+                search: '',
+                status: '',
                 viewMode: 'table',
                 sortBy: 'km_numeric',
                 sortDirection: 'asc',
@@ -645,6 +637,7 @@
                             page: this.page,
                             per_page: this.perPage,
                             search: this.search,
+                            status: this.status,
                             zone_id: this.filterZone,
                             sort_by: this.sortBy,
                             sort_dir: this.sortDirection

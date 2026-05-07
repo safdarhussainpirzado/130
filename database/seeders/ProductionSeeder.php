@@ -37,6 +37,7 @@ class ProductionSeeder extends Seeder
         // 4. Operational Assets
         $this->call(CarriagewaySeeder::class);
         $this->call(GeospatialLandmarkSeeder::class);
+        $this->call(GeospatialMarkerSeeder::class);
         
         DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 

@@ -47,115 +47,120 @@
 </style>
 
 <div x-data="callManager(window._indexData)" 
-     class="space-y-8 relative mt-4 max-w-[1700px] mx-auto" 
+     class="space-y-6 relative mt-0 max-w-[1700px] mx-auto" 
      x-cloak>
-
         <!-- Floating Sidebar Toggle -->
-        <button @click="showSidebar = true"
+        <button @click="showSidebar = true" 
             x-show="!showSidebar"
             x-transition:enter="transition ease-out duration-500 delay-100"
             x-transition:enter-start="translate-x-full opacity-0"
             x-transition:enter-end="translate-x-0 opacity-100"
-            class="fixed top-1/2 right-0 -translate-y-1/2 z-40 bg-gradient-to-b from-blue-600 to-blue-900 text-white p-2.5 py-6 rounded-l-2xl shadow-[0_0_30px_-5px_rgba(30,58,138,0.4)] hover:shadow-[-5px_0_40px_-5px_rgba(30,58,138,0.7)] hover:pr-4 transition-all duration-300 flex flex-col items-center gap-4 cursor-pointer" title="Open Intelligence Filters">
+            class="fixed bottom-20 right-0 z-40 bg-gradient-to-b from-blue-600 to-blue-900 text-white p-2.5 py-6 rounded-l-2xl shadow-[0_0_30px_-5px_rgba(30,58,138,0.4)] hover:shadow-[-5px_0_40px_-5px_rgba(30,58,138,0.7)] hover:pr-4 transition-all duration-300 flex flex-col items-center gap-4 cursor-pointer" title="Open Intelligence Filters">
             <i class="fas fa-sliders-h drop-shadow-lg text-sm"></i>
             <span style="writing-mode: vertical-rl;" class="text-[9px] font-black uppercase tracking-[0.3em] rotate-180 drop-shadow-md text-blue-50">Help Filters</span>
         </button>
 
+
+
         <!-- STATS CARDS -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div @click="filterStatus = 'all'; if(window.Notification) window.Notification.info('Total Help records loaded.', 'System Sync');" :class="filterStatus === 'all' ? 'card-3d-active blue' : ''" class="relative flex flex-col bg-white rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-2 transition-all duration-300 cursor-pointer">
-                <div class="absolute -top-6 left-6 h-14 w-14 grid place-items-center rounded-[1.25rem] bg-blue-600 shadow-[0_10px_20px_rgba(79,70,229,0.3)]">
-                    <i class="fa-solid fa-layer-group text-xl text-white"></i>
+        <!-- STATUS STATS -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-6 pt-6">
+            <div @click="filterStatus = 'all'; filterType = ''; triggerFetch()" :class="filterStatus === 'all' && !filterType ? 'card-3d-active blue' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group">
+                <div class="absolute -top-4 left-6 h-12 w-12 grid place-items-center rounded-xl bg-blue-600 shadow-[0_8px_16px_rgba(37,99,235,0.2)] z-10">
+                    <i class="fa-solid fa-layer-group text-sm text-white"></i>
                 </div>
-                <div class="p-6 text-right pt-6">
-                    <p class="text-[10px] font-black tracking-widest text-slate-400 uppercase mt-2">Total</p>
-                    <h4 class="text-4xl font-extrabold text-blue-900" x-text="stats.total"></h4>
-                </div>
-            </div>
-
-            <div @click="filterStatus = 'pending'; if(window.Notification) window.Notification.error('Pending Help records...', 'Filter Active');" :class="filterStatus === 'pending' ? 'card-3d-active rose' : ''" class="relative flex flex-col bg-white rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-2 transition-all duration-300 cursor-pointer">
-                <div class="absolute -top-6 left-6 h-14 w-14 grid place-items-center rounded-[1.25rem] bg-rose-600 shadow-[0_10px_20px_rgba(225,29,72,0.3)]">
-                    <i class="fa-solid fa-hourglass-start text-xl text-white"></i>
-                </div>
-                <div class="p-6 text-right pt-6">
-                    <p class="text-[10px] font-black tracking-widest text-rose-500 uppercase mt-2">Pending</p>
-                    <h4 class="text-4xl font-extrabold text-blue-900" x-text="stats.pending"></h4>
+                <div class="p-4 text-right pt-2 relative">
+                    <p class="text-[9px] font-black tracking-widest text-slate-400 uppercase">Total Directory</p>
+                    <div class="flex items-baseline justify-end gap-2 mt-1">
+                        <h4 class="text-3xl font-extrabold text-blue-900" x-text="stats.total"></h4>
+                    </div>
                 </div>
             </div>
 
-            <div @click="filterStatus = 'in_progress'; if(window.Notification) window.Notification.warning('In-Process Help records...', 'Filter Active');" :class="filterStatus === 'in_progress' ? 'card-3d-active amber' : ''" class="relative flex flex-col bg-white rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-2 transition-all duration-300 cursor-pointer">
-                <div class="absolute -top-6 left-6 h-14 w-14 grid place-items-center rounded-[1.25rem] bg-amber-500 shadow-[0_10px_20px_rgba(245,158,11,0.3)]">
-                    <i class="fa-solid fa-person-running text-xl text-white"></i>
+            <div @click="filterStatus = 'pending'; filterType = ''; triggerFetch()" :class="filterStatus === 'pending' ? 'card-3d-active rose' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group">
+                <div class="absolute -top-4 left-6 h-12 w-12 grid place-items-center rounded-xl bg-rose-600 shadow-[0_8px_16px_rgba(225,29,72,0.2)] z-10">
+                    <i class="fa-solid fa-hourglass-start text-sm text-white"></i>
                 </div>
-                <div class="p-6 text-right pt-6">
-                    <p class="text-[10px] font-black tracking-widest text-amber-500 uppercase mt-2">Active</p>
-                    <h4 class="text-4xl font-extrabold text-blue-900" x-text="stats.in_progress"></h4>
+                <div class="p-4 text-right pt-2 relative">
+                    <p class="text-[9px] font-black tracking-widest text-rose-500 uppercase">Pending Ops</p>
+                    <div class="flex items-center justify-end gap-2 mt-1">
+                        <span class="text-[10px] font-black text-white bg-rose-600 px-2 py-0.5 rounded-full shadow-sm" x-text="stats.pending_percent + '%'"></span>
+                        <h4 class="text-3xl font-extrabold text-blue-900" x-text="stats.pending"></h4>
+                    </div>
                 </div>
             </div>
 
-            <div @click="filterStatus = 'completed'; if(window.Notification) window.Notification.success('Completed Help records...', 'Filter Active');" :class="filterStatus === 'completed' ? 'card-3d-active emerald' : ''" class="relative flex flex-col bg-emerald-600 rounded-[2rem] shadow-[0_10px_40px_rgba(16,185,129,0.2)] border border-emerald-500 hover:-translate-y-2 transition-all duration-300 group cursor-pointer">
-                <div class="absolute -right-6 -bottom-6 opacity-10 group-hover:scale-110 transition-transform">
-                    <i class="fa-solid fa-circle-check text-8xl text-white"></i>
+            <div @click="filterStatus = 'in_progress'; filterType = ''; triggerFetch()" :class="filterStatus === 'in_progress' ? 'card-3d-active amber' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group">
+                <div class="absolute -top-4 left-6 h-12 w-12 grid place-items-center rounded-xl bg-amber-500 shadow-[0_8px_16px_rgba(245,158,11,0.2)] z-10">
+                    <i class="fa-solid fa-person-running text-sm text-white"></i>
                 </div>
-                <div class="absolute -top-6 left-6 h-14 w-14 grid place-items-center rounded-[1.25rem] bg-white shadow-[0_10px_20px_rgba(255,255,255,0.2)]">
-                    <i class="fa-solid fa-check-double text-xl text-emerald-600"></i>
+                <div class="p-4 text-right pt-2 relative">
+                    <p class="text-[9px] font-black tracking-widest text-amber-500 uppercase">Active Field</p>
+                    <div class="flex items-center justify-end gap-2 mt-1">
+                        <span class="text-[10px] font-black text-white bg-amber-500 px-2 py-0.5 rounded-full shadow-sm" x-text="stats.in_progress_percent + '%'"></span>
+                        <h4 class="text-3xl font-extrabold text-blue-900" x-text="stats.in_progress"></h4>
+                    </div>
                 </div>
-                <div class="p-6 text-right pt-6">
-                    <p class="text-[10px] font-black tracking-widest text-emerald-100 uppercase mt-2">completed</p>
-                    <h4 class="text-4xl font-extrabold text-white" x-text="stats.completed"></h4>
+            </div>
+
+            <div @click="filterStatus = 'completed'; filterType = ''; triggerFetch()" :class="filterStatus === 'completed' ? 'card-3d-active emerald' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group">
+                <div class="absolute -top-4 left-6 h-12 w-12 grid place-items-center rounded-xl bg-emerald-600 shadow-[0_8px_16px_rgba(16,185,129,0.2)] z-10">
+                    <i class="fa-solid fa-check-double text-sm text-white"></i>
+                </div>
+                <div class="p-4 text-right pt-2 relative">
+                    <p class="text-[9px] font-black tracking-widest text-emerald-500 uppercase">Resolved Units</p>
+                    <div class="flex items-center justify-end gap-2 mt-1">
+                        <span class="text-[10px] font-black text-white bg-emerald-600 px-2 py-0.5 rounded-full shadow-sm" x-text="stats.completed_percent + '%'"></span>
+                        <h4 class="text-3xl font-extrabold text-blue-900" x-text="stats.completed"></h4>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- MAIN CONTROL PANEL -->
-        <div class="grid lg:grid-cols-12 gap-8 relative pb-20 px-4 sm:px-0">
-            
-            <!-- Left Column Content -->
-            <div class="transition-all duration-500" :class="showSidebar ? 'lg:col-span-9' : 'lg:col-span-12'">
-                <div class="bg-white rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-gray-100 overflow-hidden flex flex-col relative z-20">
-                    
-                    <!-- Panel Header -->
-                    <div class="bg-blue-50/50 p-8 border-b border-blue-100/50">
-                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                            <div class="flex items-center gap-4">
-                                <div class="w-16 h-16 rounded-[1.25rem] bg-white flex items-center justify-center border border-blue-100 shadow-sm transition-transform hover:scale-105 duration-300">
-                                    <i class="fa-solid fa-satellite-dish text-3xl text-blue-600"></i>
-                                </div>
-                                <div>
-                                    <h2 class="text-2xl font-extrabold text-blue-900 tracking-tight flex items-center gap-3">
-                                        Helps Management<span class="text-lg font-bold text-slate-400" x-text="'(' + totalRecords + ' records)'"></span>
-                                    </h2>
-                                    <p class="text-slate-500 text-sm font-bold mt-1">Manage and monitor helps</p>
-                                </div>
-                            </div>
-                            
-                            <div class="flex flex-wrap gap-4 items-center">
-                                <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
-                                    <span class="text-[9px] font-black text-slate-400 border-r border-slate-100 pr-2 uppercase font-mono">Row Density</span>
-                                    <select x-model.number="perPage" class="bg-transparent text-blue-600 text-[10px] font-black uppercase cursor-pointer outline-none focus:ring-0 border-none p-0 pr-4">
-                                        <option value="10">10 Per Page</option>
-                                        <option value="25">25 Per Page</option>
-                                        <option value="50">50 Per Page</option>
-                                        <option value="100">100 Per Page</option>
-                                    </select>
-                                </div>
-                                <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-1.5 shadow-sm">
-                                    <button @click="viewMode = 'table'" :class="viewMode === 'table' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-blue-900'" class="w-10 h-10 flex items-center justify-center rounded-lg transition-all"><i class="fas fa-list-ul"></i></button>
-                                    <button @click="viewMode = 'grid'" :class="viewMode === 'grid' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-blue-900'" class="w-10 h-10 flex items-center justify-center rounded-lg transition-all"><i class="fas fa-th-large"></i></button>
-                                </div>
-
-                                @can('calls.create')
-                                <a href="{{ route('calls.create') }}" class="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-black shadow-[0_8px_20px_rgba(10,28,47,0.3)] transition-all active:scale-95 group">
-                                    <i class="fas fa-plus group-hover:rotate-180 transition-transform duration-500"></i> Initiate New Help
-                                </a>
-                                @endcan
-                                
-                                <button @click="showSidebar = !showSidebar" class="w-12 h-12 flex items-center justify-center bg-white border border-slate-200 text-blue-900 rounded-xl hover:bg-slate-50 transition-colors shadow-sm" :title="showSidebar ? 'Hide Filters' : 'Show Filters'">
-                                    <i class="fas" :class="showSidebar ? 'fa-eye-slash' : 'fa-filter'"></i>
-                                </button>
-                            </div>
+        <!-- CATEGORY FILTERS (LOGICAL COLORS) -->
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 mt-6">
+            <template x-for="cat in stats.categories" :key="cat.id">
+                <div @click="filterType = cat.id; filterStatus = 'all'; triggerFetch()" 
+                     :class="filterType == cat.id ? 'card-3d-active ' + (
+                        cat.name.toLowerCase().includes('emergency') ? 'rose' : 
+                        cat.name.toLowerCase().includes('complaint') ? 'amber' : 
+                        cat.name.toLowerCase().includes('information') ? 'sky' : 
+                        cat.name.toLowerCase().includes('crime') ? 'indigo' : 
+                        cat.name.toLowerCase().includes('junk') ? 'slate' : 'blue'
+                     ) : 'hover:border-blue-200'"
+                     class="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-[0_10px_30px_rgba(0,0,0,0.02)] transition-all duration-300 cursor-pointer relative group overflow-hidden">
+                    <div class="flex justify-between items-start mb-4 relative z-10">
+                        <div class="h-10 w-10 rounded-xl flex items-center justify-center text-white shadow-lg"
+                             :class="
+                                cat.name.toLowerCase().includes('emergency') ? 'bg-rose-600 shadow-rose-200' : 
+                                cat.name.toLowerCase().includes('complaint') ? 'bg-amber-500 shadow-amber-200' : 
+                                cat.name.toLowerCase().includes('information') ? 'bg-sky-500 shadow-sky-200' : 
+                                cat.name.toLowerCase().includes('crime') ? 'bg-indigo-900 shadow-indigo-200' : 
+                                cat.name.toLowerCase().includes('junk') ? 'bg-slate-500 shadow-slate-200' : 'bg-blue-600 shadow-blue-200'
+                             ">
+                            <i :class="'fas ' + cat.icon + ' text-xs'"></i>
                         </div>
+                        <span class="text-[10px] font-black px-2 py-0.5 rounded-lg text-white" 
+                              :class="
+                                cat.name.toLowerCase().includes('emergency') ? 'bg-rose-600' : 
+                                cat.name.toLowerCase().includes('complaint') ? 'bg-amber-500' : 
+                                cat.name.toLowerCase().includes('information') ? 'bg-sky-500' : 
+                                cat.name.toLowerCase().includes('crime') ? 'bg-indigo-900' : 
+                                cat.name.toLowerCase().includes('junk') ? 'bg-slate-500' : 'bg-blue-600'
+                              "
+                              x-text="cat.percent + '%'"></span>
                     </div>
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest truncate mb-1" x-text="cat.name"></p>
+                    <h5 class="text-3xl font-black text-blue-900" x-text="cat.count"></h5>
+                </div>
+            </template>
+        </div>
+
+        <!-- MAIN CONTROL PANEL -->
+        <div class="grid lg:grid-cols-12 gap-8 relative pb-20">
+            <div class="transition-all duration-500" :class="showSidebar ? 'lg:col-span-9' : 'lg:col-span-12'">
+                <div class="bg-white rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-gray-100 overflow-hidden flex flex-col relative z-20 mt-8">
+
 
                     <!-- Grid View -->
                     <div x-show="viewMode === 'grid'" x-transition class="p-8">
@@ -457,13 +462,44 @@
                                 <i class="fas fa-filter"></i>
                             </div>
                             <div>
-                                <h2 class="font-extrabold text-blue-900 text-lg tracking-tight">Assistance Filters</h2>
-                                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Refine Search Scope</p>
+                                <h2 class="font-extrabold text-blue-900 text-lg tracking-tight">Intelligence Filters</h2>
+                                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Control Panel</p>
                             </div>
                         </div>
                         <button @click="showSidebar = false" class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-blue-900 shadow-sm flex items-center justify-center">
                             <i class="fas fa-angle-right"></i>
                         </button>
+                    </div>
+
+                    <div class="p-4 border-b border-slate-100 bg-blue-50/30 flex flex-col gap-4">
+                        <div class="flex items-center justify-between">
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Interface Mode</label>
+                            <div class="flex items-center bg-white p-1 rounded-xl border border-slate-100 shadow-sm">
+                                <button @click="viewMode = 'table'" :class="viewMode === 'table' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400'" class="w-8 h-8 flex items-center justify-center rounded-lg transition-all">
+                                    <i class="fas fa-list-ul text-xs"></i>
+                                </button>
+                                <button @click="viewMode = 'grid'" :class="viewMode === 'grid' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400'" class="w-8 h-8 flex items-center justify-center rounded-lg transition-all">
+                                    <i class="fas fa-th-large text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Row Density</label>
+                            <div class="flex items-center bg-white p-1 rounded-xl border border-slate-100 shadow-sm">
+                                <button @click="perPage = 10" :class="perPage === 10 ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400'" class="px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase transition-all">10</button>
+                                <button @click="perPage = 25" :class="perPage === 25 ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400'" class="px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase transition-all">25</button>
+                                <button @click="perPage = 50" :class="perPage === 50 ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400'" class="px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase transition-all">50</button>
+                            </div>
+                        </div>
+
+                        @can('calls.create')
+                        <a href="{{ route('calls.create') }}" 
+                            class="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-blue-600/20 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-3">
+                            <i class="fa-solid fa-plus text-[10px]"></i>
+                            <span>Initiate New Help</span>
+                        </a>
+                        @endcan
                     </div>
 
                     <div class="p-6 space-y-6 w-full flex-1">

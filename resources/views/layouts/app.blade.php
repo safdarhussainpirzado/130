@@ -483,6 +483,8 @@
         .card-3d-active.purple { box-shadow: -4px 4px 0px #7e22ce, 0 10px 15px -3px rgba(147, 51, 234, 0.4) !important; }
         .card-3d-active.emerald { box-shadow: -4px 4px 0px #047857, 0 10px 15px -3px rgba(16, 185, 129, 0.4) !important; }
         .card-3d-active.rose { box-shadow: -4px 4px 0px #be123c, 0 10px 15px -3px rgba(225, 29, 72, 0.4) !important; }
+        .card-3d-active.sky { box-shadow: -4px 4px 0px #0369a1, 0 10px 15px -3px rgba(14, 165, 233, 0.4) !important; }
+        .card-3d-active.slate { box-shadow: -4px 4px 0px #334155, 0 10px 15px -3px rgba(71, 85, 105, 0.4) !important; }
     </style>
 </head>
 
@@ -567,7 +569,7 @@
                     @can('dashboard.view')
                         <a href="{{ route('dashboard') }}"
                             class="nav-item {{ $cur === 'dashboard' ? 'active' : '' }}">
-                            <span class="nav-icon"><i class="fa-solid fa-layer-group"></i></span>
+                            <span class="nav-icon"><i class="fa-solid fa-chart-line"></i></span>
                             <span class="nav-label">Dashboard</span>
                             <span class="nav-tooltip">Dashboard</span>
                         </a>
@@ -656,7 +658,7 @@
 
                         <a href="{{ route('reports.index') }}"
                             class="nav-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
-                            <span class="nav-icon"><i class="fa-solid fa-chart-line"></i></span>
+                            <span class="nav-icon"><i class="fa-solid fa-layer-group"></i></span>
                             <span class="nav-label">Analytical Reports</span>
                             <span class="nav-tooltip">Reports</span>
                         </a>

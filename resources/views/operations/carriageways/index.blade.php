@@ -22,68 +22,59 @@
         </button>
 
         <!-- STATS CARDS -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div class="relative flex flex-col bg-white rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-2 transition-all duration-300">
-                <div class="absolute -top-6 left-6 h-14 w-14 grid place-items-center rounded-[1.25rem] bg-blue-600 shadow-[0_10px_20px_rgba(16,185,129,0.3)]">
-                    <i class="fas fa-road text-xl text-white"></i>
+        <div class="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-5 gap-4">
+            <!-- Total Routes Card -->
+            <div @click="filterStatus = ''; typeFilter = ''" :class="!filterStatus && !typeFilter ? 'card-3d-active blue' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                <div class="absolute -top-4 left-4 h-10 w-10 grid place-items-center rounded-xl bg-blue-600 shadow-[0_8px_16px_rgba(37,99,235,0.2)]">
+                    <i class="fas fa-road text-xs text-white"></i>
                 </div>
-                <div class="p-6 text-right pt-6">
-                    <p class="text-[10px] font-black tracking-widest text-blue-500 uppercase mt-2">Arterial Routes</p>
-                    <h4 class="text-4xl font-extrabold text-blue-900" x-text="items.length"></h4>
-                </div>
-                <div class="mx-6 mb-6 border-t border-slate-100 pt-3">
-                    <div class="flex items-center gap-2">
-                        <span class="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse"></span>
-                        <span class="text-[10px] text-slate-500 font-bold uppercase tracking-tight">National Network</span>
-                    </div>
+                <div class="p-5 text-right pt-4">
+                    <p class="text-[8px] font-black tracking-widest text-blue-500 uppercase">Arterial Routes</p>
+                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="items.length"></h4>
                 </div>
             </div>
 
-            <div class="relative flex flex-col bg-white rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-2 transition-all duration-300">
-                <div class="absolute -top-6 left-6 h-14 w-14 grid place-items-center rounded-[1.25rem] bg-blue-500 shadow-[0_10px_20px_rgba(59,130,246,0.3)]">
-                    <i class="fas fa-ruler-horizontal text-xl text-white"></i>
+            <!-- Active Routes Card -->
+            <div @click="filterStatus = (filterStatus === 'active' ? '' : 'active')" :class="filterStatus === 'active' ? 'card-3d-active emerald' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                <div class="absolute -top-4 left-4 h-10 w-10 grid place-items-center rounded-xl bg-emerald-500 shadow-[0_8px_16px_rgba(16,185,129,0.2)]">
+                    <i class="fas fa-check-circle text-xs text-white"></i>
                 </div>
-                <div class="p-6 text-right pt-6">
-                    <p class="text-[10px] font-black tracking-widest text-blue-500 uppercase mt-2">Network Reach</p>
-                    <h4 class="text-4xl font-extrabold text-blue-900" x-text="items.reduce((acc, i) => acc + (parseFloat(i.total_km) || 0), 0) + ' KM'"></h4>
-                </div>
-                <div class="mx-6 mb-6 border-t border-slate-100 pt-3">
-                    <div class="flex items-center gap-2">
-                        <span class="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse"></span>
-                        <span class="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Total Managed Distance</span>
-                    </div>
+                <div class="p-5 text-right pt-4">
+                    <p class="text-[8px] font-black tracking-widest text-emerald-500 uppercase">Operational</p>
+                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="items.filter(i => i.status === 'active').length"></h4>
                 </div>
             </div>
 
-            <div class="relative flex flex-col bg-white rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-2 transition-all duration-300">
-                <div class="absolute -top-6 left-6 h-14 w-14 grid place-items-center rounded-[1.25rem] bg-amber-500 shadow-[0_10px_20px_rgba(245,158,11,0.3)]">
-                    <i class="fas fa-layer-group text-xl text-white"></i>
+            <!-- Restricted Routes Card -->
+            <div @click="filterStatus = (filterStatus === 'inactive' ? '' : 'inactive')" :class="filterStatus === 'inactive' ? 'card-3d-active rose' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                <div class="absolute -top-4 left-4 h-10 w-10 grid place-items-center rounded-xl bg-rose-500 shadow-[0_8px_16px_rgba(225,29,72,0.2)]">
+                    <i class="fas fa-ban text-xs text-white"></i>
                 </div>
-                <div class="p-6 text-right pt-6">
-                    <p class="text-[10px] font-black tracking-widest text-amber-500 uppercase mt-2">Total Sectors</p>
-                    <h4 class="text-4xl font-extrabold text-blue-900" x-text="items.length > 0 ? (items.length * 0.4).toFixed(0) : 0"></h4>
-                </div>
-                <div class="mx-6 mb-6 border-t border-slate-100 pt-3">
-                    <div class="flex items-center gap-2">
-                        <span class="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                        <span class="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Infrastructure Divisions</span>
-                    </div>
+                <div class="p-5 text-right pt-4">
+                    <p class="text-[8px] font-black tracking-widest text-rose-500 uppercase">Restricted</p>
+                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="items.filter(i => i.status !== 'active').length"></h4>
                 </div>
             </div>
 
-            <div class="relative flex flex-col bg-white rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-2 transition-all duration-300">
-                <div class="absolute -top-6 left-6 h-14 w-14 grid place-items-center rounded-[1.25rem] bg-blue-900 shadow-[0_10px_20_rgba(30,58,138,0.3)]">
-                    <i class="fas fa-shield-halved text-xl text-white"></i>
+            <!-- Motorways Card -->
+            <div @click="typeFilter = (typeFilter === 'Motorway' ? '' : 'Motorway')" :class="typeFilter === 'Motorway' ? 'card-3d-active amber' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                <div class="absolute -top-4 left-4 h-10 w-10 grid place-items-center rounded-xl bg-amber-500 shadow-[0_8px_16px_rgba(245,158,11,0.2)]">
+                    <i class="fas fa-car-tunnel text-xs text-white"></i>
                 </div>
-                <div class="p-6 text-right pt-6">
-                    <p class="text-[10px] font-black tracking-widest text-slate-400 uppercase mt-2">Active Units</p>
-                    <h4 class="text-4xl font-extrabold text-blue-900" x-text="items.reduce((acc, i) => acc + (i.beats_count || 0), 0)"></h4>
+                <div class="p-5 text-right pt-4">
+                    <p class="text-[8px] font-black tracking-widest text-amber-500 uppercase">Motorways</p>
+                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="items.filter(i => i.type === 'Motorway').length"></h4>
                 </div>
-                <div class="mx-6 mb-6 border-t border-slate-100 pt-3">
-                    <div class="flex items-center gap-2">
-                        <span class="h-1.5 w-1.5 rounded-full bg-blue-900 animate-pulse"></span>
-                        <span class="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Deployed Patrol Beats</span>
-                    </div>
+            </div>
+
+            <!-- Highways Card -->
+            <div @click="typeFilter = (typeFilter === 'Highway' ? '' : 'Highway')" :class="typeFilter === 'Highway' ? 'card-3d-active indigo' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                <div class="absolute -top-4 left-4 h-10 w-10 grid place-items-center rounded-xl bg-indigo-500 shadow-[0_8px_16px_rgba(79,70,229,0.2)]">
+                    <i class="fas fa-bridge text-xs text-white"></i>
+                </div>
+                <div class="p-5 text-right pt-4">
+                    <p class="text-[8px] font-black tracking-widest text-indigo-500 uppercase">Highways</p>
+                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="items.filter(i => i.type === 'Highway').length"></h4>
                 </div>
             </div>
         </div>
@@ -515,6 +506,7 @@
             return {
                 items: config.items || [],
                 search: '',
+                filterStatus: '',
                 density: 'spacious',
                 typeFilter: '',
                 viewMode: 'table',
@@ -571,7 +563,8 @@
                         const matchesSearch = (item.road_name || '').toLowerCase().includes(searchLower) || 
                                               (item.road || '').toLowerCase().includes(searchLower);
                         const matchesType = !this.typeFilter || item.type === this.typeFilter;
-                        return matchesSearch && matchesType;
+                        const matchesStatus = !this.filterStatus || item.status === this.filterStatus;
+                        return matchesSearch && matchesType && matchesStatus;
                     });
 
                     return filtered.sort((a, b) => {

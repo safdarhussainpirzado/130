@@ -55,6 +55,7 @@ class OfficeSeeder extends Seeder
                     ['name' => $z['name'], 'type' => 'zone', 'parent_id' => $parent_id],
                     [
                         'operational_type' => $z['operational_type'] ?? 'field',
+                        'phone' => $z['phone'] ?? null,
                         'is_active' => true,
                     ]
                 );
@@ -67,6 +68,8 @@ class OfficeSeeder extends Seeder
                 $sector = Office::updateOrCreate(
                     ['name' => $s['name'], 'type' => 'sector', 'parent_id' => $parent_id],
                     [
+                        'phone' => $s['phone'] ?? null,
+                        'short_name' => $s['short_name'] ?? null,
                         'is_active' => true,
                     ]
                 );
@@ -79,6 +82,10 @@ class OfficeSeeder extends Seeder
                 Office::updateOrCreate(
                     ['name' => $b['name'], 'type' => 'beat', 'parent_id' => $parent_id],
                     [
+                        'km_start' => $b['km_start'] ?? null,
+                        'km_end' => $b['km_end'] ?? null,
+                        'phone' => $b['phone'] ?? null,
+                        'short_name' => $b['short_name'] ?? null,
                         'is_active' => true,
                     ]
                 );

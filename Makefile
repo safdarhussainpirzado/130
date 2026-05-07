@@ -28,13 +28,13 @@ migrate-legacy:
 	
 	@echo "Step 2 & 3: Extracting Legacy Schema & Data into Staging..."
 	@rm -f staging_raw.sql
-	@for table in designations calls call_status_history users user_scopes beats sectors zones call_types call_sub_types vehicle_types regions; do \
+	@for table in audit_logs designations calls call_status_history users user_scopes beats sectors zones call_types call_sub_types vehicle_types regions; do \
 		echo "  -> Extracting $$table..." ; \
-		sed -n "/-- Table structure for table \`$$table\`/,/-- Table structure for table \`/p" Dump20260506.sql | grep -v "\-\- Table structure for table \`" >> staging_raw.sql || true ; \
+		sed -n "/-- Table structure for table \`$$table\`/,/-- Table structure for table \`/p" Dump20260507.sql | grep -v "\-\- Table structure for table \`" >> staging_raw.sql || true ; \
 	done
 	
 	@# Rename target tables to legacy_* in all contexts (DROP, CREATE, INSERT, etc.)
-	@for t in designations calls call_status_history users user_scopes beats sectors zones call_types call_sub_types vehicle_types regions; do \
+	@for t in audit_logs designations calls call_status_history users user_scopes beats sectors zones call_types call_sub_types vehicle_types regions; do \
 		sed -i "s/\`$$t\`/\`legacy_$$t\`/gI" staging_raw.sql ; \
 		sed -i "s/ $$t / legacy_$$t /gI" staging_raw.sql ; \
 	done

@@ -24,6 +24,10 @@ return new class extends Migration {
             $table->foreignId('parent_id')->nullable()->constrained('offices')->cascadeOnDelete();
             $table->enum('operational_type', ['field', 'office'])->default('field');
             $table->boolean('is_active')->default(true);
+            $table->decimal('km_start', 10, 2)->nullable();
+            $table->decimal('km_end', 10, 2)->nullable();
+            $table->string('phone', 100)->nullable();
+            $table->string('short_name', 100)->nullable();
             $table->timestamps();
             $table->softDeletes();
             $table->index(['type', 'is_active']);

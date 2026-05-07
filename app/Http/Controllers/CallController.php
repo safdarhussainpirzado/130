@@ -145,17 +145,44 @@ class CallController extends Controller
         $query = $this->applyScopeVisibility($query);
         $query = $this->applyFiltersAndSearch($query, $request);
 
-        // Calculate stats BEFORE filtering by the currently active status tab
+        // Calculate stats BEFORE filtering by the currently active status/category tab
         $statsBaseQuery = clone $query;
-        $stats = [
-            'total' => (clone $statsBaseQuery)->count(),
-            'pending' => (clone $statsBaseQuery)->where('status', 'pending')->count(),
+        $totalCount = (clone $statsBaseQuery)->count();
+        
+        $statusStats = [
+            'total'       => $totalCount,
+            'pending'     => (clone $statsBaseQuery)->where('status', 'pending')->count(),
             'in_progress' => (clone $statsBaseQuery)->where('status', 'in_progress')->count(),
-            'completed' => (clone $statsBaseQuery)->where('status', 'completed')->count(),
+            'completed'   => (clone $statsBaseQuery)->where('status', 'completed')->count(),
         ];
+
+        // Add percentages for status stats
+        foreach ($statusStats as $key => $count) {
+            $statusStats[$key . '_percent'] = $totalCount > 0 ? round(($count / $totalCount) * 100, 1) : 0;
+        }
+
+        // Calculate Category Stats
+        $callTypes = CallType::where('is_active', true)->get();
+        $categoryStats = [];
+        foreach ($callTypes as $type) {
+            $c = (clone $statsBaseQuery)->where('call_type_id', $type->id)->count();
+            $categoryStats[] = [
+                'id' => $type->id,
+                'name' => $type->name,
+                'count' => $c,
+                'percent' => $totalCount > 0 ? round(($c / $totalCount) * 100, 1) : 0,
+                'icon' => $type->icon ?? 'fa-tag'
+            ];
+        }
+
+        $stats = array_merge($statusStats, ['categories' => $categoryStats]);
 
         if ($request->status && $request->status !== 'all') {
             $query->where('status', $request->status);
+        }
+        
+        if ($request->call_type_id) {
+            $query->where('call_type_id', $request->call_type_id);
         }
 
         $filterData = $this->getFilterData();
@@ -313,7 +340,7 @@ class CallController extends Controller
     {
         $this->authorize('create', Call::class);
         $callType = \App\Models\CallType::find($request->call_type_id);
-        $isJunkSilent = $callType && $callType->category === 'junk_silent';
+        $isExempt = $callType && in_array($callType->category, ['junk_silent', 'information']);
 
         $validated = $request->validate([
             'caller_number' => [
@@ -334,7 +361,7 @@ class CallController extends Controller
             'vehicle_no' => 'nullable|string|max:30',
             'carriageway_id' => 'nullable|exists:carriageways,id',
             'km_marker_text' => 'nullable|string|max:20',
-            'beat_id' => ($isJunkSilent ? 'nullable' : 'required') . '|exists:offices,id',
+            'beat_id' => ($isExempt ? 'nullable' : 'required') . '|exists:offices,id',
             'priority' => 'nullable|integer|min:1|max:5',
             'caller_lat' => 'nullable|numeric',
             'caller_lng' => 'nullable|numeric',

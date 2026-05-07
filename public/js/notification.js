@@ -245,10 +245,10 @@
     }
 
     window.showNotification = (msg, type, title, duration) => window.notificationSystem.show(msg, type, title, duration);
-    window.showSuccess = (msg, title) => window.showNotification(msg, 'success', title);
-    window.showError = (msg, title) => window.showNotification(msg, 'error', title);
-    window.showWarning = (msg, title) => window.showNotification(msg, 'warning', title);
-    window.showInfo = (msg, title) => window.showNotification(msg, 'info', title);
+    window.showSuccess = (msg, title, duration) => window.showNotification(msg, 'success', title, duration);
+    window.showError = (msg, title, duration) => window.showNotification(msg, 'error', title, duration);
+    window.showWarning = (msg, title, duration) => window.showNotification(msg, 'warning', title, duration);
+    window.showInfo = (msg, title, duration) => window.showNotification(msg, 'info', title, duration);
 
     // Global Notification Object (Legacy & Component Support)
     window.Notification = {
