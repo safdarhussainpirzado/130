@@ -18,6 +18,11 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
+// Health check for HAProxy
+Route::get('/up', function () {
+    return response()->noContent();
+});
+
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('can:dashboard.view');
     Route::get('/auth/heartbeat', function() { return response()->noContent(); })->name('auth.heartbeat');

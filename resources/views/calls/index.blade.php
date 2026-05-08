@@ -25,9 +25,15 @@
             'id' => $s->office_id
         ])->first(),
         'permissions' => [
-            'create' => auth()->user()->can('calls.create'),
-            'transition_to_inprogress' => auth()->user()->can('calls.manage_status'),
-            'transition_to_completed' => auth()->user()->can('calls.manage_status'),
+            'create' => auth()->user()->hasPermission('calls.create'),
+            'calls' => [
+                'manage_status' => auth()->user()->hasPermission('calls.manage_status'),
+                'update' => auth()->user()->hasPermission('calls.update'),
+                'delete' => auth()->user()->hasPermission('calls.delete'),
+            ],
+            'reports' => [
+                'view' => auth()->user()->hasPermission('reports.view'),
+            ]
         ]
     ]) !!};
 </script>
@@ -219,12 +225,12 @@
                                         <!-- Action Grid -->
                                         <div class="grid grid-cols-3 gap-2">
                                             <!-- Contextual Action -->
-                                            <template x-if="item.status === 'pending' && item.beat_id && permissions.transition_to_inprogress">
+                                            <template x-if="item.status.toLowerCase() === 'pending' && (item.beat_id || item.office_id) && permissions.calls.manage_status">
                                                 <button @click="openTransitionModal(item, 'in_progress')" title="Initialize Mission" class="w-9 h-9 rounded-xl bg-amber-500 border border-amber-600 text-white hover:bg-amber-600 active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
                                                     <i class="fa-solid fa-bolt text-xs"></i>
                                                 </button>
                                             </template>
-                                            <template x-if="item.status === 'in_progress' && item.beat_id && permissions.transition_to_completed">
+                                            <template x-if="item.status.toLowerCase() === 'in_progress' && (item.beat_id || item.office_id) && permissions.calls.manage_status">
                                                 <button @click="openTransitionModal(item, 'completed')" title="Resolve Acquisition" class="w-9 h-9 rounded-xl bg-emerald-600 border border-emerald-700 text-white hover:bg-emerald-600 active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
                                                     <i class="fa-solid fa-check text-xs"></i>
                                                 </button>
@@ -382,27 +388,38 @@
                                         </td>
                                         <td class="px-6 py-5" @click.stop>
                                             <div class="flex items-center justify-center gap-1.5 w-[120px] mx-auto">
+                                                <!-- View Details -->
                                                 <button @click="openDetailModal(item)" title="View Intelligence" class="w-9 h-9 bg-blue-500 border border-blue-600 text-white hover:bg-blue-600 transition-colors flex items-center justify-center rounded-xl shadow-sm active:scale-95 aspect-square shrink-0">
                                                     <i class="fas fa-eye text-xs"></i>
                                                 </button>
 
+                                                <!-- Initialize Mission (Pending -> In Progress) -->
+                                                <template x-if="item.status.toLowerCase() === 'pending' && (item.beat_id || item.office_id) && permissions.calls.manage_status">
+                                                    <button @click="openTransitionModal(item, 'in_progress')" title="Initialize Mission" class="w-9 h-9 bg-amber-500 border border-amber-600 text-white hover:bg-amber-600 transition-colors flex items-center justify-center rounded-xl shadow-sm active:scale-95 aspect-square shrink-0">
+                                                        <i class="fas fa-bolt text-xs"></i>
+                                                    </button>
+                                                </template>
+
+                                                <!-- Resolve Help (In Progress -> Completed) -->
+                                                <template x-if="item.status.toLowerCase() === 'in_progress' && (item.beat_id || item.office_id) && permissions.calls.manage_status">
+                                                    <button @click="openTransitionModal(item, 'completed')" title="Resolve Acquisition" class="w-9 h-9 bg-emerald-600 border border-emerald-700 text-white hover:bg-emerald-600 transition-colors flex items-center justify-center rounded-xl shadow-sm active:scale-95 aspect-square shrink-0">
+                                                        <i class="fas fa-check text-xs"></i>
+                                                    </button>
+                                                </template>
+
+                                                <!-- Agent/Supervisor Reminder -->
                                                 <template x-if="['agent', 'agent_supervisor', 'super_admin'].includes(userRole) && item.status === 'pending' && item.office_id">
                                                     <button @click="openReminderModal(item)" title="Send Reminder" class="w-9 h-9 bg-emerald-500 border border-emerald-600 text-white hover:bg-emerald-600 transition-colors flex items-center justify-center rounded-xl shadow-sm active:scale-95 aspect-square shrink-0">
                                                         <i class="fas fa-bell text-xs"></i>
                                                     </button>
                                                 </template>
 
-                                                <template x-if="item.status === 'in_progress' && item.office_id && permissions.transition_to_completed">
-                                                    <button @click="openTransitionModal(item, 'completed')" title="Resolve Acquisition" class="w-9 h-9 bg-emerald-600 border border-emerald-700 text-white hover:bg-emerald-600 transition-colors flex items-center justify-center rounded-xl shadow-sm active:scale-95 aspect-square shrink-0">
-                                                        <i class="fas fa-check text-xs"></i>
-                                                    </button>
-                                                </template>
-                                                <template x-if="item.status === 'completed' || item.status === 'forwarded' || item.status === 'junk'">
+                                                <!-- Locked State -->
+                                                <template x-if="['completed', 'forwarded', 'junk'].includes(item.status)">
                                                     <div class="w-9 h-9 bg-slate-100 border border-slate-200 text-slate-400 flex items-center justify-center rounded-xl opacity-50 cursor-not-allowed mx-auto aspect-square shrink-0">
                                                         <i class="fas fa-lock text-xs"></i>
                                                     </div>
                                                 </template>
-
                                             </div>
                                         </td>
                                     </tr>

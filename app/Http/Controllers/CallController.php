@@ -189,7 +189,9 @@ class CallController extends Controller
 
         $sort = $request->get('sort');
         $dir = $request->get('direction', 'desc') === 'asc' ? 'asc' : 'desc';
-        $allowedSorts = ['call_number', 'created_at', 'priority', 'status', 'caller_name', 'caller_number', 'vehicle_no', 'call_type_id', 'beat_id'];
+        $allowedSorts = ['call_number', 'created_at', 'priority', 'status', 'caller_name', 'caller_number', 'vehicle_no', 'call_type_id', 'office_id'];
+        
+        if ($sort === 'beat_id') $sort = 'office_id';
         
         if ($sort && in_array($sort, $allowedSorts)) {
             $calls = $query->orderBy($sort, $dir)->paginate($request->perPage ?? 25);
