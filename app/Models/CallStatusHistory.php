@@ -8,7 +8,8 @@ class CallStatusHistory extends Model
 {
 
     protected $table = 'call_status_history';
-    public $timestamps = false;  // Add this line
+    public $timestamps = true;
+    const UPDATED_AT = null;
     protected $fillable = ['call_id', 'changed_by', 'old_status', 'new_status', 'remarks', 'officer_id'];
 
     protected $casts = [

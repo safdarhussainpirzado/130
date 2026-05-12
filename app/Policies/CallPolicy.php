@@ -58,6 +58,20 @@ class CallPolicy
     }
 
     /**
+     * Determine if the user can export calls.
+     */
+    public function export(User $user): bool
+    {
+        // Allow Super Admin and Supervisor by permission
+        if ($user->hasPermission('calls.export')) {
+            return true;
+        }
+
+        // Also allow operational admins/operators to export their scoped data
+        return in_array($user->role?->name, ['zone_admin', 'sector_admin', 'beat_operator']);
+    }
+
+    /**
      * Internal check for operational scope compatibility.
      */
     private function checkAccess(User $user, Call $call): bool

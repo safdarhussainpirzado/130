@@ -85,15 +85,24 @@ optimize:
 
 
 clear_prod:
-	docker-compose exec app-1 php artisan config:clear
-	docker-compose exec app-1 php artisan route:clear
-	docker-compose exec app-1 php artisan view:clear
-	docker-compose exec app-1 php artisan cache:clear
-	docker-compose exec app-1 php artisan event:clear
-	docker-compose exec app-1 php artisan view:cache
-	docker-compose exec app-1 php artisan event:cache
-	docker-compose exec app-1 php artisan optimize:clear
-	docker-compose exec app-1 php artisan optimize
+	docker-compose exec 130-app-1-1 php artisan config:clear
+	docker-compose exec 130-app-1-1 php artisan route:clear
+	docker-compose exec 130-app-1-1 php artisan view:clear
+	docker-compose exec 130-app-1-1 php artisan cache:clear
+	docker-compose exec 130-app-1-1 php artisan event:clear
+	docker-compose exec 130-app-1-1 php artisan view:cache
+	docker-compose exec 130-app-1-1 php artisan event:cache
+	docker-compose exec 130-app-1-1 php artisan optimize:clear
+	docker-compose exec 130-app-1-1 php artisan optimize
+	docker-compose exec 130-app-2-1 php artisan config:clear
+	docker-compose exec 130-app-2-1 php artisan route:clear
+	docker-compose exec 130-app-2-1 php artisan view:clear
+	docker-compose exec 130-app-2-1 php artisan cache:clear
+	docker-compose exec 130-app-2-1 php artisan event:clear
+	docker-compose exec 130-app-2-1 php artisan view:cache
+	docker-compose exec 130-app-2-1 php artisan event:cache
+	docker-compose exec 130-app-2-1 php artisan optimize:clear
+	docker-compose exec 130-app-2-1 php artisan optimize
 
 
 # Follow logs

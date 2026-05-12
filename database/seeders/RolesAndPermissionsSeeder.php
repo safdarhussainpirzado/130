@@ -359,6 +359,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 'calls.manage_status',
                 'calls.update',
                 'calls.api_lookup',
+                'calls.export',
                 'profile.update',
             ],
             'sector_admin' => [
@@ -367,6 +368,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 'reports.view',
                 'reports.beat_wise',
                 'reports.call_type_summary',
+                'calls.export',
                 'profile.update',
             ],
             'zone_admin' => [
@@ -376,6 +378,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 'reports.beat_wise',
                 'reports.call_type_summary',
                 'reports.sla_compliance',
+                'calls.export',
                 'profile.update',
             ],
             'agent_supervisor' => [

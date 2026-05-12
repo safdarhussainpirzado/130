@@ -23,5 +23,6 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 *.sql
+*.csv
 *:Zone.Identifier
 *Zone.Identifier

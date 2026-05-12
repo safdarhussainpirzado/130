@@ -606,6 +606,16 @@ input:focus, textarea:focus, button:focus-visible {
                                         <p class="text-[10px] font-bold text-amber-700" x-text="selectedHistoryCall.id || 'N/A'"></p>
                                     </div>
                                 </div>
+                                <div class="grid grid-cols-2 gap-4 shrink-0" x-show="selectedHistoryCall.agent_name">
+                                    <div>
+                                        <p class="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Handled By (Agent)</p>
+                                        <p class="text-[10px] font-bold text-blue-600" x-text="selectedHistoryCall.agent_name"></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Priority</p>
+                                        <p class="text-[10px] font-bold text-slate-700" x-text="selectedHistoryCall.priority == '1' ? 'Critical' : (selectedHistoryCall.priority == '2' ? 'Urgent' : 'Normal')"></p>
+                                    </div>
+                                </div>
                                 <div class="grid grid-cols-2 gap-4 shrink-0" x-show="selectedHistoryCall.call_reminder_count > 0">
                                     <div>
                                         <p class="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Reminder Count</p>
@@ -633,7 +643,7 @@ input:focus, textarea:focus, button:focus-visible {
                                          x-text="selectedHistoryCall.details || 'No details provided.'"></div>
                                 </div>
                             </div>
-                            <div class="mt-3 pt-3 border-t border-slate-200/50 shrink-0" x-show="selectedHistoryCall.status === 'pending'">
+                            <div class="mt-3 pt-3 border-t border-slate-200/50 shrink-0" x-show="['pending', 'in_progress'].includes(selectedHistoryCall.status)">
                                 <button type="button" @click="applyReminderCall()"
                                         class="w-full py-2.5 bg-emerald-600 border border-emerald-600 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.15em] flex items-center justify-center gap-2 transition-all duration-150
                                                

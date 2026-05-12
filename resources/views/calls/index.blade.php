@@ -247,7 +247,7 @@
                         <table class="w-full text-left" :class="density === 'condensed' ? 'condensed-table' : 'spacious-table'">
                             <thead class="bg-blue-50 border-b border-blue-100">
                                 <tr>
-                                    <th class="px-8 py-4">
+                                    <th class="px-3 py-3">
                                         <div class="flex items-center gap-2.5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
                                             <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 shadow-sm border border-blue-100">
                                                 <i class="fa-solid fa-satellite-dish text-[10px]"></i>
@@ -258,7 +258,20 @@
                                             </button>
                                         </div>
                                     </th>
-                                    <th class="px-3 py-3">
+                                    @if(!in_array(auth()->user()->role?->name, ['zone_admin', 'sector_admin', 'beat_operator']))
+                                    <th class="px-2 py-3">
+                                        <div class="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                                            <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 shadow-sm border border-blue-100">
+                                                <i class="fa-solid fa-user-tie text-[10px]"></i>
+                                            </div>
+                                            <button @click="sortByItem('agent_id')" class="flex items-center gap-1.5 hover:text-blue-700 transition-colors group">
+                                                Agent
+                                                <i class="fas text-[10px] transition-all duration-300 opacity-0 group-hover:opacity-100 fa-sort text-blue-600" :class="getSortIcon('agent_id')"></i>
+                                            </button>
+                                        </div>
+                                    </th>
+                                    @endif
+                                    <th class="px-2 py-3">
                                         <div class="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
                                             <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 shadow-sm border border-blue-100">
                                                 <i class="fa-solid fa-tags text-[10px]"></i>
@@ -269,7 +282,7 @@
                                             </button>
                                         </div>
                                     </th>
-                                    <th class="px-3 py-3">
+                                    <th class="px-2 py-3">
                                         <div class="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
                                             <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 shadow-sm border border-blue-100">
                                                 <i class="fa-solid fa-road text-[10px]"></i>
@@ -280,7 +293,7 @@
                                             </button>
                                         </div>
                                     </th>
-                                    <th class="px-3 py-3">
+                                    <th class="px-2 py-3">
                                         <div class="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
                                             <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 shadow-sm border border-blue-100">
                                                 <i class="fa-solid fa-user text-[10px]"></i>
@@ -328,8 +341,8 @@
                             </thead>
                             <tbody class="divide-y divide-slate-50">
                                 <template x-for="item in pagedItems" :key="item.id">
-                                    <tr class="hover:bg-blue-50/40 transition-colors group cursor-pointer" @click="window.location='/calls/' + item.id">
-                                        <td class="px-3 py-3">
+                                    <tr class="hover:bg-blue-50/40 transition-colors group cursor-pointer border-l-4 border-transparent hover:border-blue-600" @click="window.location='/calls/' + item.id">
+                                        <td class="px-2 py-3">
                                             <div class="flex flex-col gap-1">
                                                 <div class="flex items-center gap-1.5">
                                                     <span class="font-black text-blue-900 text-xs tracking-tighter uppercase group-hover:text-blue-600 transition-colors" x-text="item.call_number"></span>
@@ -349,13 +362,21 @@
                                                 </template>
                                             </div>
                                         </td>
-                                        <td class="px-3 py-3">
+                                        @if(!in_array(auth()->user()->role?->name, ['zone_admin', 'sector_admin', 'beat_operator']))
+                                        <td class="px-2 py-3">
+                                            <div class="flex flex-col">
+                                                <span class="text-xs font-black text-blue-900 uppercase" x-text="item.agent?.full_name || 'System'"></span>
+                                                <span class="text-[9px] font-bold text-slate-400 uppercase italic">Call center Agent</span>
+                                            </div>
+                                        </td>
+                                        @endif
+                                        <td class="px-2 py-3">
                                             <div class="flex flex-col">
                                                 <span class="text-xs font-black text-blue-900 uppercase" x-text="item.call_type?.name || 'UNCATEGORIZED'"></span>
                                                 <span class="text-[9px] font-bold text-slate-400 uppercase italic" x-text="item.call_sub_type?.name || 'GENERAL'"></span>
                                             </div>
                                         </td>
-                                        <td class="px-3 py-3">
+                                        <td class="px-2 py-3">
                                             <div class="flex flex-col">
                                                 <div class="flex items-center gap-2 text-xs font-bold text-blue-900">
                                                     <i class="fa-solid fa-map-pin text-[10px] text-blue-400"></i>
@@ -363,7 +384,7 @@
                                                 </div>
                                             </div>
                                         </td>
-                                        <td class="px-3 py-3">
+                                        <td class="px-2 py-3">
                                             <div class="flex flex-col">
                                                 <span class="text-xs font-black text-blue-900 uppercase" x-text="item.caller_name || 'Anonymous'"></span>
                                                 <span class="text-[10px] font-black text-blue-900 uppercase tracking-widest" x-text="item.caller_number"></span>
@@ -386,7 +407,7 @@
                                                 <div x-html="getStatusBadge(item.status)"></div>
                                             </div>
                                         </td>
-                                        <td class="px-6 py-5" @click.stop>
+                                        <td class="px-2 py-3" @click.stop>
                                             <div class="flex items-center justify-center gap-1.5 w-[120px] mx-auto">
                                                 <!-- View Details -->
                                                 <button @click="openDetailModal(item)" title="View Intelligence" class="w-9 h-9 bg-blue-500 border border-blue-600 text-white hover:bg-blue-600 transition-colors flex items-center justify-center rounded-xl shadow-sm active:scale-95 aspect-square shrink-0">
@@ -408,7 +429,7 @@
                                                 </template>
 
                                                 <!-- Agent/Supervisor Reminder -->
-                                                <template x-if="['agent', 'agent_supervisor', 'super_admin'].includes(userRole) && item.status === 'pending' && item.office_id">
+                                                <template x-if="['agent', 'agent_supervisor', 'super_admin'].includes(userRole) && ['pending', 'in_progress'].includes(item.status) && item.office_id">
                                                     <button @click="openReminderModal(item)" title="Send Reminder" class="w-9 h-9 bg-emerald-500 border border-emerald-600 text-white hover:bg-emerald-600 transition-colors flex items-center justify-center rounded-xl shadow-sm active:scale-95 aspect-square shrink-0">
                                                         <i class="fas fa-bell text-xs"></i>
                                                     </button>
@@ -619,14 +640,14 @@
                                 <!-- Zone Selector -->
                                 <div class="space-y-1">
                                     <select x-model="filterZone" @change="filterSector = ''; filterBeat = ''" 
-                                        :disabled="userScope && !['national', 'call_centre'].includes(userScope.type)"
+                                        :disabled="userScope && !['national', 'call_centre'].includes(userScope.type) && !['super_admin', 'agent_supervisor', 'agent'].includes(userRole)"
                                         class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none font-bold text-slate-600 text-xs shadow-inner focus:border-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                                         <option value="">Global Zones</option>
                                         <template x-for="z in zones" :key="z.id">
                                             <option :value="z.id" x-text="z.name"></option>
                                         </template>
                                     </select>
-                                    <template x-if="userScope && !['national', 'call_centre'].includes(userScope.type)">
+                                    <template x-if="userScope && !['national', 'call_centre'].includes(userScope.type) && !['super_admin', 'agent_supervisor', 'agent'].includes(userRole)">
                                         <p class="text-[8px] font-bold text-indigo-400 uppercase tracking-widest ml-4 italic">Zone Selected</p>
                                     </template>
                                 </div>
@@ -634,14 +655,14 @@
                                 <!-- Sector Selector -->
                                 <div class="space-y-1">
                                     <select x-model="filterSector" @change="filterBeat = ''" 
-                                        :disabled="userScope && ['sector', 'beat'].includes(userScope.type)"
+                                        :disabled="userScope && ['sector', 'beat'].includes(userScope.type) && !['super_admin', 'agent_supervisor', 'agent'].includes(userRole)"
                                         class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none font-bold text-slate-600 text-xs shadow-inner focus:border-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                                         <option value="">All Sectors</option>
                                         <template x-for="s in filteredSectors" :key="s.id">
                                             <option :value="s.id" x-text="s.name"></option>
                                         </template>
                                     </select>
-                                    <template x-if="userScope && ['sector', 'beat'].includes(userScope.type)">
+                                    <template x-if="userScope && ['sector', 'beat'].includes(userScope.type) && !['super_admin', 'agent_supervisor', 'agent'].includes(userRole)">
                                         <p class="text-[8px] font-bold text-indigo-400 uppercase tracking-widest ml-4 italic">Sector Selected</p>
                                     </template>
                                 </div>
@@ -649,15 +670,15 @@
                                 <!-- Beat Selector -->
                                 <div class="space-y-1">
                                     <select x-model="filterBeat" 
-                                        :disabled="userScope && userScope.type === 'beat'"
+                                        :disabled="userScope && userScope.type === 'beat' && !['super_admin', 'agent_supervisor', 'agent'].includes(userRole)"
                                         class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none font-bold text-slate-600 text-xs shadow-inner focus:border-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                                         <option value="">Select Beat</option>
                                         <template x-for="b in filteredBeats" :key="b.id">
                                             <option :value="b.id" x-text="b.name"></option>
                                         </template>
                                     </select>
-                                    <template x-if="userScope && userScope.type === 'beat'">
-                                        <p class="text-[8px] font-bold text-indigo-400 uppercase tracking-widest ml-4 italic">Beat Selected</p>
+                                    <template x-if="userScope && userScope.type === 'beat' && !['super_admin', 'agent_supervisor', 'agent'].includes(userRole)">
+                                        <p class="text-[8px] font-bold text-indigo-400 uppercase tracking-widest ml-4 italic">Beat Restricted</p>
                                     </template>
                                 </div>
                             </div>
@@ -999,22 +1020,30 @@
                             headers: { 'Accept': 'text/csv', 'X-Requested-With': 'XMLHttpRequest' }
                         });
 
-                        if (res.ok) {
-                            const blob = await res.blob();
-                            const url = window.URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.style.display = 'none';
-                            a.href = url;
-                            a.download = `export_${Date.now()}.csv`;
-                            document.body.appendChild(a);
-                            a.click();
-                            window.URL.revokeObjectURL(url);
-                            if (window.Notification) window.Notification.success('Helps downloaded successfully.', 'Export Complete');
-                        } else {
-                            if (window.Notification) window.Notification.warning('Unable to download Helps .', 'Export Failed');
+                        if (!res.ok) {
+                            const errorData = await res.json().catch(() => ({ error: 'Export server error' }));
+                            throw new Error(errorData.error || 'Failed to generate export');
                         }
+
+                        const contentType = res.headers.get('content-type');
+                        if (contentType && !contentType.includes('text/csv')) {
+                            // If we got HTML or something else, it might be a redirect or error page
+                            throw new Error('Server returned an invalid format. Please try again or check your filters.');
+                        }
+
+                        const blob = await res.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.style.display = 'none';
+                        a.href = url;
+                        a.download = `export_${Date.now()}.csv`;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        if (window.Notification) window.Notification.success('Helps downloaded successfully.', 'Export Complete');
                     } catch (e) {
-                        if (window.Notification) window.Notification.error('Network error Try agsin...', 'Connection Error');
+                        console.error('Export error:', e);
+                        if (window.Notification) window.Notification.error(e.message || 'Network error, please try again.', 'Export Failed');
                     } finally {
                         this.isLoading = false;
                     }
@@ -1030,10 +1059,29 @@
                 },
 
                 init() {
-                    if (this.userScope) {
-                        if (this.userScope.type === 'zone') this.filterZone = this.userScope.id;
-                        if (this.userScope.type === 'sector') this.filterSector = this.userScope.id;
-                        if (this.userScope.type === 'beat') this.filterBeat = this.userScope.id;
+                    // Check if the user is a privileged role (Admin, Supervisor, Agent)
+                    const isPrivileged = ['super_admin', 'agent_supervisor', 'agent'].includes(this.userRole);
+
+                    if (this.userScope && !isPrivileged) {
+                        if (this.userScope.type === 'zone') {
+                            this.filterZone = this.userScope.id;
+                        } else if (this.userScope.type === 'sector') {
+                            const sector = this.sectors.find(s => s.id == this.userScope.id);
+                            if (sector) {
+                                this.filterZone = sector.parent_id;
+                                this.filterSector = sector.id;
+                            }
+                        } else if (this.userScope.type === 'beat') {
+                            const beat = this.beats.find(b => b.id == this.userScope.id);
+                            if (beat) {
+                                const sector = this.sectors.find(s => s.id == beat.parent_id);
+                                if (sector) {
+                                    this.filterZone = sector.parent_id;
+                                    this.filterSector = sector.id;
+                                }
+                                this.filterBeat = beat.id;
+                            }
+                        }
                     }
 
                     this.$watch('search', () => { this.page = 1; this.triggerFetch(); });

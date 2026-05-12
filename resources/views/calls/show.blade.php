@@ -35,15 +35,17 @@
             'tiger_code' => $call->tiger->tiger_code,
         ] : null,
         'inprogress_remarks' => $call->inprogress_remarks,
-        'history' => $call->statusHistory()->orderBy('created_at', 'asc')->get()
+        'history' => $call->statusHistory()->with('changedBy.role')->orderBy('created_at', 'asc')->get()
             ->unique(function ($h) {
                 return $h->new_status . $h->remarks . $h->created_at->format('Y-m-d H:i:s');
             })
             ->map(function($h) {
+                $role = $h->changedBy->role?->name;
+                $isCallCenter = in_array($role, ['agent', 'agent_supervisor', 'super_admin']);
                 return [
                     'new_status' => $h->new_status,
                     'remarks' => $h->remarks,
-                    'changed_by' => $h->changedBy->employee->full_name ?? 'Beat Operator',
+                    'changed_by' => $isCallCenter ? $h->changedBy->full_name : 'Beat Operator',
                     'time' => $h->created_at->format('H:i:s'),
                     'date' => $h->created_at->format('d M')
                 ];

@@ -21,20 +21,20 @@ class CallService
             $data['agent_id'] = $agent->id;
             $data['call_start_time'] = now();
 
-            // Determine if this is a Junk/Silent call for automated completion
+            // Determine if this is a Junk/Silent or Information call for automated completion
             $type = null;
             if (isset($data['call_type_id'])) {
                 $type = CallType::find($data['call_type_id']);
             }
-            $isJunkSilent = $type && $type->category === 'junk_silent';
+            $isAutomated = $type && in_array($type->category, ['junk_silent', 'information']);
 
-            $initialStatus = $isJunkSilent ? 'completed' : 'pending';
+            $initialStatus = $isAutomated ? 'completed' : 'pending';
             $data['status'] = $initialStatus;
 
-            if ($isJunkSilent) {
+            if ($isAutomated) {
                 $data['completed_at'] = now();
                 $data['completed_status_by'] = $agent->id;
-                $data['completed_remarks'] = 'Automated completion for junk/silent call';
+                $data['completed_remarks'] = 'Automated completion for ' . $type->category . ' call';
                 $data['resolution_time_sec'] = 0;
             }
 
@@ -72,7 +72,7 @@ class CallService
                 'old_status' => null,
                 'new_status' => $initialStatus,
                 'changed_by' => $agent->id,
-                'remarks' => $isJunkSilent ? 'Automated completion for junk/silent call' : 'Help inserted',
+                'remarks' => $isAutomated ? 'Automated completion for ' . $type->category . ' call' : 'Help inserted',
             ]);
 
             // Fire events

@@ -228,7 +228,7 @@ return new class extends Migration {
             $table->string('new_status', 30);
             $table->text('remarks')->nullable();
             $table->unsignedBigInteger('officer_id')->nullable();
-            $table->timestamp('created_at')->useCurrent();
+            $table->timestamp('created_at')->nullable();
         });
 
         /* ── 6. System & Infrastructure ──────────────────────────────── */

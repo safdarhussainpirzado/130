@@ -888,6 +888,13 @@
                         const response = await fetch(`/api/notifications/poll?since=${encodeURIComponent(this.lastCheck)}`, {
                             headers: { 'X-Requested-With': 'XMLHttpRequest' }
                         });
+
+                        if (response.status === 403) {
+                            console.warn('Heartbeat: Access denied (403). Polling suspended.');
+                            if (this.interval) clearInterval(this.interval);
+                            return;
+                        }
+
                         const data = await response.json();
 
                         if (data.new_calls && data.new_calls.length > 0) {
@@ -900,7 +907,9 @@
                             this.pendingCount = data.pending_count;
                         }
                         
-                        this.lastCheck = data.timestamp;
+                        if (data.timestamp) {
+                            this.lastCheck = data.timestamp;
+                        }
                     } catch (e) {
                         console.error('Heartbeat sync failed:', e);
                     }

@@ -126,8 +126,8 @@ class CallController extends Controller
 
         return [
             'zones' => Office::zones()->where('is_active', true)->select('id', 'name')->orderBy('name')->get(),
-            'sectors' => Office::sectors()->where('is_active', true)->select('id', 'name', 'parent_id as zone_id')->orderBy('name')->get(),
-            'beats' => Office::beats()->where('is_active', true)->select('id', 'name', 'parent_id as sector_id')->orderBy('name')->get(),
+            'sectors' => Office::sectors()->where('is_active', true)->select('id', 'name', 'parent_id')->orderBy('name')->get(),
+            'beats' => Office::beats()->where('is_active', true)->select('id', 'name', 'parent_id')->orderBy('name')->get(),
             'callTypes' => \App\Models\CallType::where('is_active', true)->select('id', 'name')->orderBy('name')->get(),
             'callSubTypes' => \App\Models\CallSubType::where('is_active', true)->select('id', 'name', 'call_type_id')->orderBy('name')->get(),
             'agents' => $isPrivileged
@@ -454,12 +454,15 @@ class CallController extends Controller
         $num = $request->get('number', $request->get('caller_number'));
         if (!$num || strlen($num) < 7) return response()->json(['calls' => []]);
 
-        $calls = Call::with(['office.parent.parent'])->where('caller_number', $num)
+        $calls = Call::with(['office.parent.parent', 'agent'])->where('caller_number', $num)
             ->orderBy('created_at', 'desc')
             ->limit(5)
             ->get();
 
-        $formattedCalls = $calls->map(function ($c) {
+        $user = auth()->user();
+        $showAgent = !in_array($user->role?->name, ['zone_admin', 'sector_admin', 'beat_operator']);
+
+        $formattedCalls = $calls->map(function ($c) use ($showAgent) {
             return [
                 'id' => $c->id,
                 'call_number' => $c->call_number,
@@ -476,6 +479,7 @@ class CallController extends Controller
                 'zone_name' => $c->office?->zone()?->name,
                 'sector_name' => $c->office?->sector()?->name,
                 'beat_name' => $c->office?->name,
+                'agent_name' => $showAgent ? ($c->agent?->full_name ?? 'N/A') : null,
                 'location_details' => $c->location_details,
             ];
         });
@@ -547,11 +551,10 @@ class CallController extends Controller
      */
     public function getNotificationsPoll(Request $request)
     {
+        $user = auth()->user();
         $this->authorize('calls.api_lookup');
-        try {
-            /** @var \App\Models\User $user */
-            $user = auth()->user();
 
+        try {
             $allowedRoles = ['beat_operator', 'sector_admin', 'zone_admin'];
             $userRole = $user->role ? $user->role->name : null;
 
@@ -613,65 +616,132 @@ class CallController extends Controller
 
     public function exportCsv(Request $request)
     {
-        $this->authorize('calls.export');
-        $baseQuery = $this->applyScopeVisibility(Call::query());
-        $query = $this->applyFiltersAndSearch($baseQuery, $request);
+        $this->authorize('export', Call::class);
 
-        // Sorting
-        $sort = $request->get('sort', 'created_at');
-        $direction = $request->get('direction', 'desc');
-        
-        // Prevent sql injection on sorting
-        $allowedSorts = ['call_number', 'created_at', 'priority', 'status', 'caller_name', 'caller_number', 'vehicle_no'];
-        if (in_array($sort, $allowedSorts)) {
-            $query->orderBy($sort, $direction === 'asc' ? 'asc' : 'desc');
-        } else {
-            $query->orderBy('status', 'asc')->orderBy('created_at', 'desc');
-        }
+        try {
+            $user = auth()->user();
+            $showAgent = !in_array($user->role?->name, ['zone_admin', 'sector_admin', 'beat_operator']);
 
-        $query->with(['callType', 'callSubType', 'office.parent.parent', 'agent', 'carriageway', 'vehicleType']);
-        
-        $calls = $query->get();
+            $baseQuery = $this->applyScopeVisibility(Call::query());
+            $query = $this->applyFiltersAndSearch($baseQuery, $request);
 
-        $filename = "calls_export_" . date('Y-m-d_H-i-s') . ".csv";
-        $headers = [
-            "Content-type"        => "text/csv",
-            "Content-Disposition" => "attachment; filename=$filename",
-            "Pragma"              => "no-cache",
-            "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
-            "Expires"             => "0"
-        ];
+            // Sorting logic
+            $sort = $request->get('sort', 'created_at');
+            $direction = $request->get('direction', 'desc');
+            $allowedSorts = ['call_number', 'created_at', 'priority', 'status', 'caller_name', 'caller_number', 'vehicle_no'];
+            
+            if ($sort === 'beat_id') $sort = 'office_id';
 
-        $columns = [
-            'ID', 'Date', 'Time', 'Priority', 'Status', 'Category', 'Sub-Category',
-            'Zone', 'Sector', 'Beat', 'Caller Name', 'Caller Number', 'Vehicle No', 'Vehicle Type'
-        ];
-
-        $callback = function() use($calls, $columns) {
-            $file = fopen('php://output', 'w');
-            fputcsv($file, $columns);
-            foreach ($calls as $call) {
-                fputcsv($file, [
-                    $call->call_number,
-                    $call->created_at ? $call->created_at->format('Y-m-d') : '',
-                    $call->created_at ? $call->created_at->format('H:i:s') : '',
-                    $call->priority,
-                    $call->status,
-                    $call->callType ? $call->callType->name : '',
-                    $call->callSubType ? $call->callSubType->name : '',
-                    $call->office?->zone()?->name,
-                    $call->office?->sector()?->name,
-                    $call->office?->name,
-                    $call->caller_name,
-                    $call->caller_number,
-                    $call->vehicle_no,
-                    $call->vehicleType ? $call->vehicleType->name : ''
-                ]);
+            if (in_array($sort, $allowedSorts)) {
+                $query->orderBy($sort, $direction === 'asc' ? 'asc' : 'desc');
+            } else {
+                $query->orderBy('status', 'asc')->orderBy('created_at', 'desc');
             }
-            fclose($file);
-        };
 
-        return response()->stream($callback, 200, $headers);
+            // Optimize query for export
+            $query->with([
+                'callType', 
+                'callSubType', 
+                'office.parent.parent', // Beat -> Sector -> Zone
+                'agent', 
+                'vehicleType'
+            ]);
+
+            // Set execution limits for large exports
+            set_time_limit(300); // 5 minutes
+            ini_set('memory_limit', '512M');
+
+            $filename = "calls_export_" . date('Y-m-d_H-i-s') . ".csv";
+            $headers = [
+                "Content-type"        => "text/csv",
+                "Content-Disposition" => "attachment; filename=$filename",
+                "Pragma"              => "no-cache",
+                "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
+                "Expires"             => "0"
+            ];
+
+            return response()->stream(function() use ($query, $showAgent) {
+                $file = fopen('php://output', 'w');
+                
+                // Write Header
+                $columns = [
+                    'ID', 'Date', 'Time', 'Priority', 'Status', 'Category', 'Sub-Category',
+                    'Zone', 'Sector', 'Beat', 'Caller Name', 'Caller Number', 'Vehicle No', 'Vehicle Type'
+                ];
+                if ($showAgent) {
+                    array_splice($columns, 5, 0, ['Agent']);
+                }
+                fputcsv($file, $columns);
+
+                // Stream records in chunks to prevent memory exhaustion
+                $query->chunk(100, function($calls) use ($file, $showAgent) {
+                    foreach ($calls as $call) {
+                        // Efficiently find zone and sector from eager-loaded hierarchy
+                        $beat = $call->office;
+                        $sector = null;
+                        $zone = null;
+
+                        if ($beat) {
+                            if ($beat->type === 'beat') {
+                                $sector = $beat->parent;
+                                $zone = $sector?->parent;
+                            } elseif ($beat->type === 'sector') {
+                                $sector = $beat;
+                                $zone = $sector->parent;
+                            } elseif ($beat->type === 'zone') {
+                                $zone = $beat;
+                            }
+                        }
+
+                        $row = [
+                            $call->call_number,
+                            $call->created_at ? $call->created_at->format('Y-m-d') : '',
+                            $call->created_at ? $call->created_at->format('H:i:s') : '',
+                            $call->priority,
+                            $call->status,
+                            $call->callType ? $call->callType->name : '',
+                            $call->callSubType ? $call->callSubType->name : '',
+                            $zone ? $zone->name : '',
+                            $sector ? $sector->name : '',
+                            $beat && $beat->type === 'beat' ? $beat->name : '',
+                            $call->caller_name,
+                            $call->caller_number,
+                            $call->vehicle_no,
+                            $call->vehicleType ? $call->vehicleType->name : ''
+                        ];
+
+                        if ($showAgent) {
+                            array_splice($row, 5, 0, [$call->agent?->full_name ?? 'N/A']);
+                        }
+                        fputcsv($file, $row);
+                    }
+                    // Flush the buffer to browser after each chunk
+                    if (ob_get_level() > 0) {
+                        ob_flush();
+                    }
+                    flush();
+                });
+
+                fclose($file);
+            }, 200, $headers);
+
+        } catch (\Throwable $e) {
+            Log::error('Export failed: ' . $e->getMessage(), [
+                'request' => $request->all(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            // If headers are already sent, we can't return a JSON/Redirect response
+            if (headers_sent()) {
+                exit("\n--- ERROR DURING EXPORT: " . $e->getMessage() . " ---");
+            }
+
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['error' => 'Export failed: ' . $e->getMessage()], 500);
+            }
+            
+            return back()->with('error', 'Export failed: ' . $e->getMessage());
+        }
     }
 
     public function geospatialLookup(Request $request)
