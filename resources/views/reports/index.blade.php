@@ -84,6 +84,24 @@
                         </div>
                     </div>
                 </a>
+
+                <!-- Category Analysis Card (NEW) -->
+                <a href="{{ route('reports.category-analysis') }}" class="bg-gradient-to-br from-emerald-600 to-teal-800 rounded-[2rem] p-8 text-white shadow-xl shadow-emerald-200/30 hover:-translate-y-1 transition-all group relative overflow-hidden">
+                    <div class="absolute -right-6 -bottom-6 opacity-10 group-hover:scale-110 transition-transform duration-500">
+                        <i class="fa-solid fa-layer-group text-9xl"></i>
+                    </div>
+                    <div class="relative z-10 flex flex-col h-full justify-between">
+                        <div>
+                            <div class="text-[10px] font-black text-emerald-200 uppercase tracking-widest mb-2">Structural Analysis</div>
+                            <h3 class="text-2xl font-extrabold tracking-tight mb-4 leading-tight">Primary vs Secondary Analysis</h3>
+                            <p class="text-emerald-100/70 text-sm font-medium leading-relaxed max-w-sm">Compare high-action incidents against informational or junk call volumes.</p>
+                        </div>
+                        <div class="mt-6 flex items-center gap-3">
+                            <span class="px-3 py-1 bg-white/20 rounded-lg text-[9px] font-black uppercase tracking-widest border border-white/20">Volume Strategy</span>
+                            <i class="fa-solid fa-arrow-right text-white/50 group-hover:translate-x-2 transition-transform"></i>
+                        </div>
+                    </div>
+                </a>
             </div>
 
 

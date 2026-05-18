@@ -78,13 +78,25 @@ class CallController extends Controller
 
         if ($request->date_from) {
             try {
-                $query->whereDate('created_at', '>=', Carbon::parse($request->date_from));
+                $dateTime = $request->date_from;
+                if ($request->time_from) {
+                    $dateTime .= ' ' . $request->time_from;
+                    $query->where('created_at', '>=', Carbon::parse($dateTime));
+                } else {
+                    $query->whereDate('created_at', '>=', Carbon::parse($dateTime));
+                }
             } catch (\Exception $e) {}
         }
 
         if ($request->date_to) {
             try {
-                $query->whereDate('created_at', '<=', Carbon::parse($request->date_to));
+                $dateTime = $request->date_to;
+                if ($request->time_to) {
+                    $dateTime .= ' ' . $request->time_to;
+                    $query->where('created_at', '<=', Carbon::parse($dateTime));
+                } else {
+                    $query->whereDate('created_at', '<=', Carbon::parse($dateTime));
+                }
             } catch (\Exception $e) {}
         }
 

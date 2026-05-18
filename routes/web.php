@@ -95,6 +95,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/sla-compliance', [ReportController::class, 'slaCompliance'])->name('sla-compliance')->middleware('can:reports.sla_compliance');
         Route::get('/max-response-time', [ReportController::class, 'maxResponseTime'])->name('max-response-time')->middleware('can:reports.max_response_time');
         Route::get('/predictive-analysis', [ReportController::class, 'predictiveAnalysis'])->name('predictive-analysis')->middleware('can:reports.predictive_analysis');
+        Route::get('/category-analysis', [ReportController::class, 'categoryAnalysis'])->name('category-analysis')->middleware('can:reports.view');
+        Route::get('/junk-calls-frequency', [ReportController::class, 'junkCallsFrequency'])->name('junk-calls-frequency')->middleware('can:reports.view');
     });
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

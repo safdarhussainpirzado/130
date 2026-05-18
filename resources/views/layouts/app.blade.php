@@ -653,14 +653,63 @@
 
                     @can('reports.view')
                         <!-- REPORTS -->
-                        <div class="nav-section">Reports</div>
+                        <div class="nav-section">Analytical Reports</div>
                         <div class="nav-section-divider"></div>
 
-                        <a href="{{ route('reports.index') }}"
-                            class="nav-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
-                            <span class="nav-icon"><i class="fa-solid fa-layer-group"></i></span>
-                            <span class="nav-label">Analytical Reports</span>
-                            <span class="nav-tooltip">Reports</span>
+                        <a href="{{ route('reports.call-type-summary') }}"
+                            class="nav-item {{ request()->routeIs('reports.call-type-summary') ? 'active' : '' }}">
+                            <span class="nav-icon text-blue-500"><i class="fa-solid fa-list-check"></i></span>
+                            <span class="nav-label">Call Type Summary</span>
+                            <span class="nav-tooltip">Categorical</span>
+                        </a>
+
+                        <a href="{{ route('reports.beat-wise') }}"
+                            class="nav-item {{ request()->routeIs('reports.beat-wise') ? 'active' : '' }}">
+                            <span class="nav-icon text-indigo-500"><i class="fa-solid fa-map-location-dot"></i></span>
+                            <span class="nav-label">Beat Analysis</span>
+                            <span class="nav-tooltip">Geospatial</span>
+                        </a>
+
+                        <a href="{{ route('reports.agent-wise') }}"
+                            class="nav-item {{ request()->routeIs('reports.agent-wise') ? 'active' : '' }}">
+                            <span class="nav-icon text-emerald-500"><i class="fa-solid fa-headset"></i></span>
+                            <span class="nav-label">Agent Performance</span>
+                            <span class="nav-tooltip">Personnel</span>
+                        </a>
+
+                        <a href="{{ route('reports.sla-compliance') }}"
+                            class="nav-item {{ request()->routeIs('reports.sla-compliance') ? 'active' : '' }}">
+                            <span class="nav-icon text-rose-500"><i class="fa-solid fa-stopwatch"></i></span>
+                            <span class="nav-label">SLA Monitoring</span>
+                            <span class="nav-tooltip">Compliance</span>
+                        </a>
+
+                        <a href="{{ route('reports.junk-calls-frequency') }}"
+                            class="nav-item {{ request()->routeIs('reports.junk-calls-frequency') ? 'active' : '' }}">
+                            <span class="nav-icon text-slate-500"><i class="fa-solid fa-ban"></i></span>
+                            <span class="nav-label">Junk Calls Frequency</span>
+                            <span class="nav-tooltip">Junk/Silent</span>
+                        </a>
+
+                        <a href="{{ route('reports.max-response-time') }}"
+                            class="nav-item {{ request()->routeIs('reports.max-response-time') ? 'active' : '' }}">
+                            <span class="nav-icon text-amber-500"><i class="fa-solid fa-gauge-high"></i></span>
+                            <span class="nav-label">Response Benchmarks</span>
+                            <span class="nav-tooltip">Outliers</span>
+                        </a>
+
+                        <a href="{{ route('reports.predictive-analysis') }}"
+                            class="nav-item {{ request()->routeIs('reports.predictive-analysis') ? 'active' : '' }}">
+                            <span class="nav-icon text-blue-600"><i class="fa-solid fa-brain"></i></span>
+                            <span class="nav-label">Predictive Load</span>
+                            <span class="nav-tooltip">Forecasting</span>
+                        </a>
+
+                        <a href="{{ route('reports.category-analysis') }}"
+                            class="nav-item {{ request()->routeIs('reports.category-analysis') ? 'active' : '' }}">
+                            <span class="nav-icon text-teal-500"><i class="fa-solid fa-layer-group"></i></span>
+                            <span class="nav-label">Primary vs Secondary</span>
+                            <span class="nav-tooltip">Structural</span>
                         </a>
                     @endcan
 

@@ -38,7 +38,7 @@ class ProductionSeeder extends Seeder
         $this->call(CarriagewaySeeder::class);
         $this->call(GeospatialLandmarkSeeder::class);
         $this->call(GeospatialMarkerSeeder::class);
-        
+  
         DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
         // 2. Roles & Permissions setup
@@ -50,7 +50,25 @@ class ProductionSeeder extends Seeder
         // 6. System Settings
         $this->seedSystemSettings();
 
-        $this->command->info('Production Seeder completed successfully!');
+        // 7. Default Super Admin (Machine B / Fresh Setup)
+        $this->command->info('Creating default Super Admin (nhmp_admin)...');
+        DB::table('users')->updateOrInsert(
+            ['username' => '130_crm_admin'],
+            [
+                'full_name' => 'NHMP Super Admin',
+                'password' => Hash::make('Secret@123Admin!'),
+                'email' => '130admin@nhmp.gov.pk',
+                'mobile_no' => '00000000000',
+                'cnic' => '00000-0000000-0',
+                'designation_id' => 1,
+                'role_id' => 1, // super_admin
+                'is_active' => true,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]
+        );
+
+        $this->command->info('✔ Super Admin (nhmp_admin) created successfully!');
     }
 
     private function seedSystemSettings(): void

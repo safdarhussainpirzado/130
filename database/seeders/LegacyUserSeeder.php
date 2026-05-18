@@ -55,7 +55,7 @@ class LegacyUserSeeder extends Seeder
             // Sync Scopes if possible
             // Note: Scopes might need mapping if they were Region/Zone/Sector/Beat specific
             // Since we unified offices, we might need to find the new office_id
-            $this->migrateScopes($user, $lu, $source);
+            // $this->migrateScopes($user, $lu, $source);
         }
 
         $this->command->info('User migration complete.');

@@ -17,6 +17,7 @@
         'sectors' => $sectors,
         'beats' => $beats,
         'currentUserRole' => auth()->user()->role->name,
+        'currentUserId' => auth()->id(),
     ]))" class="space-y-8 relative mt-4 max-w-[1700px] mx-auto" x-cloak>
 
 
@@ -211,9 +212,16 @@
                                                 <button @click="editItem(item)" title="Modify Parameters" class="w-9 h-9 rounded-xl bg-indigo-500 border border-indigo-600 text-white hover:bg-indigo-600 active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
                                                     <i class="fa-solid fa-sliders text-xs"></i>
                                                 </button>
-                                                <button @click="openPasswordReset(item)" title="Force Key Rotation" class="w-9 h-9 rounded-xl bg-slate-700 border border-slate-800 text-white hover:bg-slate-800 active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
-                                                    <i class="fa-solid fa-key text-xs"></i>
-                                                </button>
+                                                <template x-if="canManageUser(item)">
+                                                    <button @click="openPasswordReset(item)" title="Force Key Rotation" class="w-9 h-9 rounded-xl bg-slate-700 border border-slate-800 text-white hover:bg-slate-800 active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
+                                                        <i class="fa-solid fa-key text-xs"></i>
+                                                    </button>
+                                                </template>
+                                                <template x-if="!canManageUser(item)">
+                                                    <div title="Restricted Authority" class="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 text-slate-300 flex items-center justify-center mx-auto aspect-square shrink-0 cursor-not-allowed opacity-50">
+                                                        <i class="fa-solid fa-lock text-xs"></i>
+                                                    </div>
+                                                </template>
                                                 <button @click="viewAccess(item)" title="View Access Topology" class="w-9 h-9 rounded-xl bg-purple-600 border border-purple-700 text-white hover:bg-purple-700 active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
                                                     <i class="fa-solid fa-shield-halved text-xs"></i>
                                                 </button>
@@ -327,9 +335,16 @@
                                                 <button @click="editItem(item)" title="Modify Parameters" class="w-9 h-9 bg-indigo-500 border border-indigo-600 text-white hover:bg-indigo-600 transition-colors flex items-center justify-center rounded-xl shadow-sm active:scale-95 aspect-square shrink-0">
                                                     <i class="fas fa-sliders text-xs"></i>
                                                 </button>
-                                                <button @click="openPasswordReset(item)" title="Rotate Key" class="w-9 h-9 bg-slate-700 border border-slate-800 text-white hover:bg-slate-800 transition-colors flex items-center justify-center rounded-xl shadow-sm active:scale-95 aspect-square shrink-0">
-                                                    <i class="fas fa-key text-xs"></i>
-                                                </button>
+                                                <template x-if="canManageUser(item)">
+                                                    <button @click="openPasswordReset(item)" title="Rotate Key" class="w-9 h-9 bg-slate-700 border border-slate-800 text-white hover:bg-slate-800 transition-colors flex items-center justify-center rounded-xl shadow-sm active:scale-95 aspect-square shrink-0">
+                                                        <i class="fas fa-key text-xs"></i>
+                                                    </button>
+                                                </template>
+                                                <template x-if="!canManageUser(item)">
+                                                    <div title="Restricted" class="w-9 h-9 bg-slate-50 border border-slate-100 text-slate-300 flex items-center justify-center rounded-xl opacity-50 cursor-not-allowed aspect-square shrink-0">
+                                                        <i class="fas fa-lock text-xs"></i>
+                                                    </div>
+                                                </template>
                                                 <button @click="viewAccess(item)" title="View Access Topology" class="w-9 h-9 bg-purple-600 border border-purple-700 text-white hover:bg-purple-700 transition-colors flex items-center justify-center rounded-xl shadow-sm active:scale-95 aspect-square shrink-0">
                                                     <i class="fas fa-shield-halved text-xs"></i>
                                                 </button>
@@ -1097,6 +1112,18 @@
                     return this.designations.filter(d => d.name === this.tempDesignationName);
                 },
 
+                canManageUser(item) {
+                    // Users can always manage themselves
+                    if (this.currentUserId === item.id) return true;
+                    // Super Admin can manage everyone else
+                    if (this.currentUserRole === 'super_admin') return true;
+                    // Operation Admin cannot manage Super Admins or other Operation Admins
+                    if (this.currentUserRole === 'operation_admin') {
+                        const targetRole = item.role ? item.role.name : item.role_name;
+                        return !['super_admin', 'operation_admin'].includes(targetRole);
+                    }
+                    return false;
+                },
                 get filteredSectors() {
                     if (!this.tempZoneId) return [];
                     return this.sectors.filter(s => s.zone_id == this.tempZoneId);

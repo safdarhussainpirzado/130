@@ -12,19 +12,22 @@ class UserPolicy
      */
     private function canManage(User $admin, User $target): bool
     {
-        // 1. Users can always manage their own data
+        // 1. Users can always manage their own data/password
         if ($admin->id === $target->id) {
             return true;
         }
 
-        // 2. Super Admin can manage anyone
+        // 2. Super Admin can manage anyone else
         if ($admin->role?->name === Role::SUPER_ADMIN) {
             return true;
         }
 
-        // 3. IT/Operation Admin cannot manage Super Admins or other IT/Operation Admins
+        // 3. IT/Operation Admin (IT_ADMIN) restrictions:
+        // They can manage lower roles, but NOT Super Admins or other IT Admins
         if ($admin->role?->name === Role::IT_ADMIN) {
             $restricted = [Role::SUPER_ADMIN, Role::IT_ADMIN];
+            
+            // Only allow if the target is NOT in the restricted roles
             return !in_array($target->role?->name, $restricted);
         }
 

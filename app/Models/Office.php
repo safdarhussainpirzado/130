@@ -115,4 +115,9 @@ class Office extends Model
     {
         return $query->where('type', 'beat');
     }
+
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
+    }
 }

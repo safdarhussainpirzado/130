@@ -50,6 +50,21 @@
         0%, 100% { opacity: 1; }
         50% { opacity: .5; }
     }
+    .custom-scrollbar::-webkit-scrollbar {
+        height: 8px;
+        width: 8px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: #f8fafc;
+        border-radius: 10px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 10px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
 </style>
 
 <div x-data="callManager(window._indexData)" 
@@ -189,7 +204,7 @@
                                         </div>
 
                                         <div class="relative z-10">
-                                            <h4 class="text-2xl font-extrabold text-blue-900 tracking-tighter leading-none mb-1 group-hover:text-blue-600 transition-colors" x-text="item.caller_name"></h4>
+                                            <h4 class="text-2xl font-extrabold text-blue-900 tracking-tighter leading-none mb-1 group-hover:text-blue-600 transition-colors" x-text="formatTitleCase(item.caller_name)"></h4>
                                             <span class="text-xs font-black text-blue-900 uppercase" x-text="item.caller_number"></span>
                                             <div class="flex items-center gap-2 mb-6">
                                                 <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest" x-text="'Time: ' + formatTime(item.created_at)"></span>
@@ -204,11 +219,11 @@
                                                         <span class="text-xs font-black text-blue-900 uppercase" x-text="item.call_type?.name || 'UNCATEGORIZED'"></span>
                                                         <span class="text-[10px] font-bold text-slate-400 italic" x-text="item.call_sub_type?.name || 'GENERAL RESOLUTION'"></span>
                                                     </div>
-                                                    <div class="flex items-center justify-between pt-4 border-t border-slate-200/50">
-                                                        <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Beat Assigned: </span>
+                                                    <div class="flex flex-col pt-4 border-t border-slate-200/50">
+                                                        <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Beat Assigned: </span>
                                                         <div class="flex items-center gap-2 text-[10px] font-bold text-blue-900">
                                                             <i class="fa-solid fa-map-pin text-blue-400"></i>
-                                                            <span x-text="item.office?.name || 'OFF-GRID'"></span>
+                                                            <span x-text="getLocationHierarchy(item)"></span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -223,7 +238,12 @@
                                         </div>
 
                                         <!-- Action Grid -->
-                                        <div class="grid grid-cols-3 gap-2">
+                                        <div class="grid grid-cols-4 gap-2">
+                                            <!-- View Details -->
+                                            <button @click="openDetailModal(item)" title="View Intelligence" class="w-9 h-9 bg-blue-500 border border-blue-600 text-white hover:bg-blue-600 transition-colors flex items-center justify-center rounded-xl shadow-sm active:scale-95 aspect-square shrink-0">
+                                                <i class="fas fa-eye text-xs"></i>
+                                            </button>
+
                                             <!-- Contextual Action -->
                                             <template x-if="item.status.toLowerCase() === 'pending' && (item.beat_id || item.office_id) && permissions.calls.manage_status">
                                                 <button @click="openTransitionModal(item, 'in_progress')" title="Initialize Mission" class="w-9 h-9 rounded-xl bg-amber-500 border border-amber-600 text-white hover:bg-amber-600 active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
@@ -235,6 +255,20 @@
                                                     <i class="fa-solid fa-check text-xs"></i>
                                                 </button>
                                             </template>
+
+                                            <!-- Agent/Supervisor Reminder -->
+                                            <template x-if="['agent', 'agent_supervisor', 'super_admin'].includes(userRole) && ['pending', 'in_progress'].includes(item.status) && item.office_id">
+                                                <button @click="openReminderModal(item)" title="Send Reminder" class="w-9 h-9 bg-emerald-500 border border-emerald-600 text-white hover:bg-emerald-600 transition-colors flex items-center justify-center rounded-xl shadow-sm active:scale-95 aspect-square shrink-0">
+                                                    <i class="fas fa-bell text-xs"></i>
+                                                </button>
+                                            </template>
+
+                                            <!-- Locked State -->
+                                            <template x-if="['completed', 'forwarded', 'junk'].includes(item.status)">
+                                                <div class="w-9 h-9 bg-slate-100 border border-slate-200 text-slate-400 flex items-center justify-center rounded-xl opacity-50 cursor-not-allowed mx-auto aspect-square shrink-0">
+                                                    <i class="fas fa-lock text-xs"></i>
+                                                </div>
+                                            </template>
                                         </div>
                                     </div>
                                 </div>
@@ -243,8 +277,8 @@
                     </div>
 
                     <!-- Table View -->
-                    <div x-show="viewMode === 'table'" x-transition class="overflow-x-auto shadow-inner bg-white rounded-3xl border border-slate-100">
-                        <table class="w-full text-left" :class="density === 'condensed' ? 'condensed-table' : 'spacious-table'">
+                    <div x-show="viewMode === 'table'" x-transition class="overflow-x-auto shadow-inner bg-white rounded-3xl border border-slate-100 custom-scrollbar">
+                        <table class="w-full text-left min-w-[1400px] border-collapse" :class="density === 'condensed' ? 'condensed-table' : 'spacious-table'">
                             <thead class="bg-blue-50 border-b border-blue-100">
                                 <tr>
                                     <th class="px-3 py-3">
@@ -288,7 +322,7 @@
                                                 <i class="fa-solid fa-road text-[10px]"></i>
                                             </div>
                                             <button @click="sortByItem('beat_id')" class="flex items-center gap-1.5 hover:text-blue-700 transition-colors group">
-                                                Beat
+                                                Zone / Sector / Beat
                                                 <i class="fas text-[10px] transition-all duration-300 opacity-0 group-hover:opacity-100 fa-sort text-blue-600" :class="getSortIcon('beat_id')"></i>
                                             </button>
                                         </div>
@@ -378,15 +412,15 @@
                                         </td>
                                         <td class="px-2 py-3">
                                             <div class="flex flex-col">
-                                                <div class="flex items-center gap-2 text-xs font-bold text-blue-900">
-                                                    <i class="fa-solid fa-map-pin text-[10px] text-blue-400"></i>
-                                                    <span x-text="item.office?.name || 'OFF-GRID'"></span>
+                                                <div class="flex items-center gap-2 text-[10px] font-bold text-blue-900">
+                                                    <i class="fa-solid fa-map-pin text-[8px] text-blue-400"></i>
+                                                    <span x-text="getLocationHierarchy(item)"></span>
                                                 </div>
                                             </div>
                                         </td>
                                         <td class="px-2 py-3">
                                             <div class="flex flex-col">
-                                                <span class="text-xs font-black text-blue-900 uppercase" x-text="item.caller_name || 'Anonymous'"></span>
+                                                <span class="text-xs font-black text-blue-900 uppercase" x-text="formatTitleCase(item.caller_name) || 'Anonymous'"></span>
                                                 <span class="text-[10px] font-black text-blue-900 uppercase tracking-widest" x-text="item.caller_number"></span>
                                             </div>
                                         </td>
@@ -521,23 +555,6 @@
                                 </button>
                             </div>
                         </div>
-
-                        <div class="flex items-center justify-between pt-2 border-t border-slate-100">
-                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Row Density</label>
-                            <div class="flex items-center bg-white p-1 rounded-xl border border-slate-100 shadow-sm">
-                                <button @click="perPage = 10" :class="perPage === 10 ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400'" class="px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase transition-all">10</button>
-                                <button @click="perPage = 25" :class="perPage === 25 ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400'" class="px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase transition-all">25</button>
-                                <button @click="perPage = 50" :class="perPage === 50 ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400'" class="px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase transition-all">50</button>
-                            </div>
-                        </div>
-
-                        @can('calls.create')
-                        <a href="{{ route('calls.create') }}" 
-                            class="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-blue-600/20 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-3">
-                            <i class="fa-solid fa-plus text-[10px]"></i>
-                            <span>Initiate New Help</span>
-                        </a>
-                        @endcan
                     </div>
 
                     <div class="p-6 space-y-6 w-full flex-1">
@@ -571,16 +588,28 @@
                         <!-- Date Range Filters -->
                         <div class="space-y-4 pt-4 border-t border-slate-100">
                             <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                <i class="fa-regular fa-calendar-days text-indigo-500"></i> Date Range
+                                <i class="fa-regular fa-calendar-days text-indigo-500"></i> Date & Time Range
                             </label>
                             <div class="space-y-3">
-                                <div>
-                                    <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">From</label>
-                                    <input type="date" x-model="dateFrom" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none font-bold text-slate-600 text-xs shadow-inner focus:border-indigo-500 transition-all">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Date From</label>
+                                        <input type="date" x-model="dateFrom" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none font-bold text-slate-600 text-xs shadow-inner focus:border-indigo-500 transition-all">
+                                    </div>
+                                    <div>
+                                        <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Time From</label>
+                                        <input type="time" x-model="timeFrom" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none font-bold text-slate-600 text-xs shadow-inner focus:border-indigo-500 transition-all">
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">To</label>
-                                    <input type="date" x-model="dateTo" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none font-bold text-slate-600 text-xs shadow-inner focus:border-indigo-500 transition-all">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Date To</label>
+                                        <input type="date" x-model="dateTo" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none font-bold text-slate-600 text-xs shadow-inner focus:border-indigo-500 transition-all">
+                                    </div>
+                                    <div>
+                                        <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Time To</label>
+                                        <input type="time" x-model="timeTo" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none font-bold text-slate-600 text-xs shadow-inner focus:border-indigo-500 transition-all">
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -947,6 +976,8 @@
                 filterStatus: config.status || 'all',
                 dateFrom: '',
                 dateTo: '',
+                timeFrom: '',
+                timeTo: '',
                 totalRecords: config.total || 0,
                 totalPages: config.last_page || 1,
                 isLoading: false,
@@ -969,6 +1000,8 @@
                             agent_id: this.filterAgent,
                             date_from: this.dateFrom,
                             date_to: this.dateTo,
+                            time_from: this.timeFrom,
+                            time_to: this.timeTo,
                             page: this.page,
                             perPage: this.perPage,
                             sort: this.sortBy,
@@ -1012,6 +1045,8 @@
                             agent_id: this.filterAgent,
                             date_from: this.dateFrom,
                             date_to: this.dateTo,
+                            time_from: this.timeFrom,
+                            time_to: this.timeTo,
                             sort: this.sortBy,
                             direction: this.sortDirection
                         });
@@ -1094,6 +1129,8 @@
                     this.$watch('filterAgent', () => { this.page = 1; this.triggerFetch(); });
                     this.$watch('dateFrom', () => { this.page = 1; this.triggerFetch(); });
                     this.$watch('dateTo', () => { this.page = 1; this.triggerFetch(); });
+                    this.$watch('timeFrom', () => { this.page = 1; this.triggerFetch(); });
+                    this.$watch('timeTo', () => { this.page = 1; this.triggerFetch(); });
                     this.$watch('perPage', () => { this.page = 1; this.triggerFetch(); });
                     this.$watch('page', () => { this.triggerFetch(); });
                 },
@@ -1172,6 +1209,20 @@
                     if (!dateStr) return '---';
                     const d = new Date(dateStr);
                     return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                },
+
+                formatTitleCase(str) {
+                    if (!str) return '---';
+                    return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+                },
+
+                getLocationHierarchy(item) {
+                    if (!item || !item.office) return 'OFF-GRID';
+                    const parts = [];
+                    if (item.office.parent?.parent?.name) parts.push(item.office.parent.parent.name);
+                    if (item.office.parent?.name) parts.push(item.office.parent.name);
+                    if (item.office.name) parts.push(item.office.name);
+                    return parts.length > 0 ? parts.join(' / ') : 'OFF-GRID';
                 },
 
                 getStatusBadge(status) {
@@ -1270,6 +1321,8 @@
                     this.page = 1;
                     this.dateFrom = '';
                     this.dateTo = '';
+                    this.timeFrom = '';
+                    this.timeTo = '';
                     this.triggerFetch();
 
                 },

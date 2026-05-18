@@ -5,9 +5,14 @@ echo "🔔 Booting NHMP 130 CRM container..."
 
 cd /var/www/html
 
+# Ensure essential directories exist
+mkdir -p storage/framework/sessions \
+         storage/framework/views \
+         storage/framework/cache/data \
+         storage/logs \
+         bootstrap/cache
+
 # Clear anything cached wrongly during build transport
-# Force remove files to bypass "Class not found" errors during boot
-rm -rf bootstrap/cache/*.php
 # Create an empty packages.php to satisfy Laravel if needed (though usually not necessary)
 # ── Database migrations ─────────────────────────────────────────────────────
 # IMPORTANT: Migrations are NOT run automatically on every boot.
