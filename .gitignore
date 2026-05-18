@@ -27,3 +27,8 @@ Thumbs.db
 *.csv
 *:Zone.Identifier
 *Zone.Identifier
+
+# Keep SSL certificates out of git!
+*.pem
+*.key
+*.crt

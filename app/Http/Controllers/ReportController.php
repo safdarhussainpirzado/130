@@ -10,6 +10,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\View;
 
 class ReportController extends Controller
 {
@@ -44,6 +45,9 @@ class ReportController extends Controller
 
     public function callTypeSummary(Request $request)
     {
+        set_time_limit(300);
+        ini_set('memory_limit', '1024M');
+
         $data = $this->reportService->callTypeSummary($request->all());
         
         $availableColumns = ['type' => 'Category', 'sub_type' => 'Sub Type', 'total' => 'Total', 'percentage' => 'Efficiency %', 'emergency' => 'Priority P1'];
@@ -56,8 +60,15 @@ class ReportController extends Controller
                 return Excel::download(new CustomFormattedExport($title, $subtitle, array_values($visibleColumns), $data), 'call_type_summary.xlsx');
             }
             if ($request->export === 'pdf') {
-                return Pdf::loadView('reports.pdf.call-type-summary', compact('data', 'visibleColumns'))->download('call_type_summary.pdf');
+                return Pdf::loadView('reports.pdf.generic', compact('data', 'visibleColumns', 'title', 'subtitle'))->download('call_type_summary.pdf');
             }
+        }
+
+        if ($request->ajax()) {
+            return view('reports.call-type-summary', array_merge(
+                compact('data', 'availableColumns', 'visibleColumns'),
+                $this->getFilterData()
+            ));
         }
 
         return view('reports.call-type-summary', array_merge(
@@ -68,16 +79,29 @@ class ReportController extends Controller
 
     public function beatWise(Request $request)
     {
+        set_time_limit(300);
+        ini_set('memory_limit', '1024M');
+
         $data = $this->reportService->beatWiseReport($request->all());
         $availableColumns = ['name' => 'Beat Name', 'total' => 'Total Calls', 'zone' => 'Parent Zone', 'sector' => 'Parent Sector'];
         $visibleColumns = $request->input('cols', $availableColumns);
 
         if ($request->has('export')) {
+            $title = 'Beat Wise Calls Summary Management Report';
+            $subtitle = $this->getSubtitle($request);
             if ($request->export === 'excel') {
-                $title = 'Beat Wise Calls Summary Management Report';
-                $subtitle = $this->getSubtitle($request);
                 return Excel::download(new CustomFormattedExport($title, $subtitle, array_values($visibleColumns), $data), 'beat_wise_report.xlsx');
             }
+            if ($request->export === 'pdf') {
+                return Pdf::loadView('reports.pdf.generic', compact('data', 'visibleColumns', 'title', 'subtitle'))->download('beat_wise_report.pdf');
+            }
+        }
+
+        if ($request->ajax()) {
+            return view('reports.beat-wise', array_merge(
+                compact('data', 'availableColumns', 'visibleColumns'),
+                $this->getFilterData()
+            ));
         }
 
         return view('reports.beat-wise', array_merge(
@@ -89,17 +113,30 @@ class ReportController extends Controller
     public function agentWise(Request $request)
     {
         abort_if(!auth()->user()->hasPermission('reports.view'), 403, 'Unauthorized access to agent reports module');
+        set_time_limit(300);
+        ini_set('memory_limit', '1024M');
+
         $data = $this->reportService->agentPerformance($request->all());
         
         $availableColumns = ['username' => 'Agent Identity', 'total' => 'Total Logs', 'avg_duration' => 'Avg Handle Time', 'efficiency' => 'Efficiency Matrix'];
         $visibleColumns = $request->input('cols', $availableColumns);
 
         if ($request->has('export')) {
+            $title = 'Agent Wise Calls Summary Management Report';
+            $subtitle = $this->getSubtitle($request);
             if ($request->export === 'excel') {
-                $title = 'Agent Wise Calls Summary Management Report';
-                $subtitle = $this->getSubtitle($request);
                 return Excel::download(new CustomFormattedExport($title, $subtitle, array_values($visibleColumns), $data), 'agent_performance.xlsx');
             }
+            if ($request->export === 'pdf') {
+                return Pdf::loadView('reports.pdf.generic', compact('data', 'visibleColumns', 'title', 'subtitle'))->download('agent_performance.pdf');
+            }
+        }
+
+        if ($request->ajax()) {
+            return view('reports.agent-wise', array_merge(
+                compact('data', 'availableColumns', 'visibleColumns'),
+                $this->getFilterData()
+            ));
         }
 
         return view('reports.agent-wise', array_merge(
@@ -137,9 +174,30 @@ class ReportController extends Controller
 
     public function categoryAnalysis(Request $request)
     {
+        set_time_limit(300);
+        ini_set('memory_limit', '1024M');
+
         $data = $this->reportService->categoryAnalysis($request->all());
         $availableColumns = ['category_label' => 'Major Category', 'total' => 'Total Volume', 'percentage' => 'Share %', 'avg_duration' => 'Avg Duration'];
         $visibleColumns = $request->input('cols', $availableColumns);
+
+        if ($request->has('export')) {
+            $title = 'Category Analysis Report';
+            $subtitle = $this->getSubtitle($request);
+            if ($request->export === 'excel') {
+                return Excel::download(new CustomFormattedExport($title, $subtitle, array_values($visibleColumns), $data), 'category_analysis.xlsx');
+            }
+            if ($request->export === 'pdf') {
+                return Pdf::loadView('reports.pdf.generic', compact('data', 'visibleColumns', 'title', 'subtitle'))->download('category_analysis.pdf');
+            }
+        }
+
+        if ($request->ajax()) {
+            return view('reports.category-analysis', array_merge(
+                compact('data', 'availableColumns', 'visibleColumns'),
+                $this->getFilterData()
+            ));
+        }
 
         return view('reports.category-analysis', array_merge(
             compact('data', 'availableColumns', 'visibleColumns'),
@@ -149,16 +207,29 @@ class ReportController extends Controller
 
     public function junkCallsFrequency(Request $request)
     {
+        set_time_limit(300);
+        ini_set('memory_limit', '1024M');
+
         $data = $this->reportService->junkCallsFrequency($request->all());
         $availableColumns = ['username' => 'Agent Name', 'junk_count' => 'Junk Calls Received', 'total_calls' => 'Total Calls Received', 'percentage' => 'Junk %'];
         $visibleColumns = $request->input('cols', $availableColumns);
 
         if ($request->has('export')) {
+            $title = 'Junk Calls Frequency Report';
+            $subtitle = $this->getSubtitle($request);
             if ($request->export === 'excel') {
-                $title = 'Junk Calls Frequency Report';
-                $subtitle = $this->getSubtitle($request);
                 return Excel::download(new CustomFormattedExport($title, $subtitle, array_values($visibleColumns), $data), 'junk_calls_frequency.xlsx');
             }
+            if ($request->export === 'pdf') {
+                return Pdf::loadView('reports.pdf.generic', compact('data', 'visibleColumns', 'title', 'subtitle'))->download('junk_calls_frequency.pdf');
+            }
+        }
+
+        if ($request->ajax()) {
+            return view('reports.junk-calls', array_merge(
+                compact('data', 'availableColumns', 'visibleColumns'),
+                $this->getFilterData()
+            ));
         }
 
         return view('reports.junk-calls', array_merge(

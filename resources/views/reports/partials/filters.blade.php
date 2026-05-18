@@ -1,5 +1,5 @@
-<div x-data="reportFilters()" class="bg-white rounded-[2rem] shadow-xl border border-slate-100 p-8 mb-8">
-    <form action="{{ url()->current() }}" method="GET" id="filterForm" class="space-y-8">
+<div x-data="reportFilters" class="bg-white rounded-[2rem] shadow-xl border border-slate-100 p-8 mb-8">
+    <form @submit.prevent="fetchReport" action="{{ url()->current() }}" method="GET" id="filterForm" class="space-y-8">
         <!-- ── Hierarchy & Personnel ─────────────────────────────────── -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
             <!-- Zone -->
@@ -81,8 +81,9 @@
 
             <!-- Action Buttons -->
             <div class="flex gap-3">
-                <button type="submit" class="flex-1 bg-gradient-to-b from-blue-500 to-blue-600 border-b-4 border-blue-800 text-white rounded-2xl py-4 font-black text-xs uppercase tracking-widest hover:brightness-110 hover:border-b-[3px] hover:translate-y-[1px] active:border-b-0 active:translate-y-1 transition-all shadow-lg shadow-blue-600/30">
-                    Generate Report
+                <button type="submit" :disabled="loading" class="flex-1 bg-gradient-to-b from-blue-500 to-blue-600 border-b-4 border-blue-800 text-white rounded-2xl py-4 font-black text-xs uppercase tracking-widest hover:brightness-110 hover:border-b-[3px] hover:translate-y-[1px] active:border-b-0 active:translate-y-1 transition-all shadow-lg shadow-blue-600/30 flex justify-center items-center gap-2 disabled:opacity-75 disabled:cursor-not-allowed">
+                    <i class="fa-solid fa-spinner fa-spin" x-show="loading"></i>
+                    <span x-text="loading ? 'Generating...' : 'Generate Report'"></span>
                 </button>
                 <button type="button" @click="window.location.href=window.location.pathname" class="w-14 bg-gradient-to-b from-slate-200 to-slate-300 border-b-4 border-slate-400 text-slate-600 rounded-2xl flex items-center justify-center hover:brightness-110 hover:border-b-[3px] hover:translate-y-[1px] active:border-b-0 active:translate-y-1 transition-all shadow-md">
                     <i class="fa-solid fa-rotate"></i>
@@ -109,8 +110,8 @@
 </div>
 
 <script>
-    function reportFilters() {
-        return {
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('reportFilters', () => ({
             zones: @json($offices['zones'] ?? []),
             sectors: @json($offices['sectors'] ?? []),
             beats: @json($offices['beats'] ?? []),
@@ -121,6 +122,7 @@
             filteredBeats: [],
             availableColumns: @json($availableColumns ?? []),
             visibleColumns: @json($visibleColumns ?? []),
+            loading: false,
 
             init() {
                 this.updateSectors(true);
@@ -144,7 +146,62 @@
             setShift(from, to) {
                 document.getElementsByName('time_from')[0].value = from;
                 document.getElementsByName('time_to')[0].value = to;
+            },
+
+            async fetchReport(event) {
+                this.loading = true;
+                const form = event.target;
+                const url = new URL(form.action);
+                const formData = new FormData(form);
+                const searchParams = new URLSearchParams();
+                
+                for (const pair of formData.entries()) {
+                    if (pair[1]) searchParams.append(pair[0], pair[1]);
+                }
+
+                url.search = searchParams.toString();
+                
+                // Update history
+                window.history.pushState({}, '', url);
+
+                try {
+                    const response = await fetch(url, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+                    const html = await response.text();
+                    
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    
+                    const newContent = doc.getElementById('report-content');
+                    const currentContent = document.getElementById('report-content');
+                    
+                    if (newContent && currentContent) {
+                        currentContent.innerHTML = newContent.innerHTML;
+                    }
+                    
+                    // Also update export links to have the new parameters
+                    const exportExcel = document.getElementById('export-excel');
+                    if (exportExcel) {
+                        const excelUrl = new URL(url);
+                        excelUrl.searchParams.set('export', 'excel');
+                        exportExcel.href = excelUrl.toString();
+                    }
+                    const exportPdf = document.getElementById('export-pdf');
+                    if (exportPdf) {
+                        const pdfUrl = new URL(url);
+                        pdfUrl.searchParams.set('export', 'pdf');
+                        exportPdf.href = pdfUrl.toString();
+                    }
+
+                } catch (error) {
+                    console.error('Error fetching report:', error);
+                } finally {
+                    this.loading = false;
+                }
             }
-        }
-    }
+        }));
+    });
 </script>
