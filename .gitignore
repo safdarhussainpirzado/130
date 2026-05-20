@@ -32,3 +32,4 @@ Thumbs.db
 *.pem
 *.key
 *.crt
+haproxy/certs/

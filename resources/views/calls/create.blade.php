@@ -314,7 +314,7 @@ input:focus, textarea:focus, button:focus-visible {
             {{-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 GEOSPATIAL HIERARCHY — 5 cols, row 2 (REDUCED WIDTH)
             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ --}}
-            <div class="col-span-5 row-span-1 flex flex-col rounded-2xl p-3 overflow-hidden"
+            <div class="col-span-4 row-span-1 flex flex-col rounded-2xl p-3 overflow-hidden"
                  style="background: rgba(255,255,255,0.72); backdrop-filter: blur(20px) saturate(1.4); border: 1px solid rgba(255,255,255,0.65); box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 8px rgba(0,0,0,0.03), 0 8px 24px rgba(0,0,0,0.04);">
                 <div class="shrink-0 flex items-center gap-2.5 mb-2.5 pb-2 border-b border-slate-200/40">
                     <div class="w-7 h-7 rounded-xl flex items-center justify-center border backdrop-blur-sm bg-emerald-100/80 text-emerald-700 border-emerald-200/60">
@@ -433,10 +433,53 @@ input:focus, textarea:focus, button:focus-visible {
                 </div>
             </div>
 
+            {{-- Contact Information / Beat/Sector/Zone Contact --}}
+            <div class="col-span-2 row-span-1 flex flex-col rounded-2xl p-3 overflow-hidden"
+                 style="background: rgba(255,255,255,0.72); backdrop-filter: blur(20px) saturate(1.4); border: 1px solid rgba(255,255,255,0.65); box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 8px rgba(0,0,0,0.03), 0 8px 24px rgba(0,0,0,0.04);">
+                <div class="shrink-0 flex items-center gap-2.5 mb-2.5 pb-2 border-b border-slate-200/40">
+                    <div class="w-7 h-7 rounded-xl flex items-center justify-center border backdrop-blur-sm bg-blue-100/80 text-blue-700 border-blue-200/60">
+                        <i class="fa-solid fa-address-book text-xs"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <h3 class="text-[11px] font-bold text-slate-800 uppercase tracking-wider truncate">Office Contacts</h3>
+                        <p class="text-[9px] font-semibold text-blue-600 uppercase tracking-[0.15em] truncate">Active Directory</p>
+                    </div>
+                </div>
+
+                <div class="flex-1 min-h-0 flex flex-col justify-around gap-2 overflow-hidden">
+                    {{-- Zone Contact --}}
+                    <div class="space-y-0.5">
+                        <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest block font-bold">Zone Hotline</span>
+                        <div class="flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full" :class="spatialContacts.zone ? 'bg-emerald-500' : 'bg-slate-300'"></span>
+                            <span class="text-[10px] font-bold text-slate-700 truncate" x-text="spatialContacts.zone || 'No Contact Loaded'"></span>
+                        </div>
+                    </div>
+
+                    {{-- Sector Contact --}}
+                    <div class="space-y-0.5">
+                        <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest block font-bold">Sector Helpline</span>
+                        <div class="flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full" :class="spatialContacts.sector ? 'bg-emerald-500' : 'bg-slate-300'"></span>
+                            <span class="text-[10px] font-bold text-slate-700 truncate" x-text="spatialContacts.sector || 'No Contact Loaded'"></span>
+                        </div>
+                    </div>
+
+                    {{-- Beat Contact --}}
+                    <div class="space-y-0.5">
+                        <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest block font-bold">Beat Phone</span>
+                        <div class="flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full" :class="spatialContacts.beat ? 'bg-emerald-500' : 'bg-slate-300'"></span>
+                            <span class="text-[10px] font-bold text-emerald-700 font-mono tracking-tight truncate" x-text="spatialContacts.beat || 'No Contact Loaded'"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {{-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 MISSION AUTHORITY — 4 cols, row 2
             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ --}}
-            <div class="col-span-4 row-span-1 flex flex-col rounded-2xl p-3 relative overflow-hidden"
+            <div class="col-span-3 row-span-1 flex flex-col rounded-2xl p-3 relative overflow-hidden"
                  style="background: rgba(254,243,199,0.55); backdrop-filter: blur(16px) saturate(1.3); border: 1px solid rgba(252,211,77,0.4); box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 8px rgba(0,0,0,0.03), 0 8px 24px rgba(0,0,0,0.04);">
                 {{-- Ambient glow effects --}}
                 <div class="absolute -right-12 -top-12 w-48 h-48 bg-amber-300/20 rounded-full blur-[60px] pointer-events-none"></div>
@@ -515,6 +558,8 @@ input:focus, textarea:focus, button:focus-visible {
                     </div>
                 </div>
             </div>
+
+            
         </div>
     </form>
 
@@ -747,6 +792,11 @@ function intakeComponent() {
         historyLoading: false,
         callerHistory: [],
         selectedHistoryCall: null,
+        spatialContacts: {
+            zone: null,
+            sector: null,
+            beat: null
+        },
 
         lastSubmission: null,
         submissionCooldown: 5000, // 5 seconds
@@ -768,6 +818,7 @@ function intakeComponent() {
                 const b = this.allBeats.find(x => x.id == this.spatial.beat_id);
                 if (b) this.spatial.beat_name = b.name;
             }
+            this.fetchSpatialContacts();
         },
 
         startClock() {
@@ -812,6 +863,7 @@ function intakeComponent() {
             this.spatial.beat_name = '';
             const zone = this.allZones.find(z => z.id == this.spatial.zone_id);
             this.spatial.zone_name = zone ? zone.name : '';
+            this.fetchSpatialContacts();
         },
 
         onSectorChange() {
@@ -819,11 +871,33 @@ function intakeComponent() {
             this.spatial.beat_name = '';
             const sector = this.allSectors.find(s => s.id == this.spatial.sector_id);
             this.spatial.sector_name = sector ? sector.name : '';
+            this.fetchSpatialContacts();
         },
 
         onBeatChange() {
             const beat = this.allBeats.find(b => b.id == this.spatial.beat_id);
             if (beat) this.spatial.beat_name = beat.name;
+            this.fetchSpatialContacts();
+        },
+
+        async fetchSpatialContacts() {
+            const params = new URLSearchParams();
+            if (this.spatial.zone_id) params.append('zone_id', this.spatial.zone_id);
+            if (this.spatial.sector_id) params.append('sector_id', this.spatial.sector_id);
+            if (this.spatial.beat_id) params.append('beat_id', this.spatial.beat_id);
+            
+            if (params.toString() === '') {
+                this.spatialContacts = { zone: null, sector: null, beat: null };
+                return;
+            }
+            
+            try {
+                const res = await fetch(`/ajax/spatial-contacts?${params.toString()}`);
+                const data = await res.json();
+                this.spatialContacts = data;
+            } catch (e) {
+                console.error('Failed to fetch spatial contacts', e);
+            }
         },
 
         onCallTypeChange(typeId) {
@@ -1006,6 +1080,8 @@ function intakeComponent() {
             if (marker.is_range_match && !this.spatial.km) {
                 this.spatial.km = marker.km_marker;
             }
+
+            this.fetchSpatialContacts();
         },
 
         onCoordInput(value) {
@@ -1023,6 +1099,7 @@ function intakeComponent() {
                 geospatial_marker_id: '', km: '', lat: '', lng: '',
                 coord_input: '', zone_name: '', sector_name: '', beat_name: ''
             };
+            this.spatialContacts = { zone: null, sector: null, beat: null };
             this.priority = '3';
             this.selectedCallTypeId = '';
             this.selectedSubType = '';

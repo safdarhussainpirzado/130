@@ -809,4 +809,49 @@ class CallController extends Controller
             'landmarks' => $landmarks
         ]);
     }
+
+    public function spatialContacts(Request $request)
+    {
+        $this->authorize('calls.api_lookup');
+        $zoneId = $request->get('zone_id');
+        $sectorId = $request->get('sector_id');
+        $beatId = $request->get('beat_id');
+
+        $contacts = [
+            'zone' => null,
+            'sector' => null,
+            'beat' => null,
+        ];
+
+        if ($beatId) {
+            $contacts['beat'] = \App\Models\GeospatialLandmark::where('office_id', $beatId)
+                ->whereNotNull('contact_numbers')
+                ->where('contact_numbers', '!=', '')
+                ->value('contact_numbers');
+        }
+
+        if ($sectorId) {
+            $sector = \App\Models\Office::find($sectorId);
+            if ($sector) {
+                $beatIds = $sector->getDescendantIds(true);
+                $contacts['sector'] = \App\Models\GeospatialLandmark::whereIn('office_id', $beatIds)
+                    ->whereNotNull('contact_numbers')
+                    ->where('contact_numbers', '!=', '')
+                    ->value('contact_numbers');
+            }
+        }
+
+        if ($zoneId) {
+            $zone = \App\Models\Office::find($zoneId);
+            if ($zone) {
+                $beatIds = $zone->getDescendantIds(true);
+                $contacts['zone'] = \App\Models\GeospatialLandmark::whereIn('office_id', $beatIds)
+                    ->whereNotNull('contact_numbers')
+                    ->where('contact_numbers', '!=', '')
+                    ->value('contact_numbers');
+            }
+        }
+
+        return response()->json($contacts);
+    }
 }

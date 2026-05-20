@@ -15,6 +15,9 @@ use App\Http\Controllers\GeospatialMarkerController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
+    if (auth()->check()) {
+        return redirect(auth()->user()->getLandingPageRoute());
+    }
     return redirect()->route('login');
 });
 
@@ -38,6 +41,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/lookup-caller', [CallController::class, 'searchCallerHistory'])->name('api.lookupCaller');
     Route::get('/api/beat-resources', [CallController::class, 'getBeatResources'])->name('api.beatResources');
     Route::get('/ajax/geospatial-lookup', [CallController::class, 'geospatialLookup'])->name('api.geospatialLookup');
+    Route::get('/ajax/spatial-contacts', [CallController::class, 'spatialContacts'])->name('api.spatialContacts');
     Route::get('/api/notifications/poll', [CallController::class, 'getNotificationsPoll'])->name('api.notifications.poll');
     Route::post('/api/calls/{call}/reminder', [CallController::class, 'sendReminder'])->name('api.calls.reminder');
     
@@ -88,7 +92,6 @@ Route::middleware('auth')->group(function () {
     
     // Reports Module
     Route::prefix('reports')->name('reports.')->group(function() {
-        Route::get('/', [ReportController::class, 'index'])->name('index')->middleware('can:reports.view');
         Route::get('/call-type-summary', [ReportController::class, 'callTypeSummary'])->name('call-type-summary')->middleware('can:reports.call_type_summary');
         Route::get('/beat-wise', [ReportController::class, 'beatWise'])->name('beat-wise')->middleware('can:reports.beat_wise');
         Route::get('/agent-wise', [ReportController::class, 'agentWise'])->name('agent-wise')->middleware('can:reports.agent_wise');

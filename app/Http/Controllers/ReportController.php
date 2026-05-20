@@ -23,68 +23,134 @@ class ReportController extends Controller
         $this->reportService = $reportService;
     }
 
-    public function index()
-    {
-        abort_if(!auth()->user()->hasPermission('reports.view'), 403, 'Unauthorized access to reports module');
 
-        $dailyCalls = DB::table('calls')
-            ->select(DB::raw('DATE(created_at) as date'), DB::raw('count(*) as total'))
-            ->groupBy('date')
-            ->orderBy('date', 'desc')
-            ->limit(30)
-            ->get();
-            
-        $typeDistribution = DB::table('calls')
-            ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
-            ->select('call_types.name', DB::raw('count(*) as total'))
-            ->groupBy('call_types.name')
-            ->get();
-
-        return view('reports.index', compact('dailyCalls', 'typeDistribution'));
-    }
 
     public function callTypeSummary(Request $request)
     {
+        $request->merge($this->resolveFilters($request, 'call_type_summary'));
         set_time_limit(300);
         ini_set('memory_limit', '1024M');
 
-        $data = $this->reportService->callTypeSummary($request->all());
-        
-        $availableColumns = ['type' => 'Category', 'sub_type' => 'Sub Type', 'total' => 'Total', 'percentage' => 'Efficiency %', 'emergency' => 'Priority P1'];
-        $visibleColumns = $request->input('cols', $availableColumns);
+        $groupByRaw = $request->input('group_by', ['month']);
+        if (is_string($groupByRaw) && str_contains($groupByRaw, ',')) {
+            $groupBy = array_values(array_filter(explode(',', $groupByRaw)));
+        } elseif (is_string($groupByRaw) && $groupByRaw !== '') {
+            $groupBy = [$groupByRaw];
+        } elseif (is_array($groupByRaw)) {
+            $groupBy = array_values(array_filter($groupByRaw));
+        } else {
+            $groupBy = [];
+        }
+        if (empty($groupBy)) {
+            $groupBy = ['month'];
+        }
+        $request->merge(['group_by' => $groupBy]);
 
-        if ($request->has('export')) {
-            $title = 'Call Type Summary Report';
-            $subtitle = $this->getSubtitle($request);
-            if ($request->export === 'excel') {
-                return Excel::download(new CustomFormattedExport($title, $subtitle, array_values($visibleColumns), $data), 'call_type_summary.xlsx');
+        $availableColumns = [
+            'month' => 'Month',
+            'date' => 'Date',
+            'time' => 'Time',
+            'emergency' => 'Emergency',
+            'information' => 'Information',
+            'general_help' => 'General Help',
+            'complaint' => 'Complaint',
+            'junk' => 'Junk',
+            'total_voice_calls' => 'Total Voice Calls',
+            'ivr' => 'IVR',
+            'total_calls_received' => 'Total Calls Received'
+        ];
+
+        if ($this->isRestrictedUser()) {
+            unset($availableColumns['total_voice_calls']);
+            unset($availableColumns['ivr']);
+            unset($availableColumns['total_calls_received']);
+        }
+
+        $visibleColsInput = $request->input('cols');
+        if ($visibleColsInput) {
+            $visibleColumns = [];
+            foreach ($visibleColsInput as $key => $val) {
+                if ($val == '1' && isset($availableColumns[$key])) {
+                    $visibleColumns[$key] = $availableColumns[$key];
+                }
             }
-            if ($request->export === 'pdf') {
-                return Pdf::loadView('reports.pdf.generic', compact('data', 'visibleColumns', 'title', 'subtitle'))->download('call_type_summary.pdf');
+        } else {
+            $visibleColumns = $availableColumns;
+            foreach (['month', 'date', 'time'] as $g) {
+                if (!in_array($g, $groupBy)) {
+                    unset($visibleColumns[$g]);
+                }
             }
         }
 
-        if ($request->ajax()) {
-            return view('reports.call-type-summary', array_merge(
-                compact('data', 'availableColumns', 'visibleColumns'),
-                $this->getFilterData()
-            ));
+        // Always align visible columns with the active group_by fields
+        $orderedVisibleColumns = [];
+        foreach (['month', 'date', 'time'] as $g) {
+            if (in_array($g, $groupBy)) {
+                $orderedVisibleColumns[$g] = $availableColumns[$g];
+            }
+        }
+        foreach ($visibleColumns as $key => $label) {
+            if (!in_array($key, ['month', 'date', 'time'])) {
+                $orderedVisibleColumns[$key] = $label;
+            }
+        }
+        $visibleColumns = $orderedVisibleColumns;
+
+        $isInitial = !$request->has('group_by') && !$request->has('export');
+        $data = $isInitial ? [] : $this->reportService->callTypeSummary($request->all());
+
+        if ($request->has('export')) {
+            $data = $this->reportService->callTypeSummary($request->all());
+            $title = 'Calls Summary Report';
+            $subtitle = $this->getSubtitle($request);
+            
+            $filteredData = [];
+            foreach ($data as $row) {
+                $filteredRow = [];
+                foreach ($visibleColumns as $colKey => $colLabel) {
+                    $filteredRow[] = is_array($row) ? ($row[$colKey] ?? '') : ($row->{$colKey} ?? '');
+                }
+                $filteredData[] = $filteredRow;
+            }
+
+            if ($request->export === 'excel') {
+                return Excel::download(new CustomFormattedExport($title, $subtitle, array_values($visibleColumns), $filteredData), 'calls_summary_report.xlsx');
+            }
+            if ($request->export === 'pdf') {
+                return Pdf::loadView('reports.pdf.generic', [
+                    'data' => collect($data)->take(1000),
+                    'visibleColumns' => $visibleColumns,
+                    'title' => $title,
+                    'subtitle' => $subtitle
+                ])->download('calls_summary_report.pdf');
+            }
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+                'availableColumns' => $availableColumns,
+                'visibleColumns' => $visibleColumns,
+            ]);
         }
 
         return view('reports.call-type-summary', array_merge(
-            compact('data', 'availableColumns', 'visibleColumns'),
+            compact('data', 'availableColumns', 'visibleColumns', 'isInitial'),
             $this->getFilterData()
         ));
     }
 
     public function beatWise(Request $request)
     {
+        $request->merge($this->resolveFilters($request, 'beat_wise'));
         set_time_limit(300);
         ini_set('memory_limit', '1024M');
 
         $data = $this->reportService->beatWiseReport($request->all());
         $availableColumns = ['name' => 'Beat Name', 'total' => 'Total Calls', 'zone' => 'Parent Zone', 'sector' => 'Parent Sector'];
-        $visibleColumns = $request->input('cols', $availableColumns);
+        $visibleColumns = $this->resolveVisibleColumns($request, $availableColumns);
 
         if ($request->has('export')) {
             $title = 'Beat Wise Calls Summary Management Report';
@@ -112,74 +178,259 @@ class ReportController extends Controller
 
     public function agentWise(Request $request)
     {
+        $request->merge($this->resolveFilters($request, 'agent_wise'));
         abort_if(!auth()->user()->hasPermission('reports.view'), 403, 'Unauthorized access to agent reports module');
         set_time_limit(300);
         ini_set('memory_limit', '1024M');
 
-        $data = $this->reportService->agentPerformance($request->all());
+        $groupByRaw = $request->input('group_by', []);
+        if (is_string($groupByRaw) && str_contains($groupByRaw, ',')) {
+            $groupBy = array_values(array_filter(explode(',', $groupByRaw)));
+        } elseif (is_string($groupByRaw) && $groupByRaw !== '') {
+            $groupBy = [$groupByRaw];
+        } elseif (is_array($groupByRaw)) {
+            $groupBy = array_values(array_filter($groupByRaw));
+        } else {
+            $groupBy = [];
+        }
+        $request->merge(['group_by' => $groupBy]);
+
+        $isInitial = !$request->has('date_from') && !$request->has('export');
+        $data = $isInitial ? [] : $this->reportService->agentPerformance($request->all());
         
-        $availableColumns = ['username' => 'Agent Identity', 'total' => 'Total Logs', 'avg_duration' => 'Avg Handle Time', 'efficiency' => 'Efficiency Matrix'];
-        $visibleColumns = $request->input('cols', $availableColumns);
+        $availableColumns = [
+            'month' => 'Month',
+            'date' => 'Date',
+            'time' => 'Time',
+            'username' => 'Agent Name',
+            'junk' => 'Junk',
+            'info' => 'Info',
+            'help' => 'Help',
+            'complaint' => 'Complaint',
+            'emergency' => 'Emergency',
+            'total' => 'Total'
+        ];
+        $visibleColumns = $this->resolveVisibleColumns($request, $availableColumns);
+
+        // Always align visible columns with the active group_by fields
+        $orderedVisibleColumns = [];
+        foreach (['month', 'date', 'time'] as $g) {
+            if (in_array($g, $groupBy)) {
+                $orderedVisibleColumns[$g] = $availableColumns[$g];
+            }
+        }
+        foreach ($visibleColumns as $key => $label) {
+            if (!in_array($key, ['month', 'date', 'time'])) {
+                $orderedVisibleColumns[$key] = $label;
+            }
+        }
+        $visibleColumns = $orderedVisibleColumns;
+
+        $timeFrom = $request->input('time_from');
+        $timeTo = $request->input('time_to');
+        
+        $shiftName = null;
+        if ($timeFrom === '06:00' || $timeFrom === '06:00:00') {
+            $shiftName = '1st Shift';
+        } elseif ($timeFrom === '14:00' || $timeFrom === '14:00:00') {
+            $shiftName = '2nd Shift';
+        } elseif ($timeFrom === '22:00' || $timeFrom === '22:00:00') {
+            $shiftName = '3rd Shift';
+        }
+
+        $incharge = $request->input('incharge');
+        $inchargeShiftMapping = [
+            'SI Aroosa Kainat' => '1st Shift',
+            'SI Shabana Tabassum' => '2nd Shift',
+            'SI Nida Naz' => '3rd Shift',
+        ];
+
+        $matchedShift = null;
+        if ($incharge) {
+            foreach ($inchargeShiftMapping as $name => $shift) {
+                if (strcasecmp(trim($incharge), trim($name)) === 0) {
+                    $matchedShift = $shift;
+                    break;
+                }
+            }
+            if ($matchedShift) {
+                $shiftName = $matchedShift;
+            }
+        }
+        
+        $dateFormatted = \Carbon\Carbon::parse($request->input('date_from', now()->toDateString()))->format('d-m-Y');
+        $title = 'Agent Wise Calls Progress';
+
+        $subtitleSegments = ["Helpline 130"];
+        
+        if (auth()->check() && auth()->user()->role?->name === 'agent_supervisor') {
+            $currentIncharge = $incharge ?: (auth()->user()->full_name ?: auth()->user()->username);
+            if ($shiftName) {
+                $subtitleSegments[] = "Incharge {$shiftName}: {$currentIncharge}";
+            } else {
+                $subtitleSegments[] = "Incharge: {$currentIncharge}";
+            }
+        } elseif ($shiftName) {
+            $subtitleSegments[] = "Shift: {$shiftName}";
+        }
+
+        $timeSegment = "";
+        if ($timeFrom && $timeTo) {
+            $tF = str_replace(':', '', substr($timeFrom, 0, 5));
+            $tT = str_replace(':', '', substr($timeTo, 0, 5));
+            $timeSegment = " ({$tF}-{$tT} Hrs)";
+        }
+        $subtitleSegments[] = "Date: {$dateFormatted}{$timeSegment}";
+        
+        $subtitle = implode(' | ', $subtitleSegments);
 
         if ($request->has('export')) {
-            $title = 'Agent Wise Calls Summary Management Report';
-            $subtitle = $this->getSubtitle($request);
+            $filteredData = [];
+            foreach ($data as $row) {
+                $filteredRow = [];
+                foreach ($visibleColumns as $colKey => $colLabel) {
+                    $filteredRow[] = is_array($row) ? ($row[$colKey] ?? '') : ($row->{$colKey} ?? '');
+                }
+                $filteredData[] = $filteredRow;
+            }
+
             if ($request->export === 'excel') {
-                return Excel::download(new CustomFormattedExport($title, $subtitle, array_values($visibleColumns), $data), 'agent_performance.xlsx');
+                return Excel::download(new CustomFormattedExport($title, $subtitle, array_values($visibleColumns), $filteredData), 'agent_performance.xlsx');
             }
             if ($request->export === 'pdf') {
-                return Pdf::loadView('reports.pdf.generic', compact('data', 'visibleColumns', 'title', 'subtitle'))->download('agent_performance.pdf');
+                return Pdf::loadView('reports.pdf.generic', ['data' => collect($data)->take(1000), 'visibleColumns' => $visibleColumns, 'title' => $title, 'subtitle' => $subtitle])->download('agent_performance.pdf');
             }
         }
 
         if ($request->ajax()) {
             return view('reports.agent-wise', array_merge(
-                compact('data', 'availableColumns', 'visibleColumns'),
+                compact('data', 'availableColumns', 'visibleColumns', 'title', 'subtitle', 'isInitial', 'groupBy'),
                 $this->getFilterData()
             ));
         }
 
         return view('reports.agent-wise', array_merge(
-            compact('data', 'availableColumns', 'visibleColumns'),
+            compact('data', 'availableColumns', 'visibleColumns', 'title', 'subtitle', 'isInitial', 'groupBy'),
             $this->getFilterData()
         ));
     }
 
     public function slaCompliance(Request $request)
     {
+        $request->merge($this->resolveFilters($request, 'sla_compliance'));
+        set_time_limit(300);
+        ini_set('memory_limit', '1024M');
+
         $data = $this->reportService->slaCompliance($request->all());
+        $availableColumns = ['priority' => 'Priority', 'total' => 'Total Calls', 'within' => 'Within SLA', 'percentage' => 'Compliance %'];
+        $visibleColumns = $this->resolveVisibleColumns($request, $availableColumns);
+
+        if ($request->has('export')) {
+            $title = 'SLA Compliance Monitoring Report';
+            $subtitle = $this->getSubtitle($request);
+            $flatData = array_values($data);
+            if ($request->export === 'excel') {
+                return Excel::download(new CustomFormattedExport($title, $subtitle, array_values($visibleColumns), $flatData), 'sla_compliance.xlsx');
+            }
+            if ($request->export === 'pdf') {
+                return Pdf::loadView('reports.pdf.generic', ['data' => $flatData, 'visibleColumns' => $visibleColumns, 'title' => $title, 'subtitle' => $subtitle])->download('sla_compliance.pdf');
+            }
+        }
+
+        if ($request->ajax()) {
+            return view('reports.sla-compliance', array_merge(
+                compact('data', 'availableColumns', 'visibleColumns'),
+                $this->getFilterData()
+            ));
+        }
+
         return view('reports.sla-compliance', array_merge(
-            compact('data'),
+            compact('data', 'availableColumns', 'visibleColumns'),
             $this->getFilterData()
         ));
     }
 
     public function maxResponseTime(Request $request)
     {
+        $request->merge($this->resolveFilters($request, 'max_response_time'));
+        set_time_limit(300);
+        ini_set('memory_limit', '1024M');
+
         $data = $this->reportService->maxResponseTime($request->all());
+        $availableColumns = ['beat' => 'Beat', 'max_response' => 'Max Response (sec)'];
+        $visibleColumns = $this->resolveVisibleColumns($request, $availableColumns);
+
+        if ($request->has('export')) {
+            $title = 'Max Response Time Report';
+            $subtitle = $this->getSubtitle($request);
+            if ($request->export === 'excel') {
+                return Excel::download(new CustomFormattedExport($title, $subtitle, array_values($visibleColumns), $data), 'max_response_time.xlsx');
+            }
+            if ($request->export === 'pdf') {
+                return Pdf::loadView('reports.pdf.generic', compact('data', 'visibleColumns', 'title', 'subtitle'))->download('max_response_time.pdf');
+            }
+        }
+
+        if ($request->ajax()) {
+            return view('reports.max-response-time', array_merge(
+                compact('data', 'availableColumns', 'visibleColumns'),
+                $this->getFilterData()
+            ));
+        }
+
         return view('reports.max-response-time', array_merge(
-            compact('data'),
+            compact('data', 'availableColumns', 'visibleColumns'),
             $this->getFilterData()
         ));
     }
 
     public function predictiveAnalysis(Request $request)
     {
+        $request->merge($this->resolveFilters($request, 'predictive_analysis'));
+        set_time_limit(300);
+        ini_set('memory_limit', '1024M');
+
         $data = $this->reportService->predictiveAnalysis($request->all());
+        $availableColumns = ['hour' => 'Hour', 'forecast' => 'Incident Forecast'];
+        $visibleColumns = $this->resolveVisibleColumns($request, $availableColumns);
+
+        if ($request->has('export')) {
+            $title = 'Predictive Load Analysis Report';
+            $subtitle = $this->getSubtitle($request);
+            // Flatten temporal data for export
+            $exportData = array_map(fn($h, $c) => ['hour' => str_pad($h, 2, '0', STR_PAD_LEFT).':00 hrs', 'forecast' => $c], array_keys($data['temporal']), $data['temporal']);
+            if ($request->export === 'excel') {
+                return Excel::download(new CustomFormattedExport($title, $subtitle, ['Hour', 'Incident Forecast'], $exportData), 'predictive_analysis.xlsx');
+            }
+            if ($request->export === 'pdf') {
+                $visibleColumns = ['hour' => 'Hour', 'forecast' => 'Incident Forecast'];
+                $data_pdf = $exportData;
+                return Pdf::loadView('reports.pdf.generic', ['data' => $data_pdf, 'visibleColumns' => $visibleColumns, 'title' => $title, 'subtitle' => $subtitle])->download('predictive_analysis.pdf');
+            }
+        }
+
+        if ($request->ajax()) {
+            return view('reports.predictive-analysis', array_merge(
+                compact('data', 'availableColumns', 'visibleColumns'),
+                $this->getFilterData()
+            ));
+        }
+
         return view('reports.predictive-analysis', array_merge(
-            compact('data'),
+            compact('data', 'availableColumns', 'visibleColumns'),
             $this->getFilterData()
         ));
     }
 
     public function categoryAnalysis(Request $request)
     {
+        $request->merge($this->resolveFilters($request, 'category_analysis'));
         set_time_limit(300);
         ini_set('memory_limit', '1024M');
 
         $data = $this->reportService->categoryAnalysis($request->all());
         $availableColumns = ['category_label' => 'Major Category', 'total' => 'Total Volume', 'percentage' => 'Share %', 'avg_duration' => 'Avg Duration'];
-        $visibleColumns = $request->input('cols', $availableColumns);
+        $visibleColumns = $this->resolveVisibleColumns($request, $availableColumns);
 
         if ($request->has('export')) {
             $title = 'Category Analysis Report';
@@ -207,35 +458,112 @@ class ReportController extends Controller
 
     public function junkCallsFrequency(Request $request)
     {
+        $request->merge($this->resolveFilters($request, 'junk_calls_frequency'));
         set_time_limit(300);
         ini_set('memory_limit', '1024M');
 
-        $data = $this->reportService->junkCallsFrequency($request->all());
-        $availableColumns = ['username' => 'Agent Name', 'junk_count' => 'Junk Calls Received', 'total_calls' => 'Total Calls Received', 'percentage' => 'Junk %'];
-        $visibleColumns = $request->input('cols', $availableColumns);
+        $groupByRaw = $request->input('group_by', ['date']);
+        if (is_string($groupByRaw) && str_contains($groupByRaw, ',')) {
+            $groupBy = array_values(array_filter(explode(',', $groupByRaw)));
+        } elseif (is_string($groupByRaw) && $groupByRaw !== '') {
+            $groupBy = [$groupByRaw];
+        } elseif (is_array($groupByRaw)) {
+            $groupBy = array_values(array_filter($groupByRaw));
+        } else {
+            $groupBy = [];
+        }
+        if (empty($groupBy)) {
+            $groupBy = ['date'];
+        }
+        $request->merge(['group_by' => $groupBy]);
+
+        $availableColumns = [
+            'month' => 'Month',
+            'date' => 'Date',
+            'time' => 'Time',
+            'username' => 'Agent',
+            'mobile_number' => 'Mobile Numbers',
+            'total_calls' => 'Total Calls'
+        ];
+        
+        $visibleColumns = $this->resolveVisibleColumns($request, $availableColumns);
+
+        // Always align visible columns with the active group_by fields
+        $orderedVisibleColumns = [];
+        foreach (['month', 'date', 'time'] as $g) {
+            if (in_array($g, $groupBy)) {
+                $orderedVisibleColumns[$g] = $availableColumns[$g];
+            }
+        }
+        foreach ($visibleColumns as $key => $label) {
+            if (!in_array($key, ['month', 'date', 'time'])) {
+                $orderedVisibleColumns[$key] = $label;
+            }
+        }
+        $visibleColumns = $orderedVisibleColumns;
 
         if ($request->has('export')) {
-            $title = 'Junk Calls Frequency Report';
+            $data = $this->reportService->junkCallsFrequency($request->all());
+            $title = 'Junk Callers Summary Report';
             $subtitle = $this->getSubtitle($request);
+            
+            $filteredData = [];
+            foreach ($data as $row) {
+                $filteredRow = [];
+                foreach ($visibleColumns as $colKey => $colLabel) {
+                    $filteredRow[] = is_array($row) ? ($row[$colKey] ?? '') : ($row->{$colKey} ?? '');
+                }
+                $filteredData[] = $filteredRow;
+            }
+
             if ($request->export === 'excel') {
-                return Excel::download(new CustomFormattedExport($title, $subtitle, array_values($visibleColumns), $data), 'junk_calls_frequency.xlsx');
+                return Excel::download(new CustomFormattedExport($title, $subtitle, array_values($visibleColumns), $filteredData), 'junk_callers_summary.xlsx');
             }
             if ($request->export === 'pdf') {
-                return Pdf::loadView('reports.pdf.generic', compact('data', 'visibleColumns', 'title', 'subtitle'))->download('junk_calls_frequency.pdf');
+                return Pdf::loadView('reports.pdf.generic', ['data' => collect($data)->take(1000), 'visibleColumns' => $visibleColumns, 'title' => $title, 'subtitle' => $subtitle])->download('junk_callers_summary.pdf');
             }
         }
 
+        $isInitial = !$request->has('date_from') && !$request->has('export');
+        $perPage = (int) $request->input('per_page', 10);
+        $paginatedData = $isInitial ? new \Illuminate\Pagination\LengthAwarePaginator([], 0, $perPage, 1, ['path' => $request->url()]) : $this->reportService->junkCallsFrequency($request->all(), true, $perPage);
+
         if ($request->ajax()) {
             return view('reports.junk-calls', array_merge(
-                compact('data', 'availableColumns', 'visibleColumns'),
+                ['data' => $paginatedData, 'availableColumns' => $availableColumns, 'visibleColumns' => $visibleColumns, 'isInitial' => $isInitial],
                 $this->getFilterData()
             ));
         }
 
         return view('reports.junk-calls', array_merge(
-            compact('data', 'availableColumns', 'visibleColumns'),
+            ['data' => $paginatedData, 'availableColumns' => $availableColumns, 'visibleColumns' => $visibleColumns, 'isInitial' => $isInitial],
             $this->getFilterData()
         ));
+    }
+
+    private function isRestrictedUser(): bool
+    {
+        $role = auth()->user()?->role?->name;
+        return in_array($role, ['zone_admin', 'sector_admin', 'beat_operator']);
+    }
+
+    private function resolveFilters(Request $request, string $reportName)
+    {
+        $sessionKey = 'report_filters.' . $reportName;
+
+        if ($request->has('date_from')) {
+            $filters = $request->all();
+            session()->put($sessionKey, $filters);
+            return $filters;
+        }
+
+        if ($request->has('page')) {
+            $sessionFilters = session()->get($sessionKey, []);
+            return array_merge($sessionFilters, $request->all());
+        }
+
+        session()->forget($sessionKey);
+        return $request->all();
     }
 
     private function getFilterData(): array
@@ -248,9 +576,28 @@ class ReportController extends Controller
             ],
             'agents' => \App\Models\User::whereHas('role', function($q) {
                 $q->where('name', 'agent');
-            })->get(['id', 'username']),
+            })
+            ->where('full_name', '!=', 'System Administrator')
+            ->where('username', '!=', '130_crm_admin')
+            ->where('username', '!=', 'nhmp_admin')
+            ->get(['id', 'username', 'full_name']),
             'callTypes' => \App\Models\CallType::active()->get(['id', 'name', 'category']),
         ];
+    }
+
+    private function resolveVisibleColumns(Request $request, array $availableColumns): array
+    {
+        $cols = $request->input('cols');
+        if (is_array($cols)) {
+            $visibleColumns = [];
+            foreach ($cols as $key => $val) {
+                if (isset($availableColumns[$key])) {
+                    $visibleColumns[$key] = $availableColumns[$key];
+                }
+            }
+            return $visibleColumns;
+        }
+        return $availableColumns;
     }
 
     private function getSubtitle(Request $request): string

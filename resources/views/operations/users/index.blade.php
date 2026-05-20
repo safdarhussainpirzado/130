@@ -1308,7 +1308,10 @@
                                 this.tempZoneId = scope.office_id;
                             } else if (office.type === 'sector') {
                                 this.tempZoneId = office.parent_id;
-                                setTimeout(() => { this.tempSectorId = scope.office_id; }, 0);
+                                setTimeout(() => { 
+                                    this.tempSectorId = scope.office_id; 
+                                    this.form.scope_unit_id = scope.office_id;
+                                }, 150);
                             } else if (office.type === 'beat') {
                                 const beat = office;
                                 const sector = this.sectors.find(s => s.id == beat.parent_id);
@@ -1316,8 +1319,10 @@
                                     this.tempZoneId = sector.zone_id;
                                     setTimeout(() => { 
                                         this.tempSectorId = beat.parent_id; 
-                                        setTimeout(() => { this.form.scope_unit_id = scope.office_id; }, 10);
-                                    }, 10);
+                                        setTimeout(() => { 
+                                            this.form.scope_unit_id = scope.office_id; 
+                                        }, 150);
+                                    }, 150);
                                 }
                             }
                         }

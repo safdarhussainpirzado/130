@@ -20,9 +20,6 @@
                         <i class="fa-solid fa-headset mr-2"></i> CRM Commuter Log
                     </x-nav-link>
 
-                    <x-nav-link :href="route('reports.index')" :active="request()->routeIs('reports.*')">
-                        <i class="fa-solid fa-chart-line mr-2"></i> Analytics
-                    </x-nav-link>
 
                     <x-nav-link :href="route('admin.users.index')" :active="request()->routeIs('admin.users.*')">
                         <i class="fa-solid fa-users mr-2"></i> Control Core

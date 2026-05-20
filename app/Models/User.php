@@ -181,7 +181,7 @@ class User extends Authenticatable
             'dashboard.view'           => 'dashboard',
             'calls.create'             => 'calls.create',
             'calls.view'               => 'calls.index',
-            'reports.view'             => 'reports.index',
+            'reports.view'             => 'reports.call-type-summary',
             'users.view'               => 'admin.users.index',
             'geography.offices.view'   => 'admin.offices.index',
             'geography.carriageways.view' => 'admin.carriageways.index',

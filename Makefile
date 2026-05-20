@@ -1,4 +1,4 @@
-.PHONY: build up down restart test fresh optimize bash logs migrate-legacy bootstrap-db deploy
+.PHONY: build up down restart test fresh optimize bash logs migrate-legacy bootstrap-db deploy assets sync sync_clear
 
 # Deploy to Production Cluster
 deploy:
@@ -44,6 +44,36 @@ assets:
 	@echo "Syncing assets from container to host..."
 	docker compose cp app-1:/var/www/html/public/build ./public/
 	@echo "Assets synced!"
+
+# Sync local code changes into both running app containers
+# Use this when docker-compose volumes are commented out (production image mode)
+sync:
+	@echo "==> Syncing code into app-1 and app-2..."
+	@for container in app-1 app-2; do \
+		echo "  -> $$container: routes..."; \
+		docker cp routes/. 130-$$container-1:/var/www/html/routes/; \
+		echo "  -> $$container: app/..."; \
+		docker cp app/. 130-$$container-1:/var/www/html/app/; \
+		echo "  -> $$container: resources/views/..."; \
+		docker cp resources/views/. 130-$$container-1:/var/www/html/resources/views/; \
+		echo "  -> $$container: config/..."; \
+		docker cp config/. 130-$$container-1:/var/www/html/config/; \
+		echo "  [OK] $$container synced"; \
+	done
+	@echo "==> All containers synced!"
+
+# Sync code AND clear all caches on both nodes (use after any code change)
+sync_clear: sync
+	@echo "==> Clearing and rebuilding caches on both nodes..."
+	docker compose exec app-1 php artisan optimize:clear
+	docker compose exec app-2 php artisan optimize:clear
+	docker compose exec app-1 php artisan optimize
+	docker compose exec app-2 php artisan optimize
+	@echo "==> Syncing build assets to all nodes (app + web)..."
+	@for c in app-1 app-2 web-1 web-2; do \
+		docker cp public/build/. 130-$$c-1:/var/www/html/public/build/ && echo "  [OK] $$c build synced"; \
+	done
+	@echo "==> Done! All nodes are up to date."
 
 # Full Legacy Migration Process
 migrate-legacy:
