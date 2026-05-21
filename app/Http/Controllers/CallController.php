@@ -353,6 +353,18 @@ class CallController extends Controller
     public function store(Request $request)
     {
         $this->authorize('create', Call::class);
+
+        // Decode base64-encoded free-text fields (WAF bypass encoding applied in JS)
+        foreach (['details', 'location_details'] as $field) {
+            $val = $request->input($field);
+            if ($val && preg_match('/^[A-Za-z0-9+\/]+=*$/', $val)) {
+                $decoded = base64_decode($val, true);
+                if ($decoded !== false) {
+                    $request->merge([$field => $decoded]);
+                }
+            }
+        }
+
         $callType = \App\Models\CallType::find($request->call_type_id);
         $isExempt = $callType && in_array($callType->category, ['junk_silent', 'information']);
 
@@ -506,9 +518,13 @@ class CallController extends Controller
     /**
      * Send Call Reminder to operational units.
      */
-    public function sendReminder(Call $call)
+    public function sendReminder(Request $request, Call $call = null)
     {
         $this->authorize('calls.api_lookup');
+        if (!$call) {
+            $id = $request->input('ref');
+            $call = Call::findOrFail($id);
+        }
         try {
             $call = $this->callService->sendReminder($call, auth()->user());
             return response()->json([

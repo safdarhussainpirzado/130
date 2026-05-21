@@ -614,7 +614,7 @@
                         isDanger: !willBeActive,
                         action: async () => {
                             try {
-                                const response = await fetch(`/admin/carriageways/${item.id}/toggle-status`, {
+                                const response = await fetch(`/mgmt/carriageways/${item.id}/toggle-status`, {
                                     method: 'POST',
                                     headers: {
                                         'Content-Type': 'application/json',
@@ -645,7 +645,7 @@
                         isDanger: true,
                         action: async () => {
                             try {
-                                const response = await fetch(`/admin/carriageways/${item.id}`, {
+                                const response = await fetch(`/mgmt/carriageways/${item.id}`, {
                                     method: 'DELETE',
                                     headers: {
                                         'Content-Type': 'application/json',
@@ -677,7 +677,7 @@
 
                 async submitForm() {
                     this.saving = true;
-                    const url = this.modalMode === 'add' ? '/admin/carriageways' : `/admin/carriageways/${this.form.id}`;
+                    const url = this.modalMode === 'add' ? '/mgmt/carriageways' : `/mgmt/carriageways/${this.form.id}`;
                     const method = this.modalMode === 'add' ? 'POST' : 'PUT';
                     
                     try {

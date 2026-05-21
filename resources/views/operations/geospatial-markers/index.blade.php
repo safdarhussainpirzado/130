@@ -643,7 +643,7 @@
                             sort_dir: this.sortDirection
                         });
                         
-                        const response = await fetch(`/admin/geospatial-markers?${params.toString()}`, {
+                        const response = await fetch(`/mgmt/geospatial-markers?${params.toString()}`, {
                             headers: {
                                 'X-Requested-With': 'XMLHttpRequest',
                                 'Accept': 'application/json'
@@ -733,7 +733,7 @@
                         isDanger: !willBeActive,
                         action: async () => {
                             try {
-                                const response = await fetch(`/admin/geospatial-markers/${item.id}/toggle-status`, {
+                                const response = await fetch(`/mgmt/geospatial-markers/${item.id}/toggle-status`, {
                                     method: 'POST',
                                     headers: {
                                         'Content-Type': 'application/json',
@@ -764,7 +764,7 @@
                         isDanger: true,
                         action: async () => {
                             try {
-                                const response = await fetch(`/admin/geospatial-markers/${item.id}`, {
+                                const response = await fetch(`/mgmt/geospatial-markers/${item.id}`, {
                                     method: 'DELETE',
                                     headers: {
                                         'Content-Type': 'application/json',
@@ -797,7 +797,7 @@
 
                 async submitForm() {
                     this.saving = true;
-                    const url = this.modalMode === 'add' ? '/admin/geospatial-markers' : `/admin/geospatial-markers/${this.form.id}`;
+                    const url = this.modalMode === 'add' ? '/mgmt/geospatial-markers' : `/mgmt/geospatial-markers/${this.form.id}`;
                     const method = this.modalMode === 'add' ? 'POST' : 'PUT';
                     
                     try {

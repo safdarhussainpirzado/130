@@ -9,6 +9,7 @@ use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\Border;
 
 class CustomFormattedExport implements FromCollection, WithHeadings, ShouldAutoSize, WithStyles
 {
@@ -16,13 +17,15 @@ class CustomFormattedExport implements FromCollection, WithHeadings, ShouldAutoS
     protected $subtitle;
     protected $headings;
     protected $data;
+    protected $hasTotalRow;
 
-    public function __construct(string $title, string $subtitle, array $headings, array $data)
+    public function __construct(string $title, string $subtitle, array $headings, array $data, bool $hasTotalRow = false)
     {
         $this->title = $title;
         $this->subtitle = $subtitle;
         $this->headings = $headings;
         $this->data = collect($data);
+        $this->hasTotalRow = $hasTotalRow;
     }
 
     public function collection()
@@ -41,36 +44,40 @@ class CustomFormattedExport implements FromCollection, WithHeadings, ShouldAutoS
 
     public function styles(Worksheet $sheet)
     {
-        // Merge cells for title and subtitle based on number of columns
         $highestColumn = $sheet->getHighestColumn();
-        
+        $highestRow    = $sheet->getHighestRow();
+
         $sheet->mergeCells("A1:{$highestColumn}1");
         $sheet->mergeCells("A2:{$highestColumn}2");
 
-        return [
+        $styles = [
             1 => [
-                'font' => ['bold' => true, 'size' => 16, 'color' => ['rgb' => 'FFFFFF']],
+                'font'      => ['bold' => true, 'size' => 16, 'color' => ['rgb' => 'FFFFFF']],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
-                'fill' => [
-                    'fillType' => Fill::FILL_SOLID,
-                    'startColor' => ['rgb' => '0F172A']
-                ]
+                'fill'      => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '0F172A']],
             ],
             2 => [
-                'font' => ['italic' => true, 'color' => ['rgb' => '333333']],
+                'font'      => ['italic' => true, 'color' => ['rgb' => '333333']],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
-                'fill' => [
-                    'fillType' => Fill::FILL_SOLID,
-                    'startColor' => ['rgb' => 'F8FAFC']
-                ]
+                'fill'      => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'F8FAFC']],
             ],
             3 => [
                 'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
-                'fill' => [
-                    'fillType' => Fill::FILL_SOLID,
-                    'startColor' => ['rgb' => '10B981'] // Emerald 500
-                ]
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '10B981']],
             ],
         ];
+
+        if ($this->hasTotalRow && $highestRow > 3) {
+            $styles[$highestRow] = [
+                'font' => ['bold' => true, 'color' => ['rgb' => '0F172A']],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'E2E8F0']],
+                'borders' => [
+                    'top'    => ['borderStyle' => Border::BORDER_MEDIUM, 'color' => ['rgb' => '0F172A']],
+                    'bottom' => ['borderStyle' => Border::BORDER_MEDIUM, 'color' => ['rgb' => '0F172A']],
+                ],
+            ];
+        }
+
+        return $styles;
     }
 }

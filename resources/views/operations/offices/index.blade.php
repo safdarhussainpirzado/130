@@ -746,7 +746,7 @@
                         isDanger: !willBeActive,
                         action: async () => {
                             try {
-                                const response = await fetch(`/admin/offices/${office.id}/toggle-status`, {
+                                const response = await fetch(`/mgmt/offices/${office.id}/toggle-status`, {
                                     method: 'POST',
                                     headers: {
                                         'Content-Type': 'application/json',
@@ -775,7 +775,7 @@
                         isDanger: true,
                         action: async () => {
                             try {
-                                const response = await fetch(`/admin/offices/${office.id}`, {
+                                const response = await fetch(`/mgmt/offices/${office.id}`, {
                                     method: 'DELETE',
                                     headers: {
                                         'Content-Type': 'application/json',
@@ -810,7 +810,7 @@
                     if (this.modalMode === 'view') { this.showModal = false; return; }
                     this.saving = true;
                     this.formErrors = {};
-                    const url = this.modalMode === 'add' ? '/admin/offices' : `/admin/offices/${this.form.id}`;
+                    const url = this.modalMode === 'add' ? '/mgmt/offices' : `/mgmt/offices/${this.form.id}`;
                     const method = this.modalMode === 'add' ? 'POST' : 'PATCH';
 
                     try {

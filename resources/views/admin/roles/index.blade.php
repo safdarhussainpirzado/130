@@ -821,7 +821,7 @@
                             isDanger: !willBeActive,
                             action: async () => {
                                 try {
-                                    const response = await fetch(`/admin/roles/${item.id}/toggle-status`, {
+                                    const response = await fetch(`/mgmt/roles/${item.id}/toggle-status`, {
                                         method: 'POST',
                                         headers: {
                                             'Content-Type': 'application/json',
@@ -852,7 +852,7 @@
                             isDanger: true,
                             action: async () => {
                                 try {
-                                    const response = await fetch(`/admin/roles/${item.id}`, {
+                                    const response = await fetch(`/mgmt/roles/${item.id}`, {
                                         method: 'DELETE',
                                         headers: {
                                             'Content-Type': 'application/json',
@@ -889,7 +889,7 @@
                         this.form.permissions = (this.form.permissions || []).map(x => parseInt(x));
                         
                         const isModalSubmission = this.showDetailsModal;
-                        const url = (this.modalMode === 'add' && isModalSubmission) ? '/admin/roles' : `/admin/roles/${this.form.id}`;
+                        const url = (this.modalMode === 'add' && isModalSubmission) ? '/mgmt/roles' : `/mgmt/roles/${this.form.id}`;
                         const method = (this.modalMode === 'add' && isModalSubmission) ? 'POST' : 'PUT';
                         
                         try {

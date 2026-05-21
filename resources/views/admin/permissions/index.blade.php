@@ -589,7 +589,7 @@
                             isDanger: !willBeActive,
                             action: async () => {
                                 try {
-                                    const response = await fetch(`/admin/permissions/${item.id}/toggle-status`, {
+                                    const response = await fetch(`/mgmt/permissions/${item.id}/toggle-status`, {
                                         method: 'POST',
                                         headers: {
                                             'Content-Type': 'application/json',
@@ -620,7 +620,7 @@
                             isDanger: true,
                             action: async () => {
                                 try {
-                                    const response = await fetch(`/admin/permissions/${item.id}`, {
+                                    const response = await fetch(`/mgmt/permissions/${item.id}`, {
                                         method: 'DELETE',
                                         headers: {
                                             'Content-Type': 'application/json',
@@ -652,7 +652,7 @@
 
                     async submitForm() {
                         this.saving = true;
-                        const url = this.modalMode === 'add' ? '/admin/permissions' : `/admin/permissions/${this.form.id}`;
+                        const url = this.modalMode === 'add' ? '/mgmt/permissions' : `/mgmt/permissions/${this.form.id}`;
                         const method = this.modalMode === 'add' ? 'POST' : 'PUT';
                         
                         try {

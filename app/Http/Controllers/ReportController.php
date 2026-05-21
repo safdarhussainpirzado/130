@@ -285,20 +285,82 @@ class ReportController extends Controller
         $subtitle = implode(' | ', $subtitleSegments);
 
         if ($request->has('export')) {
+            // Prepend Sr. No. column for exports only
+            $exportVisibleColumns = array_merge(['sr_no' => 'Sr. No.'], $visibleColumns);
+
+            // Compute column totals
+            $numericKeys = ['junk', 'info', 'help', 'complaint', 'emergency', 'total'];
+            $colTotals = [];
+            foreach ($numericKeys as $k) {
+                $colTotals[$k] = array_sum(array_map(fn($r) => is_array($r) ? ($r[$k] ?? 0) : ($r->{$k} ?? 0), $data));
+            }
+
+            // Build flat rows for Excel with sequential Sr. No.
             $filteredData = [];
+            $rowNum = 1;
             foreach ($data as $row) {
                 $filteredRow = [];
-                foreach ($visibleColumns as $colKey => $colLabel) {
-                    $filteredRow[] = is_array($row) ? ($row[$colKey] ?? '') : ($row->{$colKey} ?? '');
+                foreach ($exportVisibleColumns as $colKey => $colLabel) {
+                    if ($colKey === 'sr_no') {
+                        $filteredRow[] = $rowNum;
+                    } else {
+                        $val = is_array($row) ? ($row[$colKey] ?? '') : ($row->{$colKey} ?? '');
+                        if ($colKey === 'username') {
+                            $fullName = is_array($row) ? ($row['full_name'] ?? '') : ($row->full_name ?? '');
+                            if ($fullName !== '') $val = $fullName;
+                        }
+                        $filteredRow[] = $val;
+                    }
                 }
                 $filteredData[] = $filteredRow;
+                $rowNum++;
+            }
+
+            if (!empty($data)) {
+                $totalFlatRow = [];
+                foreach ($exportVisibleColumns as $colKey => $colLabel) {
+                    if ($colKey === 'sr_no') {
+                        $totalFlatRow[] = '-';
+                    } elseif (in_array($colKey, ['month', 'date', 'time'])) {
+                        $totalFlatRow[] = '-';
+                    } elseif ($colKey === 'username') {
+                        $totalFlatRow[] = 'TOTAL';
+                    } else {
+                        $totalFlatRow[] = $colTotals[$colKey] ?? '';
+                    }
+                }
+                $filteredData[] = $totalFlatRow;
+            }
+
+            // Build data + total row for PDF with sequential Sr. No.
+            $pdfData = [];
+            $rowNum = 1;
+            foreach (array_values($data) as $row) {
+                $arr = is_array($row) ? $row : (array) $row;
+                $arr['sr_no'] = $rowNum++;
+                $pdfData[] = $arr;
+            }
+            if (!empty($data)) {
+                $pdfTotalRow = [
+                    '_is_total' => true,
+                    'sr_no'     => '-',
+                    'month'     => in_array('month', $groupBy) ? '-' : '',
+                    'date'      => in_array('date', $groupBy)  ? '-' : '',
+                    'time'      => in_array('time', $groupBy)  ? '-' : '',
+                    'username'  => 'TOTAL',
+                    'full_name' => '',
+                ];
+                foreach ($numericKeys as $k) {
+                    $pdfTotalRow[$k] = $colTotals[$k];
+                }
+                $pdfData[] = $pdfTotalRow;
             }
 
             if ($request->export === 'excel') {
-                return Excel::download(new CustomFormattedExport($title, $subtitle, array_values($visibleColumns), $filteredData), 'agent_performance.xlsx');
+                return Excel::download(new CustomFormattedExport($title, $subtitle, array_values($exportVisibleColumns), $filteredData, true), 'agent_performance.xlsx');
             }
             if ($request->export === 'pdf') {
-                return Pdf::loadView('reports.pdf.generic', ['data' => collect($data)->take(1000), 'visibleColumns' => $visibleColumns, 'title' => $title, 'subtitle' => $subtitle])->download('agent_performance.pdf');
+                return Pdf::loadView('reports.pdf.generic', ['data' => collect($pdfData)->take(1001), 'visibleColumns' => $exportVisibleColumns, 'title' => $title, 'subtitle' => $subtitle])->download('agent_performance.pdf');
             }
         }
 

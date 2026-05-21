@@ -43,10 +43,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/ajax/geospatial-lookup', [CallController::class, 'geospatialLookup'])->name('api.geospatialLookup');
     Route::get('/ajax/spatial-contacts', [CallController::class, 'spatialContacts'])->name('api.spatialContacts');
     Route::get('/api/notifications/poll', [CallController::class, 'getNotificationsPoll'])->name('api.notifications.poll');
-    Route::post('/api/calls/{call}/reminder', [CallController::class, 'sendReminder'])->name('api.calls.reminder');
+    Route::post('/api/dispatch/ping', [CallController::class, 'sendReminder'])->name('api.calls.reminder');
     
     // Administrative Modules
-    Route::prefix('admin')->name('admin.')->group(function() {
+    Route::prefix('mgmt')->name('admin.')->group(function() {
         Route::middleware('can:users.view')->group(function() {
             Route::resource('users', UserController::class);
             Route::post('users/{user}/toggle-status',  [UserController::class, 'toggleStatus'])->name('users.toggleStatus')->middleware('can:users.manage_status');

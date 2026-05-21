@@ -139,11 +139,11 @@
                 @php
                     $isTotal = false;
                     if (is_array($row)) {
-                        if (($row['month'] ?? '') === 'Total' || ($row['name'] ?? '') === 'Total') {
+                        if (($row['month'] ?? '') === 'Total' || ($row['name'] ?? '') === 'Total' || !empty($row['_is_total'])) {
                             $isTotal = true;
                         }
                     } else {
-                        if (($row->month ?? '') === 'Total' || ($row->name ?? '') === 'Total') {
+                        if (($row->month ?? '') === 'Total' || ($row->name ?? '') === 'Total' || !empty($row->_is_total)) {
                             $isTotal = true;
                         }
                     }

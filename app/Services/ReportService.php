@@ -563,11 +563,30 @@ class ReportService
                 $query->whereTime('calls.created_at', '>=', $from)
                       ->whereTime('calls.created_at', '<=', $to);
             } else {
-                // Handle overnight shifts (e.g., 20:00 to 06:00)
-                $query->where(function($q) use ($from, $to) {
-                    $q->whereTime('calls.created_at', '>=', $from)
-                      ->orWhereTime('calls.created_at', '<=', $to);
-                });
+                // Overnight shift (e.g., 22:00–06:00): must be date-aware.
+                // Applying (time >= from OR time <= to) across the whole date range wrongly
+                // includes the start-date's early morning (00:00–06:00).
+                // Correct logic: start date contributes only from time_from onward,
+                // end date contributes only up to (but not including) time_to.
+                $dateFrom = $filters['date_from'] ?? null;
+                $dateTo   = $filters['date_to']   ?? null;
+
+                if ($dateFrom && $dateTo) {
+                    $query->where(function($q) use ($from, $to, $dateFrom, $dateTo) {
+                        $q->where(function($q2) use ($from, $dateFrom) {
+                            $q2->whereDate('calls.created_at', $dateFrom)
+                               ->whereTime('calls.created_at', '>=', $from);
+                        })->orWhere(function($q2) use ($to, $dateTo) {
+                            $q2->whereDate('calls.created_at', $dateTo)
+                               ->whereTime('calls.created_at', '<', $to);
+                        });
+                    });
+                } else {
+                    $query->where(function($q) use ($from, $to) {
+                        $q->whereTime('calls.created_at', '>=', $from)
+                          ->orWhereTime('calls.created_at', '<', $to);
+                    });
+                }
             }
         }
 

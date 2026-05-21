@@ -1390,7 +1390,7 @@
                         isDanger: !willBeActive,
                         action: async () => {
                             try {
-                                const response = await fetch(`/admin/users/${item.id}/toggle-status`, {
+                                const response = await fetch(`/mgmt/users/${item.id}/toggle-status`, {
                                     method: 'POST',
                                     headers: {
                                         'Content-Type': 'application/json',
@@ -1421,7 +1421,7 @@
                         isDanger: true,
                         action: async () => {
                             try {
-                                const response = await fetch(`/admin/users/${item.id}`, {
+                                const response = await fetch(`/mgmt/users/${item.id}`, {
                                     method: 'DELETE',
                                     headers: {
                                         'Content-Type': 'application/json',
@@ -1454,7 +1454,7 @@
                 async submitPasswordReset() {
                     this.saving = true;
                     try {
-                        const response = await fetch(`/admin/users/${this.selectedItem.id}/reset-password`, {
+                        const response = await fetch(`/mgmt/users/${this.selectedItem.id}/reset-password`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -1483,7 +1483,7 @@
 
                 async submitForm() {
                     this.saving = true;
-                    const url = this.modalMode === 'add' ? '/admin/users' : `/admin/users/${this.form.id}`;
+                    const url = this.modalMode === 'add' ? '/mgmt/users' : `/mgmt/users/${this.form.id}`;
                     const method = this.modalMode === 'add' ? 'POST' : 'PUT';
                     
                     try {
