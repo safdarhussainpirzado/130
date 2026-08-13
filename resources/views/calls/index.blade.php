@@ -1258,7 +1258,7 @@
 
                     try {
                         const response = await fetch(`/calls/${this.selectedItem.id}/status`, {
-                            method: 'PATCH',
+                            method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                                 'Accept': 'application/json',

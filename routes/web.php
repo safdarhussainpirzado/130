@@ -33,7 +33,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/calls/pending', [CallController::class, 'pending'])->name('calls.pending');
     Route::get('/calls/inprogress', [CallController::class, 'inprogress'])->name('calls.inprogress');
     Route::get('/calls/completed', [CallController::class, 'completed'])->name('calls.completed');
-    Route::patch('/calls/{call}/status', [CallController::class, 'updateStatus'])->name('calls.updateStatus');
+    Route::post('/calls/{call}/status', [CallController::class, 'updateStatus'])->name('calls.updateStatus');
     Route::get('/calls/export', [CallController::class, 'exportCsv'])->name('calls.export');
     Route::resource('calls', CallController::class);
 

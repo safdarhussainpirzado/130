@@ -35,6 +35,7 @@
             'tiger_code' => $call->tiger->tiger_code,
         ] : null,
         'inprogress_remarks' => $call->inprogress_remarks,
+        'location_details' => $call->location_details,
         'history' => $call->statusHistory()->with('changedBy.role')->orderBy('created_at', 'asc')->get()
             ->unique(function ($h) {
                 return $h->new_status . $h->remarks . $h->created_at->format('Y-m-d H:i:s');
@@ -99,7 +100,7 @@
                         </div>
                         <div class="space-y-2">
                              <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Physical Location</span>
-                             <div class="text-2xl font-black text-blue-600 tracking-tight">{{ $call->location_details ?? 'No details' }}</div>
+                              <div class="text-2xl font-black text-blue-600 tracking-tight" x-text="decodeWafBypass(item.location_details) || 'No details'"></div>
                              <!-- <div class="text-xs font-bold text-slate-500 uppercase tracking-widest">Coordinates: {{ $call->caller_lat ?? '0' }}, {{ $call->caller_lng ?? '0' }}</div> -->
                         </div>
                     </div>
@@ -114,8 +115,8 @@
                         </h4>
                         <div class="p-10 bg-slate-50 rounded-[2.5rem] border border-slate-100 min-h-[150px] relative">
                             <i class="fa-solid fa-quote-left absolute left-6 top-6 text-slate-200 text-3xl"></i>
-                            <p class="text-lg font-bold text-navy-900 leading-relaxed italic relative z-10 px-4">
-                                {{ $call->details ?? 'Commuter notes are not provided...' }}
+                            <p class="text-lg font-bold text-navy-900 leading-relaxed italic relative z-10 px-4"
+                               x-text="decodeWafBypass(item.details) || 'Commuter notes are not provided...'">
                             </p>
                         </div>
                     </div>
@@ -378,6 +379,20 @@
                 beat_id: config.beat_id || null,
                 tiger: config.tiger || null,
                 inprogress_remarks: config.inprogress_remarks || '',
+                location_details: config.location_details || '',
+            },
+            decodeWafBypass(val) {
+                if (!val || typeof val !== 'string') return val;
+                
+                // Check if it matches base64 pattern (with potential spaces replacing +)
+                let cleaned = val.replace(/ /g, '+').replace(/-/g, '+').replace(/_/g, '/');
+                if (!/^[A-Za-z0-9+/=]+$/.test(cleaned)) return val;
+                
+                try {
+                    return decodeURIComponent(escape(atob(cleaned)));
+                } catch (e) {
+                    return val;
+                }
             },
             history: config.history || [],
             permissions: config.permissions || {
@@ -405,7 +420,7 @@
                 this.isLoading = true;
                 try {
                     const response = await fetch(`/calls/${this.item.id}/status`, {
-                        method: 'PATCH',
+                        method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'Accept': 'application/json',
