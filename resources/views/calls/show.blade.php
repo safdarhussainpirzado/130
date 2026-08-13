@@ -384,12 +384,16 @@
             decodeWafBypass(val) {
                 if (!val || typeof val !== 'string') return val;
                 
-                // Check if it matches base64 pattern (with potential spaces replacing +)
                 let cleaned = val.replace(/ /g, '+').replace(/-/g, '+').replace(/_/g, '/');
                 if (!/^[A-Za-z0-9+/=]+$/.test(cleaned)) return val;
                 
                 try {
-                    return decodeURIComponent(escape(atob(cleaned)));
+                    let decodedBinary = atob(cleaned);
+                    // Check if the decoded string contains control characters or binary garbage
+                    if (/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/.test(decodedBinary)) {
+                        return val;
+                    }
+                    return decodeURIComponent(escape(decodedBinary));
                 } catch (e) {
                     return val;
                 }
