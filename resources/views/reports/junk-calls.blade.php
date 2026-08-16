@@ -5,6 +5,9 @@
 @section('page-title', 'Junk Callers Summary')
 
 @section('content')
+    @php
+        $activeGroupBy = is_array($groupBy ?? null) ? $groupBy : (is_string(request('group_by')) ? explode(',', request('group_by')) : (array) request('group_by', ['date']));
+    @endphp
     <div x-data="reportFilters" class="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {{-- Filters partial --}}
         @include('reports.partials.filters')
@@ -120,13 +123,13 @@
                         <tfoot>
                             <tr class="bg-slate-100 border-t-2 border-slate-400">
                                 <td class="px-4 py-3 font-black text-navy-900 text-center border-r border-slate-200 uppercase text-xs tracking-wide">-</td>
-                                @if(in_array('month', request('group_by', [])))
+                                @if(in_array('month', $activeGroupBy))
                                 <td class="px-4 py-3 border-r border-slate-200 font-black text-navy-900 uppercase text-xs tracking-wide">-</td>
                                 @endif
-                                @if(in_array('date', request('group_by', ['date'])))
+                                @if(in_array('date', $activeGroupBy))
                                 <td class="px-4 py-3 font-black text-navy-900 border-r border-slate-200 uppercase text-xs tracking-wide">Total</td>
                                 @endif
-                                @if(in_array('time', request('group_by', [])))
+                                @if(in_array('time', $activeGroupBy))
                                 <td class="px-4 py-3 border-r border-slate-200 font-black text-navy-900 uppercase text-xs tracking-wide">-</td>
                                 @endif
                                 <td x-show="visibleColumns.username" class="px-4 py-3 border-r border-slate-200 font-black text-navy-900 uppercase text-xs tracking-wide">-</td>
