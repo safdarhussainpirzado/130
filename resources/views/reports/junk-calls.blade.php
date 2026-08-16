@@ -1,3 +1,7 @@
+@php
+    /** @var \Illuminate\Pagination\LengthAwarePaginator $data */
+    $activeGroupBy = is_array($groupBy ?? null) ? $groupBy : (is_string(request('group_by')) ? explode(',', request('group_by')) : (array) request('group_by', ['date']));
+@endphp
 @extends('layouts.app')
 
 @section('title', 'Junk Callers Summary - NHMP 130')
@@ -5,9 +9,6 @@
 @section('page-title', 'Junk Callers Summary')
 
 @section('content')
-    @php
-        $activeGroupBy = is_array($groupBy ?? null) ? $groupBy : (is_string(request('group_by')) ? explode(',', request('group_by')) : (array) request('group_by', ['date']));
-    @endphp
     <div x-data="reportFilters" class="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {{-- Filters partial --}}
         @include('reports.partials.filters')
