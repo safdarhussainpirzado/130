@@ -54,13 +54,13 @@
                         <thead>
                             <tr class="bg-slate-100 border-b-2 border-slate-300">
                                 <th class="px-4 py-3 text-center font-black text-navy-900 text-xs uppercase tracking-wide border-r border-slate-200 w-16">Sr. No</th>
-                                @if(in_array('month', request('group_by', [])))
+                                @if(in_array('month', $activeGroupBy))
                                 <th class="px-4 py-3 text-left font-black text-navy-900 text-xs uppercase tracking-wide border-r border-slate-200 whitespace-nowrap">Month</th>
                                 @endif
-                                @if(in_array('date', request('group_by', ['date'])))
+                                @if(in_array('date', $activeGroupBy))
                                 <th class="px-4 py-3 text-left font-black text-navy-900 text-xs uppercase tracking-wide border-r border-slate-200 whitespace-nowrap">Date</th>
                                 @endif
-                                 @if(in_array('time', request('group_by', [])))
+                                 @if(in_array('time', $activeGroupBy))
                                 <th class="px-4 py-3 text-center font-black text-navy-900 text-xs uppercase tracking-wide border-r border-slate-200 whitespace-nowrap w-24">Time</th>
                                 @endif
                                 <th x-show="visibleColumns.username" class="px-4 py-3 text-left font-black text-navy-900 text-xs uppercase tracking-wide border-r border-slate-200 whitespace-nowrap">Agent</th>
@@ -74,15 +74,15 @@
                                 <td class="px-4 py-2.5 text-center border-r border-slate-200 text-slate-500 font-semibold">
                                     {{ $data->firstItem() ? ($data->firstItem() + $i) : ($i + 1) }}
                                 </td>
-                                @if(in_array('month', request('group_by', [])))
+                                @if(in_array('month', $activeGroupBy))
                                 <td class="px-4 py-2.5 border-r border-slate-200 font-semibold text-slate-700 whitespace-nowrap">{{ $row['month'] ?? '' }}</td>
                                 @endif
-                                @if(in_array('date', request('group_by', ['date'])))
+                                @if(in_array('date', $activeGroupBy))
                                 <td class="px-4 py-2.5 border-r border-slate-200 font-semibold text-slate-700 whitespace-nowrap">
                                     {{ !empty($row['date']) ? \Carbon\Carbon::parse($row['date'])->format('d-M-Y') : '' }}
                                 </td>
                                 @endif
-                                @if(in_array('time', request('group_by', [])))
+                                @if(in_array('time', $activeGroupBy))
                                 <td class="px-4 py-2.5 border-r border-slate-200 font-semibold text-slate-700 text-center whitespace-nowrap">{{ $row['time'] ?? '' }}</td>
                                 @endif
                                 <td x-show="visibleColumns.username" class="px-4 py-2.5 border-r border-slate-200 font-semibold text-slate-700 whitespace-nowrap">
@@ -98,7 +98,7 @@
                             @empty
                             @php
                                 $colsCount = 1;
-                                $colsCount += count(request('group_by', ['date']));
+                                $colsCount += count($activeGroupBy);
                                 if (isset($visibleColumns['username'])) $colsCount++;
                                 if (isset($visibleColumns['mobile_number'])) $colsCount++;
                                 if (isset($visibleColumns['total_calls'])) $colsCount++;

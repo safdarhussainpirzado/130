@@ -5,6 +5,9 @@
 @section('page-title', 'Agent Performance')
 
 @section('content')
+    @php
+        $activeGroupBy = is_array($groupBy ?? null) ? $groupBy : (is_string(request('group_by')) ? explode(',', request('group_by')) : (array) request('group_by', []));
+    @endphp
     <div x-data="reportFilters" class="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <!-- ── Filters ─────────────────────────────────────────────── -->
         @include('reports.partials.filters')
@@ -39,13 +42,13 @@
                         <thead>
                             <tr class="bg-slate-100 border-b-2 border-slate-300">
                                 <th class="px-4 py-3 text-center font-black text-navy-900 text-xs uppercase tracking-wide border-r border-slate-200 w-16 whitespace-nowrap">Sr. No</th>
-                                @if(in_array('month', $groupBy))
+                                @if(in_array('month', $activeGroupBy))
                                 <th class="px-4 py-3 text-left font-black text-navy-900 text-xs uppercase tracking-wide border-r border-slate-200 whitespace-nowrap">Month</th>
                                 @endif
-                                @if(in_array('date', $groupBy))
+                                @if(in_array('date', $activeGroupBy))
                                 <th class="px-4 py-3 text-left font-black text-navy-900 text-xs uppercase tracking-wide border-r border-slate-200 whitespace-nowrap">Date</th>
                                 @endif
-                                @if(in_array('time', $groupBy))
+                                @if(in_array('time', $activeGroupBy))
                                 <th class="px-4 py-3 text-center font-black text-navy-900 text-xs uppercase tracking-wide border-r border-slate-200 whitespace-nowrap w-24">Time</th>
                                 @endif
                                 <th x-show="visibleColumns.username" class="px-4 py-3 text-left font-black text-navy-900 text-xs uppercase tracking-wide border-r border-slate-200 whitespace-nowrap">Agent Name</th>

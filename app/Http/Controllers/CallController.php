@@ -359,8 +359,11 @@ class CallController extends Controller
             $val = $request->input($field);
             if ($val && preg_match('/^[A-Za-z0-9+\/]+=*$/', $val)) {
                 $decoded = base64_decode($val, true);
-                if ($decoded !== false) {
-                    $request->merge([$field => $decoded]);
+                if ($decoded !== false && mb_check_encoding($decoded, 'UTF-8')) {
+                    // Prevent double-decoding clean text (e.g. 'RINGING') by checking for control chars
+                    if (!preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/', $decoded)) {
+                        $request->merge([$field => $decoded]);
+                    }
                 }
             }
         }

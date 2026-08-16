@@ -978,13 +978,7 @@ function intakeComponent() {
             try {
                 const form = document.getElementById('intake-form');
                 const formData = new FormData(form);
-
-                // WAF bypass: base64-encode free-text fields so WAF cannot inspect Urdu/mixed content
-                ['details', 'location_details'].forEach(field => {
-                    const val = formData.get(field);
-                    if (val) formData.set(field, btoa(unescape(encodeURIComponent(val))));
-                });
-
+                
                 const response = await fetch(form.action, {
                     method: 'POST',
                     body: formData,
@@ -994,22 +988,6 @@ function intakeComponent() {
                         'X-CSRF-TOKEN': '{{ csrf_token() }}'
                     }
                 });
-
-                // Session expired: server returns 419 or redirects to login (HTML)
-                if (response.status === 419) {
-                    if (window.Notification) window.Notification.warning('Your session has expired. The page will reload automatically.', 'Session Expired');
-                    setTimeout(() => window.location.reload(), 2000);
-                    return;
-                }
-
-                // Only parse JSON if the server actually returned JSON
-                const ct = response.headers.get('content-type') || '';
-                if (!ct.includes('application/json')) {
-                    // WAF block, HAProxy error page, or session redirect (HTML response)
-                    if (window.Notification) window.Notification.error(`Server returned an unexpected response (HTTP ${response.status}). Please refresh and try again.`, 'Server Error');
-                    console.error('Non-JSON response:', response.status, response.url);
-                    return;
-                }
 
                 const result = await response.json();
 
@@ -1036,9 +1014,8 @@ function intakeComponent() {
                     }
                 }
             } catch (e) {
-                // Only genuine network failures (DNS failure, connection refused, request aborted)
-                if (window.Notification) window.Notification.error('Network connection failed. Please check your internet connection.', 'Connection Error');
-                console.error('Fetch failed:', e);
+                if (window.Notification) window.Notification.error('Communications array offline. Verify network sync.', 'Connection Error');
+                console.error(e);
             } finally {
                 this.submitting = false;
             }
@@ -1170,36 +1147,24 @@ function intakeComponent() {
             
             this.historyLoading = true;
             try {
-                const response = await fetch(`/api/dispatch/ping`, {
+                const response = await fetch(`/api/calls/${this.selectedHistoryCall.id}/reminder`, {
                     method: 'POST',
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest',
                         'Accept': 'application/json',
-                        'Content-Type': 'application/json',
                         'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                    },
-                    body: JSON.stringify({ ref: this.selectedHistoryCall.id })
+                    }
                 });
-
-                if (response.status === 419) {
-                    if (window.Notification) window.Notification.warning('Session expired. Please refresh the page.', 'Session Expired');
-                    setTimeout(() => window.location.reload(), 2000);
-                    return;
-                }
-
-                const ct = response.headers.get('content-type') || '';
-                if (!ct.includes('application/json')) {
-                    if (window.Notification) window.Notification.error(`Server returned an unexpected response (HTTP ${response.status}). Please try again.`, 'Server Error');
-                    return;
-                }
 
                 const result = await response.json();
 
                 if (response.ok) {
                     if (window.Notification) window.Notification.success(result.message, 'Reminder Dispatched');
+                    // Update the local object in history list
                     this.selectedHistoryCall.call_reminder_count = result.call.call_reminder_count;
                     this.selectedHistoryCall.last_reminder_at = result.call.last_reminder_at;
-
+                    
+                    // Also find in callerHistory and update
                     const idx = this.callerHistory.findIndex(h => h.id === result.call.id);
                     if (idx !== -1) {
                         this.callerHistory[idx].call_reminder_count = result.call.call_reminder_count;
@@ -1210,7 +1175,7 @@ function intakeComponent() {
                 }
             } catch (e) {
                 console.error(e);
-                if (window.Notification) window.Notification.error('Network connection failed. Please check your connection.', 'Connection Error');
+                if (window.Notification) window.Notification.error('Communications array offline.', 'Link Failure');
             } finally {
                 this.historyLoading = false;
             }

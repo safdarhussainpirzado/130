@@ -592,13 +592,13 @@ class ReportController extends Controller
 
         if ($request->ajax()) {
             return view('reports.junk-calls', array_merge(
-                ['data' => $paginatedData, 'availableColumns' => $availableColumns, 'visibleColumns' => $visibleColumns, 'isInitial' => $isInitial],
+                ['data' => $paginatedData, 'availableColumns' => $availableColumns, 'visibleColumns' => $visibleColumns, 'isInitial' => $isInitial, 'groupBy' => $groupBy],
                 $this->getFilterData()
             ));
         }
 
         return view('reports.junk-calls', array_merge(
-            ['data' => $paginatedData, 'availableColumns' => $availableColumns, 'visibleColumns' => $visibleColumns, 'isInitial' => $isInitial],
+            ['data' => $paginatedData, 'availableColumns' => $availableColumns, 'visibleColumns' => $visibleColumns, 'isInitial' => $isInitial, 'groupBy' => $groupBy],
             $this->getFilterData()
         ));
     }

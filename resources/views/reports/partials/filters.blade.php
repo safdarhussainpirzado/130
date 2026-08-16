@@ -299,19 +299,39 @@
             },
 
             setShift(from, to) {
-                document.getElementsByName('time_from')[0].value = from;
-                document.getElementsByName('time_to')[0].value = to;
-                // For overnight shift (Night: 22:00-06:00), set date_to = date_from + 1 day
-                if (from > to) {
-                    const dateFromInput = document.getElementsByName('date_from')[0];
-                    const dateToInput = document.getElementsByName('date_to')[0];
-                    const baseDate = dateFromInput.value ? new Date(dateFromInput.value + 'T00:00:00') : new Date();
-                    const nextDay = new Date(baseDate);
-                    nextDay.setDate(baseDate.getDate() + 1);
-                    const fmt = d => [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-');
-                    dateToInput.value = fmt(nextDay);
-                    // date_from stays unchanged
+                const now = new Date();
+                const fmt = d => [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-');
+                const todayStr = fmt(now);
+
+                const dateFromInput = document.getElementsByName('date_from')[0];
+                const dateToInput = document.getElementsByName('date_to')[0];
+                const timeFromInput = document.getElementsByName('time_from')[0];
+                const timeToInput = document.getElementsByName('time_to')[0];
+
+                if (from === '22:00' && to === '06:00') {
+                    const currentHours = now.getHours();
+                    let fromDate, toDate;
+                    
+                    if (currentHours >= 22) { // 10:00 PM or later
+                        fromDate = new Date(now);
+                        toDate = new Date(now);
+                        toDate.setDate(now.getDate() + 1);
+                    } else { // Before 10:00 PM
+                        fromDate = new Date(now);
+                        fromDate.setDate(now.getDate() - 1);
+                        toDate = new Date(now);
+                    }
+                    
+                    dateFromInput.value = fmt(fromDate);
+                    dateToInput.value = fmt(toDate);
+                } else {
+                    // For Morning / Evening, set both dates to Today
+                    dateFromInput.value = todayStr;
+                    dateToInput.value = todayStr;
                 }
+                
+                timeFromInput.value = from;
+                timeToInput.value = to;
             },
 
             async fetchReport(event) {
