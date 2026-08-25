@@ -550,42 +550,32 @@ class ReportService
 
     private function applyFilters($query, array $filters)
     {
-        // 1. Date Range
-        if (!empty($filters['date_from'])) $query->whereDate('calls.created_at', '>=', $filters['date_from']);
-        if (!empty($filters['date_to'])) $query->whereDate('calls.created_at', '<=', $filters['date_to']);
+        // 1. Date & Time Range Filter
+        $dateFrom = !empty($filters['date_from']) ? $filters['date_from'] : null;
+        $dateTo = !empty($filters['date_to']) ? $filters['date_to'] : null;
+        $timeFrom = !empty($filters['time_from']) ? $filters['time_from'] : null;
+        $timeTo = !empty($filters['time_to']) ? $filters['time_to'] : null;
 
-        // 2. Time Range
-        if (!empty($filters['time_from']) && !empty($filters['time_to'])) {
-            $from = $filters['time_from'];
-            $to = $filters['time_to'];
-            
-            if ($from <= $to) {
-                $query->whereTime('calls.created_at', '>=', $from)
-                      ->whereTime('calls.created_at', '<=', $to);
-            } else {
-                // Overnight shift (e.g., 22:00–06:00): must be date-aware.
-                // Applying (time >= from OR time <= to) across the whole date range wrongly
-                // includes the start-date's early morning (00:00–06:00).
-                // Correct logic: start date contributes only from time_from onward,
-                // end date contributes only up to (but not including) time_to.
-                $dateFrom = $filters['date_from'] ?? null;
-                $dateTo   = $filters['date_to']   ?? null;
+        if ($dateFrom && $timeFrom && $dateTo && $timeTo) {
+            $fromDateTime = \Carbon\Carbon::parse($dateFrom . ' ' . $timeFrom);
+            $toDateTime = \Carbon\Carbon::parse($dateTo . ' ' . $timeTo);
 
-                if ($dateFrom && $dateTo) {
-                    $query->where(function($q) use ($from, $to, $dateFrom, $dateTo) {
-                        $q->where(function($q2) use ($from, $dateFrom) {
-                            $q2->whereDate('calls.created_at', $dateFrom)
-                               ->whereTime('calls.created_at', '>=', $from);
-                        })->orWhere(function($q2) use ($to, $dateTo) {
-                            $q2->whereDate('calls.created_at', $dateTo)
-                               ->whereTime('calls.created_at', '<', $to);
-                        });
-                    });
+            $query->where('calls.created_at', '>=', $fromDateTime)
+                  ->where('calls.created_at', '<=', $toDateTime);
+        } else {
+            if ($dateFrom) {
+                if ($timeFrom) {
+                    $query->where('calls.created_at', '>=', \Carbon\Carbon::parse($dateFrom . ' ' . $timeFrom));
                 } else {
-                    $query->where(function($q) use ($from, $to) {
-                        $q->whereTime('calls.created_at', '>=', $from)
-                          ->orWhereTime('calls.created_at', '<', $to);
-                    });
+                    $query->whereDate('calls.created_at', '>=', $dateFrom);
+                }
+            }
+
+            if ($dateTo) {
+                if ($timeTo) {
+                    $query->where('calls.created_at', '<=', \Carbon\Carbon::parse($dateTo . ' ' . $timeTo));
+                } else {
+                    $query->whereDate('calls.created_at', '<=', $dateTo);
                 }
             }
         }
