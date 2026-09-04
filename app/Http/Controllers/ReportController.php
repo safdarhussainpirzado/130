@@ -603,6 +603,161 @@ class ReportController extends Controller
         ));
     }
 
+    public function helpResponseTime(Request $request)
+    {
+        $request->merge($this->resolveFilters($request, 'help_response_time'));
+        abort_if(!auth()->user()->hasPermission('reports.view'), 403, 'Unauthorized access to help response time report module');
+        set_time_limit(300);
+        ini_set('memory_limit', '1024M');
+
+        $availableColumns = [
+            'call_number'           => 'Call ID',
+            'created_at'            => 'Help Created',
+            'zone'                  => 'Zone',
+            'sector'                => 'Sector',
+            'beat'                  => 'Beat',
+            'category_full'         => 'Category',
+            'initiated_at'          => 'Help Initiated',
+            'tiger_reached_at'      => 'Tiger Reached',
+            'completed_at'          => 'Help Completed',
+            'tiger_response_time'   => 'Tiger Response Time',
+            'assistance_duration'   => 'Assistance Duration',
+            'total_resolution_time' => 'Resolution Time',
+            'status'                => 'Status',
+        ];
+
+        $visibleColumns = $this->resolveVisibleColumns($request, $availableColumns);
+
+        $title = 'Help Response-Time Monitoring Report';
+        $subtitle = $this->getSubtitle($request);
+
+        if ($request->has('export')) {
+            $data = $this->reportService->helpResponseTimeReport($request->all(), false);
+            $summary = $this->reportService->helpResponseTimeSummary($request->all());
+
+            $exportVisibleColumns = array_merge(['sr_no' => 'Sr. No.'], $visibleColumns);
+
+            $filteredData = [];
+            $rowNum = 1;
+            foreach ($data as $row) {
+                $filteredRow = [];
+                foreach ($exportVisibleColumns as $colKey => $colLabel) {
+                    if ($colKey === 'sr_no') {
+                        $filteredRow[] = $rowNum;
+                    } else {
+                        $filteredRow[] = is_array($row) ? ($row[$colKey] ?? '') : ($row->{$colKey} ?? '');
+                    }
+                }
+                $filteredData[] = $filteredRow;
+                $rowNum++;
+            }
+
+            // Summary / Average row for export
+            if (!empty($data)) {
+                $summaryRow = [];
+                foreach ($exportVisibleColumns as $colKey => $colLabel) {
+                    if ($colKey === 'sr_no') {
+                        $summaryRow[] = '-';
+                    } elseif ($colKey === 'call_number') {
+                        $summaryRow[] = 'AVERAGE / SUMMARY';
+                    } elseif ($colKey === 'tiger_response_time') {
+                        $summaryRow[] = $summary['avg_response'] ?? '--';
+                    } elseif ($colKey === 'assistance_duration') {
+                        $summaryRow[] = $summary['avg_assistance'] ?? '--';
+                    } elseif ($colKey === 'total_resolution_time') {
+                        $summaryRow[] = $summary['avg_resolution'] ?? '--';
+                    } elseif ($colKey === 'status') {
+                        $summaryRow[] = "Total: {$summary['total_records']}";
+                    } else {
+                        $summaryRow[] = '-';
+                    }
+                }
+                $filteredData[] = $summaryRow;
+            }
+
+            if ($request->export === 'excel') {
+                return Excel::download(
+                    new CustomFormattedExport($title, $subtitle, array_values($exportVisibleColumns), $filteredData, true),
+                    'help_response_time_report.xlsx'
+                );
+            }
+
+            if ($request->export === 'pdf') {
+                $pdfData = [];
+                $rowNum = 1;
+                foreach ($data as $row) {
+                    $arr = is_array($row) ? $row : (array) $row;
+                    $arr['sr_no'] = $rowNum++;
+                    $pdfData[] = $arr;
+                }
+                if (!empty($data)) {
+                    $pdfTotalRow = [
+                        '_is_total' => true,
+                        'sr_no' => '-',
+                        'call_number' => 'AVERAGE / SUMMARY',
+                        'created_at' => '-',
+                        'zone' => '-',
+                        'sector' => '-',
+                        'beat' => '-',
+                        'category_full' => '-',
+                        'initiated_at' => '-',
+                        'tiger_reached_at' => '-',
+                        'completed_at' => '-',
+                        'tiger_response_time' => $summary['avg_response'] ?? '--',
+                        'assistance_duration' => $summary['avg_assistance'] ?? '--',
+                        'total_resolution_time' => $summary['avg_resolution'] ?? '--',
+                        'status' => "Total: {$summary['total_records']}",
+                    ];
+                    $pdfData[] = $pdfTotalRow;
+                }
+                return Pdf::loadView('reports.pdf.generic', [
+                    'data' => collect($pdfData)->take(1001),
+                    'visibleColumns' => $exportVisibleColumns,
+                    'title' => $title,
+                    'subtitle' => $subtitle
+                ])->download('help_response_time_report.pdf');
+            }
+        }
+
+        $isInitial = !$request->has('date_from') && !$request->has('export') && !$request->has('status') && !$request->has('zone_id') && !$request->has('search');
+        $perPage = (int) $request->input('per_page', 25);
+
+        if ($isInitial) {
+            $data = new \Illuminate\Pagination\LengthAwarePaginator([], 0, $perPage, 1, ['path' => $request->url()]);
+            $summary = [
+                'total_records' => 0,
+                'completed_count' => 0,
+                'reached_count' => 0,
+                'active_count' => 0,
+                'avg_response_sec' => null,
+                'avg_response' => '--',
+                'avg_assistance_sec' => null,
+                'avg_assistance' => '--',
+                'avg_resolution_sec' => null,
+                'avg_resolution' => '--',
+            ];
+        } else {
+            $data = $this->reportService->helpResponseTimeReport($request->all(), true, $perPage);
+            $summary = $this->reportService->helpResponseTimeSummary($request->all());
+        }
+
+        $filterData = $this->getFilterData();
+        $filterData['callTypes'] = $filterData['callTypes']->filter(function ($ct) {
+            return !in_array($ct->category, ['junk_silent', 'information']) && !in_array($ct->name, ['Junk/Silent', 'Information']);
+        });
+
+        $viewData = array_merge(
+            compact('data', 'summary', 'availableColumns', 'visibleColumns', 'isInitial', 'title', 'subtitle'),
+            $filterData
+        );
+
+        if ($request->ajax()) {
+            return view('reports.help-response-time', $viewData);
+        }
+
+        return view('reports.help-response-time', $viewData);
+    }
+
     private function isRestrictedUser(): bool
     {
         $role = auth()->user()?->role?->name;
@@ -644,6 +799,7 @@ class ReportController extends Controller
             ->where('username', '!=', 'nhmp_admin')
             ->get(['id', 'username', 'full_name']),
             'callTypes' => \App\Models\CallType::active()->get(['id', 'name', 'category']),
+            'callSubTypes' => \App\Models\CallSubType::where('is_active', true)->select('id', 'name', 'call_type_id')->orderBy('name')->get(),
         ];
     }
 

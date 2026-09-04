@@ -24,7 +24,7 @@ class CallController extends Controller
         /** @var \App\Models\User $user */
         $user = auth()->user();
 
-        if (in_array($user->role?->name, ['super_admin', 'agent_supervisor'])) {
+        if (in_array($user->role?->name, ['super_admin', 'operation_admin', 'agent_supervisor'])) {
             return $query;
         }
 
@@ -134,7 +134,7 @@ class CallController extends Controller
     {
         /** @var \App\Models\User $user */
         $user = auth()->user();
-        $isPrivileged = $user->role?->name === 'agent_supervisor';
+        $isPrivileged = in_array($user->role?->name, ['super_admin', 'operation_admin', 'agent_supervisor']);
 
         return [
             'zones' => Office::zones()->where('is_active', true)->select('id', 'name')->orderBy('name')->get(),
@@ -162,10 +162,11 @@ class CallController extends Controller
         $totalCount = (clone $statsBaseQuery)->count();
         
         $statusStats = [
-            'total'       => $totalCount,
-            'pending'     => (clone $statsBaseQuery)->where('status', 'pending')->count(),
-            'in_progress' => (clone $statsBaseQuery)->where('status', 'in_progress')->count(),
-            'completed'   => (clone $statsBaseQuery)->where('status', 'completed')->count(),
+            'total'         => $totalCount,
+            'pending'       => (clone $statsBaseQuery)->where('status', 'pending')->count(),
+            'in_progress'   => (clone $statsBaseQuery)->whereIn('status', ['in_progress', 'tiger_reached'])->count(),
+            'tiger_reached' => (clone $statsBaseQuery)->where('status', 'tiger_reached')->count(),
+            'completed'     => (clone $statsBaseQuery)->where('status', 'completed')->count(),
         ];
 
         // Add percentages for status stats
@@ -190,7 +191,11 @@ class CallController extends Controller
         $stats = array_merge($statusStats, ['categories' => $categoryStats]);
 
         if ($request->status && $request->status !== 'all') {
-            $query->where('status', $request->status);
+            if ($request->status === 'in_progress') {
+                $query->whereIn('status', ['in_progress', 'tiger_reached']);
+            } else {
+                $query->where('status', $request->status);
+            }
         }
         
         if ($request->call_type_id) {
@@ -208,7 +213,7 @@ class CallController extends Controller
         if ($sort && in_array($sort, $allowedSorts)) {
             $calls = $query->orderBy($sort, $dir)->paginate($request->perPage ?? 25);
         } else {
-            $calls = $query->orderByRaw("FIELD(status, 'pending', 'in_progress', 'forwarded', 'completed', 'cancelled', 'junk')")->orderBy('created_at', 'desc')->paginate($request->perPage ?? 25);
+            $calls = $query->orderByRaw("FIELD(status, 'pending', 'in_progress', 'tiger_reached', 'forwarded', 'completed', 'cancelled', 'junk')")->orderBy('created_at', 'desc')->paginate($request->perPage ?? 25);
         }
 
         if ($request->wantsJson()) {
@@ -218,6 +223,7 @@ class CallController extends Controller
         $title = 'Help Management';
         if ($request->status === 'pending') $title = 'Pending Helps';
         if ($request->status === 'in_progress') $title = 'In-Process Helps';
+        if ($request->status === 'tiger_reached') $title = 'Tiger Reached Helps';
         if ($request->status === 'completed') $title = 'Resolved Helps';
 
         return view('calls.index', array_merge(compact('calls', 'stats'), $filterData))->with('title', $title);
@@ -231,6 +237,11 @@ class CallController extends Controller
     public function inprogress(Request $request)
     {
         return redirect()->route('calls.index', array_merge($request->all(), ['status' => 'in_progress']));
+    }
+
+    public function tigerReached(Request $request)
+    {
+        return redirect()->route('calls.index', array_merge($request->all(), ['status' => 'tiger_reached']));
     }
 
     public function completed(Request $request)
@@ -323,7 +334,7 @@ class CallController extends Controller
             'priority' => 'nullable',
             'caller_lat' => 'nullable',
             'caller_lng' => 'nullable',
-            'status' => 'nullable|in:pending,in_progress,completed,cancelled,junk,forwarded',
+            'status' => 'nullable|in:pending,in_progress,tiger_reached,completed,cancelled,junk,forwarded',
             'location_details' => 'nullable|string',
         ]);
 

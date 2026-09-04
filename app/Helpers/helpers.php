@@ -27,6 +27,7 @@ if (!function_exists('call_status_badge')) {
         $badges = [
             'pending' => '<span class="px-3 py-1 text-[9px] font-black uppercase tracking-[0.1em] rounded-full bg-slate-100 text-slate-500 border border-slate-200/50 shadow-sm shadow-slate-200/20">Pending</span>',
             'in_progress' => '<span class="px-3 py-1 text-[9px] font-black uppercase tracking-[0.1em] rounded-full bg-amber-50 text-amber-600 border border-amber-200/50 shadow-sm shadow-amber-500/10">In Progress</span>',
+            'tiger_reached' => '<span class="px-3 py-1 text-[9px] font-black uppercase tracking-[0.1em] rounded-full bg-sky-50 text-sky-600 border border-sky-200/50 shadow-sm shadow-sky-500/10">Tiger Reached</span>',
             'completed' => '<span class="px-3 py-1 text-[9px] font-black uppercase tracking-[0.1em] rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200/50 shadow-sm shadow-emerald-500/10">Completed</span>',
             'cancelled' => '<span class="px-3 py-1 text-[9px] font-black uppercase tracking-[0.1em] rounded-full bg-rose-50 text-rose-600 border border-rose-200/50 shadow-sm shadow-rose-500/10">Cancelled</span>',
             'junk' => '<span class="px-3 py-1 text-[9px] font-black uppercase tracking-[0.1em] rounded-full bg-slate-200 text-slate-400 border border-slate-300 shadow-sm italic">Junk</span>',

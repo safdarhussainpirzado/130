@@ -32,6 +32,7 @@ Route::middleware('auth')->group(function () {
     
     Route::get('/calls/pending', [CallController::class, 'pending'])->name('calls.pending');
     Route::get('/calls/inprogress', [CallController::class, 'inprogress'])->name('calls.inprogress');
+    Route::get('/calls/tiger-reached', [CallController::class, 'tigerReached'])->name('calls.tiger_reached');
     Route::get('/calls/completed', [CallController::class, 'completed'])->name('calls.completed');
     Route::post('/calls/{call}/status', [CallController::class, 'updateStatus'])->name('calls.updateStatus');
     Route::get('/calls/export', [CallController::class, 'exportCsv'])->name('calls.export');
@@ -100,6 +101,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/predictive-analysis', [ReportController::class, 'predictiveAnalysis'])->name('predictive-analysis')->middleware('can:reports.predictive_analysis');
         Route::get('/category-analysis', [ReportController::class, 'categoryAnalysis'])->name('category-analysis')->middleware('can:reports.view');
         Route::get('/junk-calls-frequency', [ReportController::class, 'junkCallsFrequency'])->name('junk-calls-frequency')->middleware('can:reports.view');
+        Route::get('/help-response-time', [ReportController::class, 'helpResponseTime'])->name('help-response-time')->middleware('can:reports.view');
     });
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

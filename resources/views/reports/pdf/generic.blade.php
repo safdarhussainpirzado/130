@@ -108,7 +108,7 @@
 </head>
 <body>
     @php
-        $alignLeft = ['month', 'date', 'time', 'name', 'username', 'zone', 'sector', 'beat', 'mobile_number', 'mobile', 'phone'];
+        $alignLeft = ['month', 'date', 'time', 'name', 'username', 'zone', 'sector', 'beat', 'mobile_number', 'mobile', 'phone', 'call_number', 'category_full', 'tiger_officer', 'operator_comments'];
     @endphp
 
     <div class="header">

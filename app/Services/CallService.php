@@ -12,6 +12,13 @@ use Illuminate\Support\Facades\DB;
 
 class CallService
 {
+    public const VALID_TRANSITIONS = [
+        'pending' => ['in_progress', 'cancelled', 'junk', 'forwarded'],
+        'in_progress' => ['tiger_reached', 'completed', 'pending', 'forwarded'],
+        'tiger_reached' => ['completed', 'in_progress', 'forwarded', 'cancelled'],
+        'forwarded' => ['in_progress', 'tiger_reached', 'completed'],
+    ];
+
     /**
      * Create a new call with advanced priority resolution.
      */
@@ -48,20 +55,19 @@ class CallService
             // agents always get unique sequential numbers.
             if (!isset($data['call_number'])) {
                 $year = (int) date('Y');
-                // Use MAX(id) or a more robust count that doesn't rely on valid created_at
-                $lastCall = DB::table('calls')
+                // Query the true maximum numeric sequence across all records for the current year
+                $maxSeq = (int) DB::table('calls')
                     ->where('call_number', 'like', "CRM-{$year}-%")
-                    ->lockForUpdate()
-                    ->orderBy('id', 'desc')
-                    ->first();
+                    ->selectRaw("MAX(CAST(SUBSTRING_INDEX(call_number, '-', -1) AS UNSIGNED)) as max_seq")
+                    ->value('max_seq');
 
-                $nextSeq = 1;
-                if ($lastCall) {
-                    $parts = explode('-', $lastCall->call_number);
-                    $nextSeq = (int) end($parts) + 1;
-                }
+                $nextSeq = max($maxSeq + 1, 1);
+                do {
+                    $callNumber = sprintf('CRM-%d-%05d', $year, $nextSeq);
+                    $nextSeq++;
+                } while (DB::table('calls')->where('call_number', $callNumber)->exists());
 
-                $data['call_number'] = sprintf('CRM-%d-%05d', $year, $nextSeq);
+                $data['call_number'] = $callNumber;
             }
 
             $call = Call::create($data);
@@ -87,11 +93,7 @@ class CallService
      */
     public function updateStatus(Call $call, string $newStatus, User $changedBy, array $data = []): Call
     {
-        $validTransitions = [
-            'pending' => ['in_progress', 'cancelled', 'junk', 'forwarded'],
-            'in_progress' => ['completed', 'pending', 'forwarded'],
-            'forwarded' => ['in_progress', 'completed'],
-        ];
+        $validTransitions = self::VALID_TRANSITIONS;
 
         $allowed = $validTransitions[$call->status] ?? [];
 
@@ -108,19 +110,42 @@ class CallService
                 $updateData['inprogress_status_by'] = $changedBy->id;
                 $updateData['inprogress_remarks'] = $data['remarks'] ?? null;
 
-                if ($call->call_start_time) {
-                    $updateData['response_time_sec'] = (int) $call->call_start_time->diffInSeconds(now());
+                if ($call->call_start_time ?? $call->created_at) {
+                    $updateData['response_time_sec'] = (int) ($call->call_start_time ?? $call->created_at)->diffInSeconds(now());
                 }
 
-                if (isset($data['tiger_id'])) {
+                if (isset($data['tiger_id']) && $data['tiger_id'] !== '') {
                     $assetCode = $data['tiger_id'];
+                    $updateData['tiger_id'] = $assetCode;
                     $updateData['inprogress_remarks'] = ($updateData['inprogress_remarks'] ? $updateData['inprogress_remarks'] . " " : "") . "[Allocated Asset: {$assetCode}]";
                     $data['remarks'] = ($data['remarks'] ?? '') . " [Asset: {$assetCode}]";
                 }
-                if (isset($data['patrol_officer_id'])) {
+                if (isset($data['patrol_officer_id']) && $data['patrol_officer_id'] !== '') {
                     $officerInfo = $data['patrol_officer_id'];
+                    $updateData['patrol_officer_id'] = $officerInfo;
                     $updateData['inprogress_remarks'] = ($updateData['inprogress_remarks'] ? $updateData['inprogress_remarks'] . " " : "") . "[Patrol Officer: {$officerInfo}]";
                     $data['remarks'] = ($data['remarks'] ?? '') . " [Officer: {$officerInfo}]";
+                }
+            }
+
+            if ($newStatus === 'tiger_reached') {
+                $updateData['tiger_reached_at'] = now();
+                $updateData['tiger_reached_status_by'] = $changedBy->id;
+                $updateData['tiger_reached_remarks'] = $data['remarks'] ?? null;
+
+                // Tiger Response Time = Tiger Reached Time - Help Initiated Time
+                if ($call->inprogress_at) {
+                    $updateData['tiger_response_time_sec'] = (int) $call->inprogress_at->diffInSeconds(now());
+                } elseif ($call->call_start_time ?? $call->created_at) {
+                    $updateData['tiger_response_time_sec'] = (int) ($call->call_start_time ?? $call->created_at)->diffInSeconds(now());
+                }
+                $updateData['response_time_sec'] = $updateData['tiger_response_time_sec'] ?? null;
+
+                if (isset($data['tiger_id']) && $data['tiger_id'] !== '') {
+                    $updateData['tiger_id'] = $data['tiger_id'];
+                }
+                if (isset($data['patrol_officer_id']) && $data['patrol_officer_id'] !== '') {
+                    $updateData['patrol_officer_id'] = $data['patrol_officer_id'];
                 }
             }
 
@@ -130,8 +155,27 @@ class CallService
                 $updateData['completed_remarks'] = $data['remarks'] ?? null;
                 $updateData['followup_needed'] = $data['followup_needed'] ?? false;
 
-                if ($call->call_start_time) {
-                    $updateData['resolution_time_sec'] = (int) $call->call_start_time->diffInSeconds(now());
+                // If tiger_reached_at was never marked, but directly completed from in_progress
+                if (!$call->tiger_reached_at && $call->inprogress_at) {
+                    $updateData['tiger_reached_at'] = now();
+                    $updateData['tiger_response_time_sec'] = (int) $call->inprogress_at->diffInSeconds(now());
+                    $updateData['response_time_sec'] = $updateData['tiger_response_time_sec'];
+                } elseif ($call->tiger_response_time_sec && !$call->response_time_sec) {
+                    $updateData['response_time_sec'] = $call->tiger_response_time_sec;
+                }
+
+                // Assistance Duration = Help Completed Time - Tiger Reached Time
+                $reachedTime = $updateData['tiger_reached_at'] ?? $call->tiger_reached_at;
+                if ($reachedTime) {
+                    $updateData['assistance_duration_sec'] = max(0, (int) $reachedTime->diffInSeconds(now()));
+                } elseif ($call->inprogress_at) {
+                    $updateData['assistance_duration_sec'] = max(0, (int) $call->inprogress_at->diffInSeconds(now()));
+                }
+
+                // Total Help Resolution Time = Help Completed Time - Help Created Time
+                $startTime = $call->created_at ?? $call->call_start_time;
+                if ($startTime) {
+                    $updateData['resolution_time_sec'] = max(0, (int) $startTime->diffInSeconds(now()));
                 }
             }
 

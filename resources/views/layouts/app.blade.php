@@ -607,8 +607,15 @@
                             <span class="nav-tooltip">In-Process Helps</span>
                         </a>
 
+                        <a href="{{ route('calls.tiger_reached') }}"
+                            class="nav-item {{ $cur === 'calls.tiger_reached' || ($cur === 'calls.index' && $st === 'tiger_reached') ? 'active' : '' }}">
+                            <span class="nav-icon text-sky-500"><i class="fa-solid fa-location-dot"></i></span>
+                            <span class="nav-label">Tiger Reached</span>
+                            <span class="nav-tooltip">Tiger Reached</span>
+                        </a>
+
                         <a href="{{ route('calls.index') }}"
-                            class="nav-item {{ $cur === 'calls.index' && !in_array($st, ['pending', 'in_progress']) ? 'active' : '' }}">
+                            class="nav-item {{ $cur === 'calls.index' && !in_array($st, ['pending', 'in_progress', 'tiger_reached']) ? 'active' : '' }}">
                             <span class="nav-icon"><i class="fa-solid fa-list-ul"></i></span>
                             <span class="nav-label">All Helps Details</span>
                             <span class="nav-tooltip">All Helps Details</span>
@@ -675,6 +682,13 @@
                             <span class="nav-icon text-slate-500"><i class="fa-solid fa-ban"></i></span>
                             <span class="nav-label">Junk Calls Frequency</span>
                             <span class="nav-tooltip">Junk/Silent</span>
+                        </a>
+
+                        <a href="{{ route('reports.help-response-time') }}"
+                            class="nav-item {{ request()->routeIs('reports.help-response-time') ? 'active' : '' }}">
+                            <span class="nav-icon text-amber-500"><i class="fa-solid fa-stopwatch-20"></i></span>
+                            <span class="nav-label">Help Response-Time</span>
+                            <span class="nav-tooltip">Response & Assistance</span>
                         </a>
 
                         <!-- <a href="{{ route('reports.beat-wise') }}"

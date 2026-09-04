@@ -43,12 +43,13 @@
             ->map(function($h) {
                 $role = $h->changedBy->role?->name;
                 $isCallCenter = in_array($role, ['agent', 'agent_supervisor', 'super_admin']);
+                $operatorName = $h->changedBy?->full_name ?: ($h->changedBy?->username ?: 'Operator');
                 return [
                     'new_status' => $h->new_status,
                     'remarks' => $h->remarks,
-                    'changed_by' => $isCallCenter ? $h->changedBy->full_name : 'Beat Operator',
+                    'changed_by' => $operatorName,
                     'time' => $h->created_at->format('H:i:s'),
-                    'date' => $h->created_at->format('d M')
+                    'date' => $h->created_at->format('d M Y')
                 ];
             }),
         'permissions' => [
@@ -67,6 +68,59 @@
     <div class="relative z-10 p-6 md:p-10 max-w-[1600px] mx-auto space-y-8">
         
         {{-- HEADER BANNER --}}
+        <div class="glass-panel rounded-[2.5rem] p-8 relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-6 border-l-8"
+             :class="item.status === 'completed' ? 'border-l-emerald-500' : (item.status === 'tiger_reached' ? 'border-l-sky-500' : (item.status === 'in_progress' ? 'border-l-amber-500' : 'border-l-rose-500'))">
+            <div class="space-y-2">
+                <div class="flex items-center gap-4 flex-wrap">
+                    <span class="text-3xl font-black text-navy-900 tracking-tight" x-text="item.call_number"></span>
+                    <div x-html="getStatusBadge(item.status)"></div>
+                    <div x-html="getPriorityBadge(item.priority)"></div>
+                </div>
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                    Created: {{ $call->created_at->format('d-M-Y H:i:s') }}
+                    @if($call->agent)
+                        • Logged By: <span class="text-navy-900 font-extrabold">{{ $call->agent->full_name ?: $call->agent->username }}</span>
+                    @endif
+                </p>
+            </div>
+
+            {{-- Operational Action Controls --}}
+            @can('calls.manage_status')
+            <div class="flex items-center gap-3 flex-wrap">
+                <template x-if="item.status === 'pending'">
+                    <button @click="openActionModal('in_progress')" 
+                        class="px-6 py-3.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-amber-500/20 hover:-translate-y-0.5 transition-all flex items-center gap-2">
+                        <i class="fa-solid fa-bolt"></i>
+                        <span>Initiate Help / Dispatch Tiger</span>
+                    </button>
+                </template>
+
+                <template x-if="item.status === 'in_progress'">
+                    <button @click="openActionModal('tiger_reached')" 
+                        class="px-6 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:-translate-y-0.5 transition-all flex items-center gap-2">
+                        <i class="fa-solid fa-location-dot"></i>
+                        <span>Mark Tiger Reached</span>
+                    </button>
+                </template>
+
+                <template x-if="item.status === 'tiger_reached'">
+                    <button @click="openActionModal('completed')" 
+                        class="px-6 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:-translate-y-0.5 transition-all flex items-center gap-2">
+                        <i class="fa-solid fa-check-double"></i>
+                        <span>Assistance Provided / Complete Help</span>
+                    </button>
+                </template>
+
+                <template x-if="item.status === 'completed'">
+                    <div class="px-5 py-2.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-circle-check text-emerald-500"></i>
+                        <span>Help Successfully Resolved</span>
+                    </div>
+                </template>
+            </div>
+            @endcan
+        </div>
 
         {{-- PRIMARY DATA MATRIX --}}
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -158,10 +212,10 @@
                                 <div class="absolute left-8 top-0 w-5 h-5 rounded-full border-4 border-white bg-navy-900 shadow-lg z-10 group-hover:scale-125 transition-transform"></div>
                                 <div class="p-8 glass-panel rounded-3xl group-hover:bg-white transition-colors duration-300">
                                     <div class="flex items-center justify-between mb-4">
-                                        <div class="px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest" :class="getStatusClass(log.new_status)" x-text="log.new_status"></div>
+                                        <div class="px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest" :class="getStatusClass(log.new_status)" x-text="getStatusLabel(log.new_status)"></div>
                                         <div class="text-xs font-bold text-slate-400 font-mono" x-text="log.date + ' @ ' + log.time"></div>
                                     </div>
-                                    <p class="text-sm font-bold text-navy-900 leading-relaxed italic" x-text="'&quot;' + log.remarks + '&quot;'"></p>
+                                    <p class="text-sm font-bold text-navy-900 leading-relaxed italic" x-text="'&quot;' + (log.remarks || 'Status transitioned') + '&quot;'"></p>
                                     <div class="mt-6 pt-6 border-t border-slate-50 flex items-center justify-between">
                                         <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Authenticated By</span>
                                         <span class="text-[10px] font-black text-navy-900 uppercase" x-text="log.changed_by"></span>
@@ -198,27 +252,92 @@
                 <div class="bg-white rounded-[2.5rem] p-10 shadow-2xl border border-slate-100 space-y-8 relative overflow-hidden group">
                     <div class="absolute -right-10 -bottom-10 w-40 h-40 bg-emerald-50 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
                     <div class="flex items-center justify-between">
-                        <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest">Response time</h4>
+                        <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest">Response Time & SLA</h4>
                         <div x-html="getPriorityBadge(item.priority)"></div>
                     </div>
 
+                    @php 
+                        $tigerResponseSec = $call->computed_tiger_response_time_sec ?? $call->tiger_response_time_sec ?? $call->response_time_sec;
+                        $isInProgress = $call->status === 'in_progress' && !$call->tiger_reached_at;
+                        $elapsedTransitSec = ($isInProgress && $call->inprogress_at) ? max(0, (int) $call->inprogress_at->diffInSeconds(now())) : null;
+                        $displaySec = $tigerResponseSec ?? $elapsedTransitSec;
+
+                        $assistSec = $call->computed_assistance_duration_sec ?? $call->assistance_duration_sec;
+                        $resolutionSec = $call->computed_resolution_time_sec ?? $call->resolution_time_sec;
+
+                        $targetSlaSec = 300; // 5 minutes benchmark
+                        $perc = $displaySec ? min(($displaySec / $targetSlaSec) * 100, 100) : 0;
+                        $color = ($displaySec && $displaySec > $targetSlaSec) ? 'bg-rose-500' : 'bg-emerald-500';
+                    @endphp
+
                     <div class="space-y-6">
                         <div class="flex items-end justify-between">
-                            <div class="text-5xl font-black text-navy-900 tracking-tighter italic scale-y-110">{{ format_duration($call->response_time_sec ?? 0) }}</div>
-                            <div class="text-[9px] font-black text-emerald-500 uppercase tracking-widest pb-1">Response Clock</div>
+                            <div>
+                                <div class="text-5xl font-black text-navy-900 tracking-tighter italic scale-y-110">
+                                    {{ $displaySec !== null ? format_duration($displaySec) : '--' }}
+                                </div>
+                                @if($isInProgress && $elapsedTransitSec)
+                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 mt-1.5 rounded bg-amber-50 text-amber-600 border border-amber-200 text-[9px] font-black uppercase tracking-wider animate-pulse">
+                                        <i class="fa-solid fa-truck-fast text-[8px]"></i> Tiger In-Transit
+                                    </span>
+                                @elseif($call->tiger_reached_at && $call->status !== 'completed')
+                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 mt-1.5 rounded bg-sky-50 text-sky-600 border border-sky-200 text-[9px] font-black uppercase tracking-wider">
+                                        <i class="fa-solid fa-location-dot text-[8px]"></i> Tiger On Scene
+                                    </span>
+                                @endif
+                            </div>
+                            <div class="text-right">
+                                <div class="text-[9px] font-black text-emerald-500 uppercase tracking-widest pb-1">Response Clock</div>
+                                <span class="text-[8px] font-bold text-slate-400">Initiated &rarr; Tiger Reached</span>
+                            </div>
                         </div>
                         
                         <div class="h-4 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner flex">
-                            @php 
-                                $perc = min(($call->response_time_sec / 300) * 100, 100);
-                                $color = $call->response_time_sec > 300 ? 'bg-rose-500' : 'bg-emerald-500';
-                            @endphp
-                            <div class="{{ $color }} h-full rounded-full shadow-lg" style="width: {{ $perc ?? 0 }}%"></div>
+                            <div class="{{ $color }} h-full rounded-full shadow-lg transition-all duration-500" style="width: {{ $perc }}%"></div>
                         </div> 
                         
-                        <div class="flex items-center justify-between text-[8px] font-black uppercase tracking-widest text-slate-400">
+                        <div class="flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-slate-400">
                              <span>Operational Start</span>
                              <span>Target SLA (05:00)</span>
+                        </div>
+
+                        {{-- Granular Lifecycle Durations --}}
+                        <div class="pt-5 border-t border-slate-100 grid grid-cols-2 gap-3.5">
+                            {{-- Assistance Duration --}}
+                            <div class="p-3.5 bg-gradient-to-br from-emerald-50 to-emerald-100/40 rounded-2xl border border-emerald-200 shadow-sm hover:shadow transition-all">
+                                <div class="flex items-center justify-between gap-1 mb-1.5">
+                                    <span class="text-[10px] font-black uppercase tracking-wider text-emerald-950">Assistance Dur.</span>
+                                    <span class="w-5 h-5 rounded-md bg-emerald-200/70 text-emerald-800 flex items-center justify-center text-[10px] flex-shrink-0">
+                                        <i class="fa-solid fa-handshake-angle"></i>
+                                    </span>
+                                </div>
+                                <div class="text-2xl font-black text-emerald-800 font-mono tracking-tight my-1">
+                                    {{ $assistSec !== null ? format_duration($assistSec) : ($call->tiger_reached_at ? 'In-Field' : '--') }}
+                                </div>
+                                <div class="text-[10px] font-bold text-emerald-800/80 flex items-center gap-1.5">
+                                    <span>Reached</span>
+                                    <i class="fa-solid fa-arrow-right text-[8px] text-emerald-600"></i>
+                                    <span>Resolved</span>
+                                </div>
+                            </div>
+
+                            {{-- Total Resolution --}}
+                            <div class="p-3.5 bg-gradient-to-br from-indigo-50 to-indigo-100/40 rounded-2xl border border-indigo-200 shadow-sm hover:shadow transition-all">
+                                <div class="flex items-center justify-between gap-1 mb-1.5">
+                                    <span class="text-[10px] font-black uppercase tracking-wider text-indigo-950">Total Resolution</span>
+                                    <span class="w-5 h-5 rounded-md bg-indigo-200/70 text-indigo-800 flex items-center justify-center text-[10px] flex-shrink-0">
+                                        <i class="fa-solid fa-clock-rotate-left"></i>
+                                    </span>
+                                </div>
+                                <div class="text-2xl font-black text-indigo-800 font-mono tracking-tight my-1">
+                                    {{ $resolutionSec !== null ? format_duration($resolutionSec) : ($call->status !== 'completed' ? 'Ongoing' : '--') }}
+                                </div>
+                                <div class="text-[10px] font-bold text-indigo-800/80 flex items-center gap-1.5">
+                                    <span>Created</span>
+                                    <i class="fa-solid fa-arrow-right text-[8px] text-indigo-600"></i>
+                                    <span>Resolved</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -292,17 +411,17 @@
             
             {{-- Vibrant Dynamic Header --}}
             <div class="p-12 relative overflow-hidden" 
-                 :class="targetStatus === 'in_progress' ? 'bg-gradient-to-br from-amber-400 via-orange-500 to-rose-500' : 'bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-500'">
+                 :class="targetStatus === 'in_progress' ? 'bg-gradient-to-br from-amber-400 via-orange-500 to-rose-500' : (targetStatus === 'tiger_reached' ? 'bg-gradient-to-br from-blue-600 via-indigo-600 to-sky-500' : 'bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-500')">
                 <div class="absolute inset-0 bg-grid-white/[0.1] bg-[size:16px_16px]"></div>
                 <div class="absolute -right-12 -top-12 w-48 h-48 bg-white/20 rounded-full blur-[40px]"></div>
                 <div class="relative z-10 flex flex-col gap-3">
                     <div class="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-xl mb-2">
-                        <i class="fa-solid" :class="targetStatus === 'in_progress' ? 'fa-bolt-lightning' : 'fa-check-double'"></i>
+                        <i class="fa-solid" :class="targetStatus === 'in_progress' ? 'fa-bolt-lightning' : (targetStatus === 'tiger_reached' ? 'fa-location-dot' : 'fa-check-double')"></i>
                     </div>
-                    <h3 class="text-4xl font-black text-white tracking-widest italic scale-y-110 uppercase" x-text="targetStatus === 'in_progress' ? 'Initiate Mission' : 'Resolve Task'"></h3>
+                    <h3 class="text-4xl font-black text-white tracking-widest italic scale-y-110 uppercase" x-text="targetStatus === 'in_progress' ? 'Initiate Help' : (targetStatus === 'tiger_reached' ? 'Tiger Reached' : 'Complete Help')"></h3>
                     <p class="text-white/80 text-[10px] font-black uppercase tracking-[0.4em] flex items-center gap-2">
                         <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
-                        Strategic Authorization Protocol
+                        Operational Authorization Protocol
                     </p>
                 </div>
                 <button @click="showModal = false" class="absolute top-10 right-10 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white border border-white/20 transition-all backdrop-blur-md">
@@ -311,7 +430,7 @@
             </div>
 
             <div class="p-12 space-y-10">
-                <template x-if="targetStatus === 'in_progress'">
+                <template x-if="targetStatus === 'in_progress' || (targetStatus === 'tiger_reached' && !selectedTigerId)">
                     <div class="space-y-6">
                         <select x-model="selectedTigerId" 
                             class="w-full px-8 py-5 bg-white border-2 border-slate-100 rounded-[2rem] outline-none font-bold text-navy-900 text-xs focus:border-blue-500 transition-all shadow-xl">
@@ -320,10 +439,12 @@
                                 <option value="T1">Tiger-1 (Reserve)</option>
                                 <option value="T2">Tiger-2 (Reserve)</option>
                                 <option value="T3">Tiger-3 (Reserve)</option>
+                                <option value="T4">Tiger-4 (Reserve)</option>
                             </optgroup>
                             <optgroup label="SPECIAL RESPONSE UNIT">
                                 <option value="ST1">Special Tiger-1</option>
                                 <option value="ST2">Special Tiger-2</option>
+                                <option value="ST3">Special Tiger-3</option>
                             </optgroup>
                         </select>
                         <p class="text-[8px] font-bold text-slate-400 uppercase tracking-wider ml-6">Accessing both dynamic beat assets and global reserves</p>
@@ -338,20 +459,20 @@
 
                 <div class="space-y-6">
                     <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Tactical Log Remarks</label>
-                    <textarea x-model="remarks" rows="4" required placeholder="Log mission-critical remarks and transition justifications..." 
+                    <textarea x-model="remarks" rows="4" required :placeholder="targetStatus === 'tiger_reached' ? 'Enter arrival time / wireless transmission confirmation remarks...' : 'Log mission-critical remarks and transition justifications...'" 
                         class="w-full px-8 py-6 bg-slate-50 border-2 border-slate-100 rounded-3xl focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/5 outline-none font-bold text-navy-900 transition-all placeholder:text-slate-300"></textarea>
                 </div>
 
                 <div class="flex gap-4 pt-6">
-                    <button type="button" @click="showModal = false" class="flex-1 py-5 bg-slate-50 text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all">Abstain</button>
+                    <button type="button" @click="showModal = false" class="flex-1 py-5 bg-slate-50 text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all">Cancel</button>
                     <button type="button" @click="executeTransition()" 
                         :disabled="isLoading"
-                        :class="targetStatus === 'in_progress' ? 'bg-gradient-to-r from-amber-500 to-orange-600 shadow-orange-500/30' : 'bg-gradient-to-r from-emerald-500 to-cyan-600 shadow-emerald-500/30'"
+                        :class="targetStatus === 'in_progress' ? 'bg-gradient-to-r from-amber-500 to-orange-600 shadow-orange-500/30' : (targetStatus === 'tiger_reached' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 shadow-blue-500/30' : 'bg-gradient-to-r from-emerald-500 to-cyan-600 shadow-emerald-500/30')"
                         class="flex-[1.5] py-5 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-2xl hover:-translate-y-1 active:scale-95 transition-all flex items-center justify-center gap-3">
                         <template x-if="!isLoading">
                              <div class="flex items-center gap-3">
-                                 <i class="fa-solid fa-bolt-lightning text-white"></i>
-                                 <span>Authorize Protocol</span>
+                                 <i class="fa-solid" :class="targetStatus === 'in_progress' ? 'fa-bolt-lightning' : (targetStatus === 'tiger_reached' ? 'fa-location-dot' : 'fa-check')"></i>
+                                 <span x-text="targetStatus === 'in_progress' ? 'Dispatch Tiger' : (targetStatus === 'tiger_reached' ? 'Confirm Tiger Reached' : 'Complete Help')"></span>
                              </div>
                         </template>
                         <template x-if="isLoading">
@@ -456,11 +577,25 @@
                 }
             },
 
+            getStatusLabel(status) {
+                const map = {
+                    'pending': 'Help Created',
+                    'in_progress': 'Help Initiated / Tiger Dispatched',
+                    'tiger_reached': 'Tiger Reached',
+                    'completed': 'Assistance Provided / Help Completed',
+                    'forwarded': 'Intel Escalated',
+                    'cancelled': 'Cancelled',
+                    'junk': 'Junk'
+                };
+                return map[status] || status;
+            },
+
             getStatusBadge(status) {
                 const map = {
                     'pending': '<span class="px-5 py-2 rounded-xl bg-rose-500/20 text-white border border-rose-500/30 text-[10px] font-black uppercase tracking-[0.3em] backdrop-blur-md shadow-lg shadow-rose-500/20 italic">Awaiting Response</span>',
-                    'in_progress': '<span class="px-5 py-2 rounded-xl bg-amber-500/20 text-white border border-amber-500/30 text-[10px] font-black uppercase tracking-[0.3em] backdrop-blur-md shadow-lg shadow-amber-500/20 italic">Mission Active</span>',
-                    'completed': '<span class="px-5 py-2 rounded-xl bg-emerald-500/20 text-white border border-emerald-500/30 text-[10px] font-black uppercase tracking-[0.3em] backdrop-blur-md shadow-lg shadow-emerald-500/20 italic">Resolved/Secure</span>',
+                    'in_progress': '<span class="px-5 py-2 rounded-xl bg-amber-500/20 text-white border border-amber-500/30 text-[10px] font-black uppercase tracking-[0.3em] backdrop-blur-md shadow-lg shadow-amber-500/20 italic">Tiger Dispatched</span>',
+                    'tiger_reached': '<span class="px-5 py-2 rounded-xl bg-sky-500/20 text-white border border-sky-500/30 text-[10px] font-black uppercase tracking-[0.3em] backdrop-blur-md shadow-lg shadow-sky-500/20 italic">Tiger Reached</span>',
+                    'completed': '<span class="px-5 py-2 rounded-xl bg-emerald-500/20 text-white border border-emerald-500/30 text-[10px] font-black uppercase tracking-[0.3em] backdrop-blur-md shadow-lg shadow-emerald-500/20 italic">Resolved / Secure</span>',
                     'forwarded': '<span class="px-5 py-2 rounded-xl bg-blue-500/20 text-white border border-blue-500/30 text-[10px] font-black uppercase tracking-[0.3em] backdrop-blur-md shadow-lg shadow-blue-500/20 italic">Intel Escalated</span>',
                     'junk': '<span class="px-5 py-2 rounded-xl bg-slate-500/20 text-white border border-slate-500/30 text-[10px] font-black uppercase tracking-[0.3em] backdrop-blur-md shadow-lg shadow-slate-500/20 italic">Trace Purged</span>'
                 };
@@ -471,6 +606,7 @@
                 const map = {
                     'pending': 'bg-rose-50 text-rose-600 border border-rose-100',
                     'in_progress': 'bg-amber-50 text-amber-600 border border-amber-100',
+                    'tiger_reached': 'bg-sky-50 text-sky-600 border border-sky-100',
                     'completed': 'bg-emerald-50 text-emerald-600 border border-emerald-100',
                     'forwarded': 'bg-blue-50 text-blue-600 border border-blue-100',
                     'junk': 'bg-slate-50 text-slate-600 border border-slate-100'

@@ -1,10 +1,11 @@
-<div @if(!request()->routeIs(['reports.call-type-summary', 'reports.agent-wise', 'reports.junk-calls-frequency'])) x-data="reportFilters" @endif class="bg-white rounded-[2rem] shadow-xl border border-slate-100 p-8 mb-8">
+<div @if(!request()->routeIs(['reports.call-type-summary', 'reports.agent-wise', 'reports.junk-calls-frequency', 'reports.help-response-time'])) x-data="reportFilters" @endif class="bg-white rounded-[2rem] shadow-xl border border-slate-100 p-8 mb-8">
     <form @submit.prevent="fetchReport" action="{{ url()->current() }}" method="GET" id="filterForm" class="space-y-8" data-no-pjax>
         <!-- ── Hierarchy & Personnel ─────────────────────────────────── -->
         @php
             $isCallTypeSummary = request()->routeIs('reports.call-type-summary');
             $isAgentWise = request()->routeIs('reports.agent-wise');
             $isJunkCalls = request()->routeIs('reports.junk-calls-frequency');
+            $isHelpResponseTime = request()->routeIs('reports.help-response-time');
             
             $isAgent = auth()->user()?->role?->name === 'agent';
         @endphp
@@ -14,6 +15,8 @@
                 $gridCols = $isAgent ? 'hidden' : 'md:grid-cols-3';
             } elseif ($isAgentWise || $isJunkCalls) {
                 $gridCols = 'md:grid-cols-1';
+            } elseif ($isHelpResponseTime) {
+                $gridCols = $isAgent ? 'md:grid-cols-3' : 'md:grid-cols-3 lg:grid-cols-6';
             } else {
                 $gridCols = $isAgent ? 'md:grid-cols-1' : 'md:grid-cols-4';
             }
@@ -52,9 +55,39 @@
                         </template>
                     </select>
                 </div>
-                @endif
 
-                @if($isAgentWise || $isJunkCalls)
+                @if($isHelpResponseTime)
+                <!-- Category -->
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Category</label>
+                    <select name="call_type_id" class="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-navy-900 focus:ring-2 focus:ring-emerald-500/20 transition-all">
+                        <option value="">All Categories</option>
+                        @foreach($callTypes ?? [] as $type)
+                            <option value="{{ $type->id }}" {{ request('call_type_id') == $type->id ? 'selected' : '' }}>{{ $type->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <!-- Help Status -->
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Help Status</label>
+                    <select name="status" class="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-navy-900 focus:ring-2 focus:ring-emerald-500/20 transition-all">
+                        <option value="all" {{ request('status', 'all') === 'all' ? 'selected' : '' }}>All Statuses</option>
+                        <option value="in_progress" {{ request('status') === 'in_progress' ? 'selected' : '' }}>In-Progress / Dispatched</option>
+                        <option value="tiger_reached" {{ request('status') === 'tiger_reached' ? 'selected' : '' }}>Tiger Reached</option>
+                        <option value="completed" {{ request('status') === 'completed' ? 'selected' : '' }}>Completed / Resolved</option>
+                    </select>
+                </div>
+
+                <!-- Tiger Unit / Patrol Officer -->
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tiger Unit</label>
+                    <input type="text" name="tiger_id" value="{{ request('tiger_id') }}" placeholder="e.g. T1, ST2" class="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-navy-900 focus:ring-2 focus:ring-emerald-500/20 transition-all placeholder:text-slate-400">
+                </div>
+                @endif
+            @endif
+
+            @if($isAgentWise || $isJunkCalls)
                 <!-- Agent (Multiple Selection) -->
                 <div class="space-y-2 relative" x-data='agentMultiSelect(@json($agents ?? []), @json(request("agent_ids", [])))' @click.outside="open = false">
                     <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block">{{ $isJunkCalls ? 'Select Agents' : 'Agent Performance Group' }}</label>
@@ -107,7 +140,7 @@
                         </div>
                     </div>
                 </div>
-                @elseif(!$isCallTypeSummary)
+            @elseif(!$isCallTypeSummary && !$isHelpResponseTime)
                 <!-- Agent -->
                 <div class="space-y-2">
                     <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Agent</label>
@@ -118,8 +151,8 @@
                         @endforeach
                     </select>
                 </div>
-                @endif
-            </div>
+            @endif
+        </div>
 
         <!-- ── Temporal Controls ───────────────────────────────────── -->
         <!-- Row 2: Date & Time Ranges (Fully Responsive) -->

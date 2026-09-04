@@ -548,6 +548,277 @@ class ReportService
         return $query->get()->toArray();
     }
 
+    /**
+     * Help Response-Time Monitoring Report
+     * Measures and analyzes Tiger response times, assistance duration, and total resolution times.
+     */
+    public function helpResponseTimeReport(array $filters, bool $paginate = false, int $perPage = 25)
+    {
+        $query = Call::query()
+            ->with([
+                'office.parent.parent',
+                'callType',
+                'callSubType',
+                'agent',
+                'tigerReachedBy',
+                'completedStatusBy',
+                'inprogressStatusBy',
+            ]);
+
+        $this->applyHelpResponseTimeFilters($query, $filters);
+
+        // Sorting
+        $sort = $filters['sort'] ?? 'created_at';
+        $direction = strtolower($filters['direction'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
+
+        $allowedSorts = [
+            'call_number', 'created_at', 'inprogress_at', 'tiger_reached_at', 'completed_at',
+            'tiger_response_time_sec', 'assistance_duration_sec', 'resolution_time_sec', 'status'
+        ];
+
+        if (in_array($sort, $allowedSorts)) {
+            $query->orderBy($sort, $direction);
+        } else {
+            $query->orderBy('created_at', 'desc');
+        }
+
+        if ($paginate) {
+            $paginator = $query->paginate($perPage);
+            $paginator->getCollection()->transform(function ($call) {
+                return $this->formatHelpResponseTimeRow($call);
+            });
+            return $paginator;
+        }
+
+        return $query->get()->map(function ($call) {
+            return $this->formatHelpResponseTimeRow($call);
+        })->toArray();
+    }
+
+    /**
+     * Format a Call record into a standardized Help Response-Time row.
+     */
+    public function formatHelpResponseTimeRow(Call $call): array
+    {
+        $zone = $call->office?->parent?->parent?->name ?? '---';
+        $sector = $call->office?->parent?->name ?? '---';
+        $beat = $call->office?->name ?? '---';
+
+        $category = $call->callType?->name ?? '---';
+        $subcategory = $call->callSubType?->name ?? '---';
+        $categoryFull = $subcategory !== '---' ? "{$category} / {$subcategory}" : $category;
+
+        // Tiger / Patrolling Officer
+        $tiger = $call->display_tiger;
+        $officer = $call->patrol_officer_id;
+        if (!$officer && $call->inprogress_remarks && preg_match('/\[Patrol Officer: (.*?)\]/i', $call->inprogress_remarks, $m)) {
+            $officer = trim($m[1]);
+        }
+        $tigerOfficer = $tiger ? ($officer ? "{$tiger} ({$officer})" : $tiger) : ($officer ?: '---');
+
+        // Timestamps
+        $createdAt = $call->created_at;
+        $initiatedAt = $call->inprogress_at;
+        $tigerReachedAt = $call->tiger_reached_at;
+        $completedAt = $call->completed_at;
+
+        // Tiger Response Time = Tiger Reached Time - Help Initiated Time
+        $tigerResponseTimeSec = null;
+        if ($tigerReachedAt && $initiatedAt) {
+            $tigerResponseTimeSec = max(0, (int) $initiatedAt->diffInSeconds($tigerReachedAt));
+        } elseif ($call->tiger_response_time_sec !== null) {
+            $tigerResponseTimeSec = (int) $call->tiger_response_time_sec;
+        }
+
+        // Assistance Duration = Help Completed Time - Tiger Reached Time
+        $assistanceDurationSec = null;
+        if ($completedAt && $tigerReachedAt) {
+            $assistanceDurationSec = max(0, (int) $tigerReachedAt->diffInSeconds($completedAt));
+        } elseif ($call->assistance_duration_sec !== null) {
+            $assistanceDurationSec = (int) $call->assistance_duration_sec;
+        }
+
+        // Total Help Resolution Time = Help Completed Time - Help Created Time
+        $totalResolutionTimeSec = null;
+        $startTime = $createdAt ?? $call->call_start_time;
+        if ($completedAt && $startTime) {
+            $totalResolutionTimeSec = max(0, (int) $startTime->diffInSeconds($completedAt));
+        } elseif ($call->resolution_time_sec !== null) {
+            $totalResolutionTimeSec = (int) $call->resolution_time_sec;
+        }
+
+        // Operator Comments
+        $commentsList = array_filter([
+            $call->inprogress_remarks ? "Dispatch: {$call->inprogress_remarks}" : null,
+            $call->tiger_reached_remarks ? "Arrival: {$call->tiger_reached_remarks}" : null,
+            $call->completed_remarks ? "Resolution: {$call->completed_remarks}" : null,
+            (!$call->inprogress_remarks && !$call->tiger_reached_remarks && !$call->completed_remarks) ? $call->details : null,
+        ]);
+        $operatorComments = !empty($commentsList) ? implode(' | ', $commentsList) : '---';
+
+        // Format Status label
+        $statusLabels = [
+            'pending' => 'Pending',
+            'in_progress' => 'In-Process',
+            'tiger_reached' => 'Tiger Reached',
+            'completed' => 'Resolved',
+            'cancelled' => 'Cancelled',
+            'forwarded' => 'Forwarded',
+            'junk' => 'Junk',
+        ];
+        $statusFormatted = $statusLabels[$call->status] ?? ucfirst(str_replace('_', ' ', $call->status));
+
+        return [
+            'id' => $call->id,
+            'call_number' => $call->call_number,
+            'created_at' => $createdAt ? $createdAt->format('d-M-Y H:i:s') : '---',
+            'created_at_date' => $createdAt ? $createdAt->format('d-M-Y') : '---',
+            'created_at_time' => $createdAt ? $createdAt->format('H:i:s') : '---',
+            'zone' => $zone,
+            'sector' => $sector,
+            'beat' => $beat,
+            'category' => $category,
+            'subcategory' => $subcategory,
+            'category_full' => $categoryFull,
+            'tiger_officer' => $tigerOfficer,
+            'initiated_at' => $initiatedAt ? $initiatedAt->format('d-M-Y H:i:s') : '---',
+            'tiger_reached_at' => $tigerReachedAt ? $tigerReachedAt->format('d-M-Y H:i:s') : '---',
+            'completed_at' => $completedAt ? $completedAt->format('d-M-Y H:i:s') : '---',
+            'tiger_response_time_sec' => $tigerResponseTimeSec,
+            'tiger_response_time' => $tigerResponseTimeSec !== null ? format_duration($tigerResponseTimeSec) : '--',
+            'assistance_duration_sec' => $assistanceDurationSec,
+            'assistance_duration' => $assistanceDurationSec !== null ? format_duration($assistanceDurationSec) : '--',
+            'total_resolution_time_sec' => $totalResolutionTimeSec,
+            'total_resolution_time' => $totalResolutionTimeSec !== null ? format_duration($totalResolutionTimeSec) : '--',
+            'status' => $statusFormatted,
+            'status_raw' => $call->status,
+            'operator_comments' => $operatorComments,
+            'caller_name' => $call->caller_name ?? '---',
+            'caller_number' => $call->caller_number ?? '---',
+        ];
+    }
+
+    /**
+     * Compute summary KPIs for Help Response-Time report.
+     */
+    public function helpResponseTimeSummary(array $filters): array
+    {
+        $query = Call::query();
+        $this->applyHelpResponseTimeFilters($query, $filters);
+
+        $calls = $query->get([
+            'id', 'status', 'created_at', 'call_start_time', 'inprogress_at',
+            'tiger_reached_at', 'completed_at', 'tiger_response_time_sec',
+            'assistance_duration_sec', 'resolution_time_sec'
+        ]);
+
+        $totalRecords = $calls->count();
+        $responseTimes = [];
+        $assistanceDurations = [];
+        $resolutionTimes = [];
+
+        foreach ($calls as $call) {
+            // Tiger Response Time = Tiger Reached Time - Help Initiated Time
+            if ($call->tiger_reached_at && $call->inprogress_at) {
+                $responseTimes[] = max(0, (int) $call->inprogress_at->diffInSeconds($call->tiger_reached_at));
+            } elseif ($call->tiger_response_time_sec !== null) {
+                $responseTimes[] = (int) $call->tiger_response_time_sec;
+            }
+
+            // Assistance Duration = Help Completed Time - Tiger Reached Time
+            if ($call->completed_at && $call->tiger_reached_at) {
+                $assistanceDurations[] = max(0, (int) $call->tiger_reached_at->diffInSeconds($call->completed_at));
+            } elseif ($call->assistance_duration_sec !== null) {
+                $assistanceDurations[] = (int) $call->assistance_duration_sec;
+            }
+
+            // Total Help Resolution Time = Help Completed Time - Help Created Time
+            $startTime = $call->created_at ?? $call->call_start_time;
+            if ($call->completed_at && $startTime) {
+                $resolutionTimes[] = max(0, (int) $startTime->diffInSeconds($call->completed_at));
+            } elseif ($call->resolution_time_sec !== null) {
+                $resolutionTimes[] = (int) $call->resolution_time_sec;
+            }
+        }
+
+        $avgResponse = !empty($responseTimes) ? (int) round(array_sum($responseTimes) / count($responseTimes)) : null;
+        $avgAssistance = !empty($assistanceDurations) ? (int) round(array_sum($assistanceDurations) / count($assistanceDurations)) : null;
+        $avgResolution = !empty($resolutionTimes) ? (int) round(array_sum($resolutionTimes) / count($resolutionTimes)) : null;
+
+        return [
+            'total_records' => $totalRecords,
+            'completed_count' => $calls->where('status', 'completed')->count(),
+            'reached_count' => $calls->where('status', 'tiger_reached')->count(),
+            'active_count' => $calls->whereIn('status', ['in_progress', 'tiger_reached'])->count(),
+            'avg_response_sec' => $avgResponse,
+            'avg_response' => $avgResponse !== null ? format_duration($avgResponse) : '--',
+            'avg_assistance_sec' => $avgAssistance,
+            'avg_assistance' => $avgAssistance !== null ? format_duration($avgAssistance) : '--',
+            'avg_resolution_sec' => $avgResolution,
+            'avg_resolution' => $avgResolution !== null ? format_duration($avgResolution) : '--',
+        ];
+    }
+
+    /**
+     * Apply comprehensive filters for Help Response-Time report.
+     */
+    private function applyHelpResponseTimeFilters($query, array $filters): void
+    {
+        $this->applyFilters($query, $filters);
+
+        // Scope constraint: Only include legitimate Help calls assigned to a beat
+        $query->whereNotNull('calls.office_id')
+            ->where('calls.status', '!=', 'junk')
+            ->whereHas('callType', function ($q) {
+                $q->whereNotIn('category', ['junk_silent', 'information'])
+                  ->whereNotIn('name', ['Junk/Silent', 'Information']);
+            });
+
+        // Subcategory filter
+        if (!empty($filters['call_sub_type_id'])) {
+            $query->where('calls.call_sub_type_id', $filters['call_sub_type_id']);
+        }
+
+        // Direct Call Type ID filter
+        if (!empty($filters['call_type_id'])) {
+            $query->where('calls.call_type_id', $filters['call_type_id']);
+        }
+
+        // Status Filter
+        if (!empty($filters['status']) && $filters['status'] !== 'all') {
+            if ($filters['status'] === 'in_progress') {
+                $query->whereIn('calls.status', ['in_progress', 'tiger_reached']);
+            } else {
+                $query->where('calls.status', $filters['status']);
+            }
+        }
+
+        // Tiger Unit filter
+        if (!empty($filters['tiger_id'])) {
+            $tigerId = $filters['tiger_id'];
+            $query->where(function($q) use ($tigerId) {
+                $q->where('calls.tiger_id', $tigerId)
+                  ->orWhere('calls.inprogress_remarks', 'like', "%[Allocated Asset: {$tigerId}]%")
+                  ->orWhere('calls.inprogress_remarks', 'like', "%[Asset: {$tigerId}]%");
+            });
+        }
+
+        // Free-text Search
+        if (!empty($filters['search'])) {
+            $s = strtolower($filters['search']);
+            $query->where(function($q) use ($s) {
+                $q->where('calls.call_number', 'like', "%$s%")
+                  ->orWhere('calls.caller_number', 'like', "%$s%")
+                  ->orWhere('calls.caller_name', 'like', "%$s%")
+                  ->orWhere('calls.vehicle_no', 'like', "%$s%")
+                  ->orWhere('calls.details', 'like', "%$s%")
+                  ->orWhere('calls.inprogress_remarks', 'like', "%$s%")
+                  ->orWhere('calls.tiger_reached_remarks', 'like', "%$s%")
+                  ->orWhere('calls.completed_remarks', 'like', "%$s%");
+            });
+        }
+    }
+
     private function applyFilters($query, array $filters)
     {
         // 1. Date & Time Range Filter
@@ -600,7 +871,6 @@ class ReportService
         }
 
         // 5. Call Category (Primary/Secondary)
-        // Based on schema: call_type_id relates to call_types
         if (!empty($filters['call_type'])) {
             $query->whereHas('callType', function($q) use ($filters) {
                 $q->where('category', $filters['call_type']);
