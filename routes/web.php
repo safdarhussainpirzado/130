@@ -48,6 +48,10 @@ Route::get('/up', function () {
         $redisPort = (int) config('database.redis.default.port', 6379);
         $redisPass = config('database.redis.default.password');
 
+        if (!class_exists('Redis') && !class_exists('Predis\\Client')) {
+            throw new \RuntimeException('Required Redis support is absent in PHP runtime');
+        }
+
         if (class_exists('Redis')) {
             $redis = new \Redis();
             if (!@$redis->connect($redisHost, $redisPort, 2.0, null, 0, 2.0)) {
