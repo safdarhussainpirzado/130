@@ -21,9 +21,60 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
-// Health check for HAProxy
+// Health check for HAProxy with bounded Database and Cache probes
 Route::get('/up', function () {
-    return response()->noContent();
+    try {
+        // 1. Bounded MySQL Probe: 2-second connection timeout and 2000ms statement deadline
+        $dbConn = config('database.default', 'mysql');
+        $dbConfig = config("database.connections.{$dbConn}", []);
+        if (($dbConfig['driver'] ?? '') === 'mysql') {
+            $dsn = "mysql:host={$dbConfig['host']};port={$dbConfig['port']};dbname={$dbConfig['database']};charset=utf8mb4";
+            $options = [
+                \PDO::ATTR_TIMEOUT => 2,
+                \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+                \PDO::MYSQL_ATTR_INIT_COMMAND => 'SET SESSION max_execution_time=2000',
+            ];
+            $pdo = new \PDO($dsn, $dbConfig['username'] ?? 'root', $dbConfig['password'] ?? '', $options);
+            $stmt = $pdo->query('SELECT 1');
+            if ($stmt === false) {
+                throw new \RuntimeException('Database health probe query failed');
+            }
+        } else {
+            \Illuminate\Support\Facades\DB::select('SELECT 1');
+        }
+
+        // 2. Bounded Redis Probe: 2.0s connect timeout and 2.0s read timeout
+        $redisHost = (string) config('database.redis.default.host', '127.0.0.1');
+        $redisPort = (int) config('database.redis.default.port', 6379);
+        $redisPass = config('database.redis.default.password');
+
+        if (class_exists('Redis')) {
+            $redis = new \Redis();
+            if (!@$redis->connect($redisHost, $redisPort, 2.0, null, 0, 2.0)) {
+                throw new \RuntimeException('Unable to connect to Redis within 2s timeout');
+            }
+            if (!empty($redisPass)) {
+                if (!$redis->auth($redisPass)) {
+                    throw new \RuntimeException('Redis authentication failed');
+                }
+            }
+            $pong = $redis->ping();
+            if ($pong !== true && $pong !== 'PONG' && $pong !== '+PONG') {
+                throw new \RuntimeException('Redis ping returned invalid response');
+            }
+            $redis->close();
+        } else {
+            \Illuminate\Support\Facades\Redis::connection()->ping();
+        }
+
+        return response()->noContent();
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::warning('Health check /up failed', [
+            'error' => $e->getMessage(),
+            'class' => get_class($e),
+        ]);
+        return response('Service Unavailable', 503)->header('Content-Type', 'text/plain');
+    }
 });
 
 Route::middleware('auth')->group(function () {
@@ -52,6 +103,10 @@ Route::middleware('auth')->group(function () {
             Route::resource('users', UserController::class);
             Route::post('users/{user}/toggle-status',  [UserController::class, 'toggleStatus'])->name('users.toggleStatus')->middleware('can:users.manage_status');
             Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.resetPassword')->middleware('can:users.manage_password');
+
+            // Password reset requests management
+            Route::get('password-requests',                        [UserController::class, 'getPasswordRequests'])->name('users.passwordRequests.index');
+            Route::post('password-requests/{resetRequest}/reject', [UserController::class, 'rejectPasswordRequest'])->name('users.passwordRequests.reject');
 
             // Dynamic multi-scope management
             Route::get('users/{user}/scopes',                    [UserController::class, 'getScopes'])->name('users.scopes.index')->middleware('can:users.manage_scopes');

@@ -61,7 +61,29 @@ class UserPolicy
 
     public function managePassword(User $admin, User $target): bool
     {
-        return $admin->hasPermission('users.manage_password') && $this->canManage($admin, $target);
+        if (!$admin->hasPermission('users.manage_password')) {
+            return false;
+        }
+
+        // Super Admin can NEVER be reset via web application (Root recovery is CLI SSH only)
+        if ($target->role?->name === Role::SUPER_ADMIN) {
+            return false;
+        }
+
+        // Super Admin can manage anyone else
+        if ($admin->role?->name === Role::SUPER_ADMIN) {
+            return true;
+        }
+
+        // Operation Admin (IT_ADMIN) can reset passwords for:
+        // - Another Operation Admin (peer reset / dual-control)
+        // - Any other operational user (zone_admin, sector_admin, beat_operator, agent, etc.)
+        // - Cannot reset themselves without peer authorization
+        if ($admin->role?->name === Role::IT_ADMIN) {
+            return $admin->id !== $target->id;
+        }
+
+        return false;
     }
 
     public function manageScopes(User $admin, User $target): bool

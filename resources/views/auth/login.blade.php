@@ -1,244 +1,80 @@
 <x-guest-layout>
-  <style>
-    /* bento elevation */
-    .bento-card {
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-    }
-    
-    /* micro-interactions with ripple effect */
-    .btn-ripple {
-      position: relative;
-      overflow: hidden;
-      transform: translate3d(0,0,0);
-    }
-    .btn-ripple:after {
-      content: "";
-      display: block;
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      top: 0;
-      left: 0;
-      pointer-events: none;
-      background-image: radial-gradient(circle, #fff 10%, transparent 10.01%);
-      background-repeat: no-repeat;
-      background-position: 50%;
-      transform: scale(10,10);
-      opacity: 0;
-      transition: transform .3s, opacity .5s;
-    }
-    .btn-ripple:active:after {
-      transform: scale(0,0);
-      opacity: 0.3;
-      transition: 0s;
-    }
-    
-    /* page entrance animation */
-    .fade-slide-in {
-      animation: fadeSlide 0.6s cubic-bezier(0.2, 0.9, 0.4, 1) forwards;
-    }
-    @keyframes fadeSlide {
-      0% { opacity: 0; transform: translateY(16px); }
-      100% { opacity: 1; transform: translateY(0); }
-    }
-    
-    /* custom checkbox accent */
-    .checkbox-custom {
-      accent-color: #2563eb;
-    }
-    
-    /* glow effects for glass panels */
-    .glow-shadow {
-      box-shadow: 0 20px 40px -12px rgba(37, 99, 235, 0.15), 0 4px 18px -6px rgba(0, 0, 0, 0.05);
-    }
-    .glow-shadow-lg {
-      box-shadow: 0 25px 50px -12px rgba(37, 99, 235, 0.25);
-    }
-    
-    /* floating label enhancement */
-    .input-floating-wrapper input:focus::placeholder {
-      opacity: 0.5;
-    }
-  </style>
-
-
-  <!-- MAIN BENTO GRID CONTAINER -->
-  <div class="w-full max-w-7xl mx-auto">
-    <!-- Session status area -->
-    <x-auth-session-status class="mb-6" :status="session('status')" />
-
-    <div class="flex flex-col md:flex-row gap-6 lg:gap-8 items-stretch">
-
-      <!-- LEFT BRANDING PANEL -->
-      <div class="w-full md:w-[40%] relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-indigo-800 glow-shadow-lg p-8 flex flex-col justify-between bento-card border border-white/30 fade-slide-in" style="animation-delay: 0s;">
-        <!-- abstract animated shapes -->
-        <div class="absolute -top-20 -right-20 w-64 h-64 bg-blue-400/20 rounded-full blur-3xl animate-pulse"></div>
-        <div class="absolute bottom-10 left-0 w-40 h-40 bg-indigo-300/20 rounded-full blur-3xl"></div>
-        <div class="absolute top-1/3 right-10 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
-        
-        <div class="relative z-10">
-          <!-- NHMP Logo / emblem -->
-          <div class="flex items-center gap-3 mb-8">
-            <div class="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-xl border border-white/40">
-              <i class="fa-solid fa-shield-halved text-white text-2xl"></i>
-            </div>
-            <span class="text-white font-black tracking-tight text-xl">NHMP 130</span>
-          </div>
-          <h1 class="text-4xl md:text-5xl font-extrabold text-white leading-tight tracking-tight drop-shadow-lg">
-            Carriageway<br>Emergency CRM
-          </h1>
-          <p class="text-indigo-100 text-lg mt-4 font-medium max-w-xs">
-            Secure • Rapid • Intelligent<br>Motorway response platform.
-          </p>
-        </div>
-
-        <div class="relative z-10 mt-10">
-          <div class="flex items-center gap-3 text-white/90 text-sm font-medium">
-            <div class="w-5 h-5 rounded-full bg-emerald-400/30 flex items-center justify-center">
-              <i class="fa-solid fa-check text-emerald-200 text-xs"></i>
-            </div>
-            <span>End‑to‑end encryption</span>
-          </div>
-          <div class="flex items-center gap-3 text-white/90 text-sm font-medium mt-3">
-            <div class="w-5 h-5 rounded-full bg-emerald-400/30 flex items-center justify-center">
-              <i class="fa-solid fa-check text-emerald-200 text-xs"></i>
-            </div>
-            <span>Real‑time incident sync</span>
-          </div>
-          <div class="flex items-center gap-3 text-white/90 text-sm font-medium mt-3">
-            <div class="w-5 h-5 rounded-full bg-emerald-400/30 flex items-center justify-center">
-              <i class="fa-solid fa-check text-emerald-200 text-xs"></i>
-            </div>
-            <span>24/7 emergency support</span>
-          </div>
-          <!-- subtle animated line -->
-          <div class="mt-8 h-px w-20 bg-gradient-to-r from-white/50 to-transparent"></div>
-          <p class="text-white/70 text-xs mt-4 uppercase tracking-widest font-bold">NHMP · since 2025</p>
-        </div>
-      </div>
-
-      <!-- RIGHT LOGIN CARD -->
-      <div class="w-full md:w-[60%] bg-white/75 backdrop-blur-xl rounded-3xl glow-shadow border border-white/60 p-6 md:p-8 lg:p-10 bento-card fade-slide-in" style="animation-delay: 0.1s;">
-        
-        <!-- Session status area -->
-        <div class="mb-6 border-l-4 border-indigo-500 pl-4">
-          <h2 class="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Secure Access</h2>
-          <p class="text-slate-500 text-sm font-medium mt-1">Authenticate using your assigned credentials</p>
-        </div>
-
-        <!-- LOGIN FORM -->
-        <form id="loginForm" class="space-y-6" method="POST" action="{{ route('login') }}">
-          @csrf
-
-          <!-- USERNAME FIELD -->
-          <div class="input-floating-wrapper">
-            <label class="block text-xs font-black tracking-widest uppercase text-slate-400 mb-2">System Login ID</label>
-            <div class="relative group">
-              <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
-                <i class="fa-regular fa-user text-slate-400 group-focus-within:text-blue-500 transition-colors"></i>
-              </div>
-              <input id="username" 
-                     name="username" 
-                     type="text" 
-                     value="{{ old('username') }}"
-                     required 
-                     autofocus 
-                     autocomplete="username" 
-                     placeholder="nhmp_admin"
-                     class="block w-full pl-11 pr-4 py-3.5 rounded-xl border border-slate-200 bg-white/80 backdrop-blur-sm shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 text-slate-900 font-medium placeholder:text-slate-400 transition-all hover:bg-white outline-none">
-            </div>
-            <x-input-error :messages="$errors->get('username')" class="mt-2 text-rose-500 text-sm font-bold flex items-center gap-1" />
-          </div>
-
-          <!-- PASSWORD FIELD -->
-          <div class="input-floating-wrapper">
-            <label class="block text-xs font-black tracking-widest uppercase text-slate-400 mb-2">Password</label>
-            <div class="relative group">
-              <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
-                <i class="fa-solid fa-lock text-slate-400 group-focus-within:text-blue-500 transition-colors"></i>
-              </div>
-              <input id="password" 
-                     name="password" 
-                     type="password" 
-                     required 
-                     autocomplete="current-password" 
-                     placeholder="••••••••"
-                     class="block w-full pl-11 pr-12 py-3.5 rounded-xl border border-slate-200 bg-white/80 backdrop-blur-sm shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 text-slate-900 font-medium tracking-wider placeholder:tracking-normal transition-all hover:bg-white outline-none">
-              <!-- Show/Hide toggle button -->
-              <button type="button" id="togglePassword" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors z-10" aria-label="Toggle password visibility">
-                <i class="fa-regular fa-eye-slash text-lg"></i>
-              </button>
-            </div>
-            <x-input-error :messages="$errors->get('password')" class="mt-2 text-rose-500 text-sm font-bold flex items-center gap-1" />
-          </div>
-
-          <!-- Remember me + Forgot password -->
-          <div class="flex items-center justify-between mt-6">
-            <label for="remember_me" class="inline-flex items-center cursor-pointer group select-none">
-              <input id="remember_me" type="checkbox" class="checkbox-custom rounded border-slate-300 text-blue-600 shadow-sm focus:ring-blue-500 transition-colors w-4 h-4" name="remember">
-              <span class="ms-2 text-sm font-bold text-slate-600 group-hover:text-slate-900 transition-colors">Remember Session</span>
-            </label>
-
-            @if (Route::has('password.request'))
-              <a href="{{ route('password.request') }}" class="text-sm font-bold text-blue-600 hover:text-indigo-600 transition-colors">
-                Forgot credentials?
-              </a>
-            @endif
-          </div>
-
-          <!-- Primary CTA (Login) -->
-          <div class="pt-4">
-            <button type="submit" id="loginButton" class="btn-ripple w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black tracking-widest uppercase shadow-xl shadow-blue-500/30 hover:shadow-blue-500/40 transition-all hover:-translate-y-0.5 active:scale-[0.98] flex items-center justify-center gap-2 text-base">
-              <span id="btnText">Authenticate</span>
-              <i class="fa-solid fa-arrow-right"></i>
-              <!-- loading spinner -->
-              <span id="loadingSpinner" class="hidden"><i class="fa-solid fa-circle-notch fa-spin"></i></span>
-            </button>
-          </div>
-        </form>
-        
-        <!-- subtle footer -->
-        <p class="text-[11px] text-slate-400 text-center mt-8 uppercase tracking-wider font-bold">NHMP 130 • Carriageway Emergency</p>
-      </div>
+    <div class="login-page" id="nhmp-login">
+        <a class="skip-link" href="#login-heading">Skip to sign in</a>
+        <header class="login-header">
+            <a class="brand" href="{{ route('login') }}" aria-label="NHMP 130 sign in">
+                <span class="brand-emblem" aria-hidden="true"><svg viewBox="0 0 48 52" fill="none"><path d="M24 3 43 10v16c0 11-19 23-19 23S5 37 5 26V10L24 3Z" stroke="currentColor" stroke-width="2"/><path d="m19 36 3-20h4l3 20M24 19v4m0 4v4" stroke="currentColor" stroke-width="2.4"/><path d="m24 8 1.3 2.7 3 .4-2.2 2.1.5 3-2.6-1.4-2.6 1.4.5-3-2.2-2.1 3-.4L24 8Z" fill="currentColor"/></svg></span>
+                <span class="brand-wordmark">NHMP <strong>130</strong><span>National Highways &amp; Motorway Police</span></span>
+            </a>
+            <div class="service-pill"><span aria-hidden="true"></span>Serving Pakistan, 24/7</div>
+        </header>
+        <main class="login-main">
+            <section class="service-story" aria-labelledby="story-heading">
+                <div class="story-eyebrow"><span aria-hidden="true"></span>ONE CALL. A HELPING HAND.</div>
+                <h1 id="story-heading">Every call.<br><span>A safer journey.</span></h1>
+                <p class="story-intro">From the first call to the helping hand.<br>Connecting our people. Protecting every journey.</p>
+                <div class="motorway-story" id="motorway-story" data-paused="false">
+                    <div class="scene-label"><span class="scene-label-icon" aria-hidden="true">↗</span> On the road. By your side.</div>
+                    @include('auth.partials.motorway-scene')
+                    <div class="scene-caption"><span aria-hidden="true">✦</span> Courtesy. Help. Integrity.</div>
+                </div>
+                <div class="journey" aria-label="Illustrated response journey">
+                    <div class="journey-step"><span class="step-number">01</span><span>Call received<small>A voice of reassurance</small></span></div>
+                    <span class="journey-connector" aria-hidden="true"></span>
+                    <div class="journey-step"><span class="step-number">02</span><span>Tiger dispatched<small>Help is on the way</small></span></div>
+                    <span class="journey-connector" aria-hidden="true"></span>
+                    <div class="journey-step"><span class="step-number">03</span><span>Help arrives<small>Your safety comes first</small></span></div>
+                </div>
+            </section>
+            <section class="login-card" aria-labelledby="login-heading">
+                <div class="card-accent" aria-hidden="true"></div>
+                <div class="access-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="m9 12 2 2 4-4"/></svg></div>
+                <p class="card-eyebrow">NHMP 130 RESPONSE PLATFORM</p>
+                <h2 id="login-heading" tabindex="-1">Welcome back<span>.</span></h2>
+                <p class="card-intro">Sign in to make a difference.<br>A safer journey starts with you.</p>
+                @if (session('status'))
+                    <div class="login-status" role="status">{{ session('status') }}</div>
+                @endif
+                @if ($errors->any())
+                    <div class="login-alert" id="login-errors" role="alert" tabindex="-1">
+                        <strong>We couldn’t sign you in.</strong>
+                        <span>Please check the details below and try again.</span>
+                        @foreach (collect($errors->getMessages())->except(['username', 'password']) as $messages)
+                            @foreach ((array) $messages as $message)<span>{{ $message }}</span>@endforeach
+                        @endforeach
+                    </div>
+                @endif
+                <form id="loginForm" method="POST" action="{{ route('login') }}">
+                    @csrf
+                    <div class="form-field">
+                        <label for="username">System login ID</label>
+                        <div class="input-wrap">
+                            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-3a7 7 0 0 1 14 0v3"/></svg>
+                            <input id="username" name="username" type="text" value="{{ old('username') }}" required @if (!$errors->any()) autofocus @endif autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Enter your assigned ID" aria-invalid="{{ $errors->has('username') ? 'true' : 'false' }}" @if ($errors->has('username')) aria-describedby="username-error" @endif>
+                        </div>
+                        @if ($errors->has('username'))<div id="username-error" class="field-error">@foreach ($errors->get('username') as $message)<p>{{ $message }}</p>@endforeach</div>@endif
+                    </div>
+                    <div class="form-field">
+                        <label for="password">Password</label>
+                        <div class="input-wrap">
+                            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/></svg>
+                            <input id="password" name="password" type="password" required autocomplete="current-password" placeholder="Enter your password" aria-invalid="{{ $errors->has('password') ? 'true' : 'false' }}" @if ($errors->has('password')) aria-describedby="password-error" @endif>
+                            <button type="button" id="togglePassword" hidden aria-label="Show password" aria-controls="password" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="m4 3 16 18"/></svg></button>
+                        </div>
+                        @if ($errors->has('password'))<div id="password-error" class="field-error">@foreach ($errors->get('password') as $message)<p>{{ $message }}</p>@endforeach</div>@endif
+                    </div>
+                    <div class="form-options">
+                        <label for="remember_me" class="remember-label"><input id="remember_me" type="checkbox" name="remember" @checked(old('remember'))><span>Remember me</span></label>
+                        @if (Route::has('password.request'))<a href="{{ route('password.request') }}">Forgot password?</a>@endif
+                    </div>
+                    <button type="submit" id="loginButton" class="sign-in-button"><span id="btnText">Sign in to your workspace</span><svg class="submit-arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg><span id="loadingSpinner" class="login-spinner" hidden aria-hidden="true"></span></button>
+                    <p id="loginProgress" class="sr-only" role="status" aria-live="polite"></p>
+                </form>
+                <div class="card-footer"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="5" y="8" width="10" height="9" rx="2"/><path d="M7 8V6a3 3 0 0 1 6 0v2"/></svg>Secure access for authorized personnel</div>
+                <p class="access-help">Need access? Contact your system administrator.</p>
+            </section>
+            <div class="story-controls"><span>An illustration of our commitment to care</span><button id="motionToggle" hidden type="button" aria-controls="motorway-story" aria-pressed="false"><svg class="pause-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 4v8M11 4v8"/></svg><svg class="play-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 6 5-6 5Z"/></svg><span>Pause motion</span></button></div>
+        </main>
+        <footer class="login-footer"><span>© {{ date('Y') }} National Highways &amp; Motorway Police</span><span class="helpline">Here for every journey.<span aria-hidden="true">·</span>Roadside assistance <a href="tel:130"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m5 2 3 4-2 2c1 3 3 5 6 6l2-2 4 3-1 3C9 19 1 11 2 3l3-1Z"/></svg>130</a></span></footer>
     </div>
-  </div>
-
-  <script>
-    (function() {
-      "use strict";
-
-      // ----- SHOW/HIDE PASSWORD TOGGLE -----
-      const passwordInput = document.getElementById('password');
-      const toggleBtn = document.getElementById('togglePassword');
-      const toggleIcon = toggleBtn.querySelector('i');
-      
-      toggleBtn.addEventListener('click', function() {
-        const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-        passwordInput.setAttribute('type', type);
-        if (type === 'text') {
-          toggleIcon.classList.remove('fa-eye-slash');
-          toggleIcon.classList.add('fa-eye');
-        } else {
-          toggleIcon.classList.remove('fa-eye');
-          toggleIcon.classList.add('fa-eye-slash');
-        }
-      });
-
-      // ----- LOADING STATE ON SUBMIT -----
-      const form = document.getElementById('loginForm');
-      const loginBtn = document.getElementById('loginButton');
-      const btnText = document.getElementById('btnText');
-      const spinner = document.getElementById('loadingSpinner');
-
-      form.addEventListener('submit', () => {
-        btnText.classList.add('hidden');
-        spinner.classList.remove('hidden');
-        loginBtn.disabled = true;
-      });
-
-      // Clear any cross-tab logout signals on the login page
-      localStorage.removeItem('nhmp_session_logout');
-    })();
-  </script>
 </x-guest-layout>

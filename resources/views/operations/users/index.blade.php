@@ -18,8 +18,30 @@
         'beats' => $beats,
         'currentUserRole' => auth()->user()->role->name,
         'currentUserId' => auth()->id(),
+        'pendingRequests' => $passwordRequests ?? [],
     ]))" class="space-y-8 relative mt-4 max-w-[1700px] mx-auto" x-cloak>
 
+        <!-- PENDING PASSWORD RESET REQUESTS BANNER (OPERATION MANAGERS) -->
+        <div x-show="pendingRequests.length > 0" class="p-5 rounded-3xl bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-indigo-500/10 border-2 border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-pulse">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/30">
+                    <i class="fa-solid fa-key text-lg"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h4 class="text-sm font-black text-slate-900 tracking-tight">Pending Credential Reset Requests</h4>
+                        <span class="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black uppercase tracking-wider" x-text="pendingRequests.length + ' Awaiting Action'"></span>
+                    </div>
+                    <p class="text-xs text-slate-600 mt-0.5 font-medium">
+                        Operators and peer Operation Managers have submitted password reset requests requiring your authorization.
+                    </p>
+                </div>
+            </div>
+            <button @click="showRequestsModal = true" class="px-6 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-black tracking-wider uppercase transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 shrink-0">
+                <i class="fa-solid fa-list-check text-xs"></i>
+                <span>Review Request Queue</span>
+            </button>
+        </div>
 
         <!-- Floating Sidebar Toggle -->
         <button @click="showSidebar = true"
@@ -212,13 +234,13 @@
                                                 <button @click="editItem(item)" title="Modify Parameters" class="w-9 h-9 rounded-xl bg-indigo-500 border border-indigo-600 text-white hover:bg-indigo-600 active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
                                                     <i class="fa-solid fa-sliders text-xs"></i>
                                                 </button>
-                                                <template x-if="canManageUser(item)">
+                                                <template x-if="canManagePassword(item)">
                                                     <button @click="openPasswordReset(item)" title="Force Key Rotation" class="w-9 h-9 rounded-xl bg-slate-700 border border-slate-800 text-white hover:bg-slate-800 active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
                                                         <i class="fa-solid fa-key text-xs"></i>
                                                     </button>
                                                 </template>
-                                                <template x-if="!canManageUser(item)">
-                                                    <div title="Restricted Authority" class="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 text-slate-300 flex items-center justify-center mx-auto aspect-square shrink-0 cursor-not-allowed opacity-50">
+                                                <template x-if="!canManagePassword(item)">
+                                                    <div :title="(item.role_name === 'super_admin' || (item.role && item.role.name === 'super_admin')) ? 'Super Admin: CLI SSH Recovery Only' : 'Restricted Authority'" class="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 text-slate-300 flex items-center justify-center mx-auto aspect-square shrink-0 cursor-not-allowed opacity-50">
                                                         <i class="fa-solid fa-lock text-xs"></i>
                                                     </div>
                                                 </template>
@@ -335,13 +357,13 @@
                                                 <button @click="editItem(item)" title="Modify Parameters" class="w-9 h-9 bg-indigo-500 border border-indigo-600 text-white hover:bg-indigo-600 transition-colors flex items-center justify-center rounded-xl shadow-sm active:scale-95 aspect-square shrink-0">
                                                     <i class="fas fa-sliders text-xs"></i>
                                                 </button>
-                                                <template x-if="canManageUser(item)">
+                                                <template x-if="canManagePassword(item)">
                                                     <button @click="openPasswordReset(item)" title="Rotate Key" class="w-9 h-9 bg-slate-700 border border-slate-800 text-white hover:bg-slate-800 transition-colors flex items-center justify-center rounded-xl shadow-sm active:scale-95 aspect-square shrink-0">
                                                         <i class="fas fa-key text-xs"></i>
                                                     </button>
                                                 </template>
-                                                <template x-if="!canManageUser(item)">
-                                                    <div title="Restricted" class="w-9 h-9 bg-slate-50 border border-slate-100 text-slate-300 flex items-center justify-center rounded-xl opacity-50 cursor-not-allowed aspect-square shrink-0">
+                                                <template x-if="!canManagePassword(item)">
+                                                    <div :title="(item.role_name === 'super_admin' || (item.role && item.role.name === 'super_admin')) ? 'Super Admin: CLI SSH Recovery Only' : 'Restricted'" class="w-9 h-9 bg-slate-50 border border-slate-100 text-slate-300 flex items-center justify-center rounded-xl opacity-50 cursor-not-allowed aspect-square shrink-0">
                                                         <i class="fas fa-lock text-xs"></i>
                                                     </div>
                                                 </template>
@@ -788,7 +810,13 @@
                     <form @submit.prevent="submitPasswordReset" data-no-pjax class="p-8 space-y-6">
                         <input type="text" autocomplete="username" style="display: none;" x-bind:value="selectedItem ? selectedItem.username : ''">
                         <div>
-                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">New Security Key</label>
+                            <div class="flex items-center justify-between mb-2">
+                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">New Security Key</label>
+                                <button type="button" @click="generateCompliantPassword()" class="text-[10px] font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1.5 transition-colors">
+                                    <i class="fa-solid fa-wand-magic-sparkles text-[10px]"></i>
+                                    <span>Auto-Generate</span>
+                                </button>
+                            </div>
                             <input type="password" x-model="passwordForm.password" autocomplete="new-password" required placeholder="••••••••" class="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-rose-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
                         </div>
                         <div>
@@ -811,6 +839,85 @@
                             </button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Password Reset Requests Queue Modal (Operation Managers) -->
+        <div x-show="showRequestsModal" class="fixed inset-0 z-[100] overflow-y-auto px-4 py-6" x-transition.opacity style="display: none;">
+            <div class="flex items-center justify-center min-h-screen">
+                <div class="fixed inset-0 bg-white/30 backdrop-blur-sm z-[90]" @click="showRequestsModal = false"></div>
+                <div class="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-3xl z-[100] overflow-hidden relative border border-slate-100" x-transition.scale.origin.center>
+                    <div class="bg-gradient-to-br from-indigo-600 via-indigo-700 to-blue-800 p-6 text-white relative">
+                        <div class="flex items-center justify-between relative z-10">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-xl border border-white/20">
+                                    <i class="fa-solid fa-key text-xl text-white"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-xl font-extrabold tracking-tight">Credential Reset Queue</h3>
+                                    <p class="text-indigo-200 text-[10px] font-black uppercase tracking-widest mt-0.5">
+                                        Operation Manager Authorization Portal
+                                    </p>
+                                </div>
+                            </div>
+                            <button @click="showRequestsModal = false" class="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                                <i class="fa-solid fa-times text-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+                        <template x-if="pendingRequests.length === 0">
+                            <div class="text-center py-12">
+                                <div class="w-16 h-16 rounded-3xl bg-emerald-50 text-emerald-500 mx-auto flex items-center justify-center text-2xl mb-4 border border-emerald-100">
+                                    <i class="fa-solid fa-circle-check"></i>
+                                </div>
+                                <h4 class="text-base font-extrabold text-slate-800">No Pending Requests</h4>
+                                <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">All operator and peer Operation Manager password reset requests have been cleared.</p>
+                            </div>
+                        </template>
+
+                        <template x-if="pendingRequests.length > 0">
+                            <div class="space-y-4">
+                                <template x-for="req in pendingRequests" :key="req.id">
+                                    <div class="p-5 rounded-2xl border border-slate-100 bg-slate-50/70 hover:bg-white transition-all shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                        <div class="space-y-1.5 flex-1">
+                                            <div class="flex items-center gap-2">
+                                                <h5 class="font-extrabold text-sm text-slate-900" x-text="req.requester_name"></h5>
+                                                <span :class="req.requester_role === 'operation_admin' ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-blue-100 text-blue-700 border-blue-200'" class="px-2 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-lg border" x-text="req.requester_role === 'operation_admin' ? 'Peer Operation Manager' : (req.requester_role || 'Operator')"></span>
+                                                <span class="text-[10px] text-slate-400 font-bold" x-text="'REQ-' + req.id"></span>
+                                            </div>
+                                            <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 font-medium">
+                                                <span><i class="fa-regular fa-user mr-1 text-slate-400"></i><span x-text="req.requester_username"></span></span>
+                                                <span x-show="req.requester_email"><i class="fa-regular fa-envelope mr-1 text-slate-400"></i><span x-text="req.requester_email"></span></span>
+                                                <span><i class="fa-regular fa-clock mr-1 text-slate-400"></i><span x-text="new Date(req.created_at).toLocaleString()"></span></span>
+                                            </div>
+                                            <p x-show="req.user_notes" class="text-xs text-slate-600 bg-white p-2.5 rounded-xl border border-slate-100 mt-1">
+                                                <i class="fa-solid fa-comment-dots text-slate-400 mr-1.5"></i>
+                                                <span x-text="req.user_notes"></span>
+                                            </p>
+                                        </div>
+                                        <div class="flex items-center gap-2 shrink-0">
+                                            <button @click="rejectRequest(req)" class="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold rounded-xl transition-colors">
+                                                Reject
+                                            </button>
+                                            <button @click="handleRequestApproval(req)" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-1.5">
+                                                <i class="fa-solid fa-key text-[10px]"></i>
+                                                <span>Authorize & Set Key</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="p-6 bg-slate-50 border-t border-slate-100 flex justify-end">
+                        <button type="button" @click="showRequestsModal = false" class="px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-100 transition-colors">
+                            Close Queue
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1043,6 +1150,9 @@
                 sectors: config.sectors || [],
                 beats: config.beats || [],
                 currentUserRole: config.currentUserRole || '',
+                currentUserId: config.currentUserId || null,
+                pendingRequests: config.pendingRequests || [],
+                showRequestsModal: false,
                 search: '',
                 filterRole: '',
                 filterStatus: '',
@@ -1122,6 +1232,22 @@
                         const targetRole = item.role ? item.role.name : item.role_name;
                         return !['super_admin', 'operation_admin'].includes(targetRole);
                     }
+                    return false;
+                },
+
+                canManagePassword(item) {
+                    const targetRole = item.role ? item.role.name : item.role_name;
+                    // Super admin can NEVER be reset via web application (Root recovery is CLI SSH only)
+                    if (targetRole === 'super_admin') return false;
+
+                    // Super admin can manage anyone else
+                    if (this.currentUserRole === 'super_admin') return true;
+
+                    // Operation admin can reset peer operation_admins (not self), and other operator roles
+                    if (this.currentUserRole === 'operation_admin') {
+                        return this.currentUserId !== item.id;
+                    }
+
                     return false;
                 },
                 get filteredSectors() {
@@ -1337,6 +1463,63 @@
                     this.showPasswordModal = true;
                 },
 
+                generateCompliantPassword() {
+                    const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+                    const lower = "abcdefghijkmnopqrstuvwxyz";
+                    const numbers = "23456789";
+                    const symbols = "!@#$%^&*";
+                    const all = upper + lower + numbers + symbols;
+
+                    let chars = [
+                        upper[Math.floor(Math.random() * upper.length)],
+                        lower[Math.floor(Math.random() * lower.length)],
+                        numbers[Math.floor(Math.random() * numbers.length)],
+                        symbols[Math.floor(Math.random() * symbols.length)]
+                    ];
+                    for (let i = 0; i < 12; i++) {
+                        chars.push(all[Math.floor(Math.random() * all.length)]);
+                    }
+                    const pass = chars.sort(() => 0.5 - Math.random()).join('');
+                    this.passwordForm.password = pass;
+                    this.passwordForm.password_confirmation = pass;
+                },
+
+                handleRequestApproval(req) {
+                    const user = this.items.find(u => u.id === req.user_id || u.username === req.requester_username);
+                    if (user) {
+                        this.selectedItem = user;
+                        this.passwordForm = { password: '', password_confirmation: '' };
+                        this.generateCompliantPassword();
+                        this.showRequestsModal = false;
+                        this.showPasswordModal = true;
+                    } else {
+                        showError("Target user identity not found in active registry.");
+                    }
+                },
+
+                async rejectRequest(req) {
+                    if (!confirm(`Are you sure you want to reject the password reset request for ${req.requester_name}?`)) return;
+                    try {
+                        const response = await fetch(`/mgmt/password-requests/${req.id}/reject`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                            }
+                        });
+                        const result = await response.json();
+                        if (response.ok && result.success) {
+                            this.pendingRequests = this.pendingRequests.filter(r => r.id !== req.id);
+                            showSuccess(result.message || "Request rejected.");
+                        } else {
+                            showError(result.message || "Failed to reject request.");
+                        }
+                    } catch (e) {
+                        showError("Communication failure rejecting request.");
+                    }
+                },
+
                 viewDetails(item) {
                     this.selectedItem = item;
                     this.showViewModal = true;
@@ -1367,7 +1550,6 @@
                         this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
                     } else {
                         this.sortBy = field;
-                        this.sortDirection = 'asc';
                     }
                 },
 
@@ -1466,12 +1648,15 @@
                         const result = await response.json();
                         if (response.ok) {
                             showSuccess(result.message || "Security key overridden.");
+                            if (this.selectedItem) {
+                                this.pendingRequests = this.pendingRequests.filter(r => r.user_id !== this.selectedItem.id);
+                            }
                             this.showPasswordModal = false;
                         } else {
                             if (result.errors) {
                                 showError(Object.values(result.errors).flat(), "Policy Violation");
                             } else {
-                                showError("Key synchronization error");
+                                showError(result.message || "Key synchronization error");
                             }
                         }
                     } catch(e) {

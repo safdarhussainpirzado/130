@@ -7,8 +7,12 @@ use App\Models\UserScope;
 use App\Models\Role;
 use App\Models\Designation;
 use App\Models\Office;
+use App\Models\PasswordResetRequest;
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules;
 
 class UserController extends Controller
@@ -20,14 +24,18 @@ class UserController extends Controller
     public function index()
     {
         $this->authorize('viewAny', User::class);
-        $users        = User::with(['role.permissions', 'designation', 'activeScopes.office'])->get();
-        $roles        = Role::all();
-        $designations = Designation::where('is_active', true)->orderByDesc('bps')->orderBy('sort_order')->get(['id', 'name', 'bps', 'short_code']);
-        $zones        = Office::zones()->where('is_active', true)->get(['id', 'name']);
-        $sectors      = Office::sectors()->where('is_active', true)->get(['id', 'name', 'parent_id as zone_id']);
-        $beats        = Office::beats()->where('is_active', true)->get(['id', 'name', 'parent_id as sector_id']);
+        $users            = User::with(['role.permissions', 'designation', 'activeScopes.office'])->get();
+        $roles            = Role::all();
+        $designations     = Designation::where('is_active', true)->orderByDesc('bps')->orderBy('sort_order')->get(['id', 'name', 'bps', 'short_code']);
+        $zones            = Office::zones()->where('is_active', true)->get(['id', 'name']);
+        $sectors          = Office::sectors()->where('is_active', true)->get(['id', 'name', 'parent_id as zone_id']);
+        $beats            = Office::beats()->where('is_active', true)->get(['id', 'name', 'parent_id as sector_id']);
+        $passwordRequests = PasswordResetRequest::with('user.role')
+            ->where('status', 'pending')
+            ->orderByDesc('created_at')
+            ->get();
 
-        return view('operations.users.index', compact('users', 'roles', 'designations', 'zones', 'sectors', 'beats'));
+        return view('operations.users.index', compact('users', 'roles', 'designations', 'zones', 'sectors', 'beats', 'passwordRequests'));
     }
 
     public function store(Request $request)
@@ -112,21 +120,102 @@ class UserController extends Controller
     public function resetPassword(Request $request, User $user)
     {
         $this->authorize('managePassword', $user);
-        $this->enforceOperationAdminRestrictions($request);
+
+        // Security Barrier: Super Admin can NEVER be reset via web application
+        if ($user->role?->name === Role::SUPER_ADMIN) {
+            abort(403, 'Super Administrator credentials cannot be reset via web application. Root recovery is strictly restricted to server console / SSH infrastructure.');
+        }
 
         $validated = $request->validate([
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
         // Store old password in history
-        \App\Models\PasswordHistory::create([
-            'user_id'  => $user->id,
-            'password' => $user->password, // store previously hashed value
+        try {
+            \App\Models\PasswordHistory::create([
+                'user_id'  => $user->id,
+                'password' => $user->password,
+            ]);
+        } catch (\Throwable $e) {}
+
+        $user->forceFill([
+            'password'       => Hash::make($validated['password']),
+            'locked_until'   => null,
+            'remember_token' => Str::random(60),
         ]);
 
-        $user->update(['password' => Hash::make($validated['password'])]);
+        if (array_key_exists('failed_attempts', $user->getAttributes())) {
+            $user->setAttribute('failed_attempts', 0);
+        }
 
-        return response()->json(['success' => true, 'message' => 'Password reset successfully.']);
+        $user->save();
+
+        // Invalidate active sessions
+        try {
+            DB::table('sessions')->where('user_id', $user->id)->delete();
+        } catch (\Throwable $e) {}
+
+        // Fulfill any pending PasswordResetRequests for this user
+        PasswordResetRequest::where('user_id', $user->id)
+            ->where('status', 'pending')
+            ->update([
+                'status'      => 'completed',
+                'actioned_by' => auth()->id(),
+                'actioned_at' => now(),
+                'admin_notes' => 'Password reset and authorized by Operation Manager ' . (auth()->user()->username ?? 'admin'),
+            ]);
+
+        // Audit Log
+        try {
+            AuditLog::create([
+                'user_id'    => $user->id,
+                'action'     => 'OP_ADMIN_PASSWORD_RESET',
+                'table_name' => 'users',
+                'record_id'  => $user->id,
+                'new_values' => ['action' => 'Password reset authorized by Operation Manager ' . (auth()->user()->username ?? 'admin')],
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+        } catch (\Throwable $e) {}
+
+        return response()->json([
+            'success' => true,
+            'message' => "Password for [{$user->full_name}] has been successfully reset and authorized.",
+        ]);
+    }
+
+    public function getPasswordRequests()
+    {
+        $this->authorize('viewAny', User::class);
+
+        $requests = PasswordResetRequest::with('user.role', 'actionedByUser')
+            ->orderByRaw("FIELD(status, 'pending', 'completed', 'rejected')")
+            ->orderByDesc('created_at')
+            ->take(50)
+            ->get();
+
+        return response()->json([
+            'success'       => true,
+            'requests'      => $requests,
+            'pending_count' => $requests->where('status', 'pending')->count(),
+        ]);
+    }
+
+    public function rejectPasswordRequest(Request $request, PasswordResetRequest $resetRequest)
+    {
+        $this->authorize('viewAny', User::class);
+
+        $resetRequest->update([
+            'status'      => 'rejected',
+            'actioned_by' => auth()->id(),
+            'actioned_at' => now(),
+            'admin_notes' => $request->input('notes', 'Request rejected by Operation Manager ' . (auth()->user()->username ?? 'admin')),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Password reset request marked as rejected.',
+        ]);
     }
 
     public function destroy(User $user)

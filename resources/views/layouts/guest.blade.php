@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title>{{ config('app.name', 'NHMP 130 CRM') }}</title>
+        <title>{{ request()->routeIs('login') ? 'Sign in · NHMP 130' : config('app.name', 'NHMP 130 CRM') }}</title>
 
         <!-- Fonts & Icons -->
         <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14,9 +14,13 @@
 
         
         <!-- Compiled Assets (Tailwind, Alpine, etc.) -->
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @if (request()->routeIs('login'))
+            @vite(['resources/css/login.css', 'resources/js/login.js'])
+        @else
+            @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @endif
     </head>
-    <body class="font-sans antialiased text-slate-800 bg-gradient-to-br from-slate-50 via-white to-blue-50/30 min-h-screen flex items-center justify-center p-4 md:p-6">
+    <body @if (!request()->routeIs('login')) class="font-sans antialiased text-slate-800 bg-gradient-to-br from-slate-50 via-white to-blue-50/30 min-h-screen flex items-center justify-center p-4 md:p-6" @endif>
         {{ $slot }}
     </body>
 </html>

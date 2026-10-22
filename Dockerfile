@@ -16,7 +16,7 @@ RUN for i in 1 2 3; do \
     done
 
 # STAGE 2: Frontend Assets (Node)
-FROM node:22-alpine AS assets
+FROM node:20-alpine AS assets
 WORKDIR /app
 COPY package*.json ./
 RUN for i in 1 2 3; do \
@@ -27,7 +27,7 @@ COPY . .
 RUN npm run build
 
 # STAGE 3: Extension Builder (Heavy Compilation)
-FROM php:8.3.1-fpm-alpine3.19 AS builder
+FROM php:8.3.36-fpm-alpine AS builder
 RUN sed -i 's/dl-cdn.alpinelinux.org/uk.alpinelinux.org/g' /etc/apk/repositories || true
 RUN for i in 1 2 3; do \
         apk add --no-cache \
@@ -47,7 +47,7 @@ RUN for i in 1 2 3; do \
     && docker-php-ext-enable redis
 
 # STAGE 4: Final Production Runtime
-FROM php:8.3.1-fpm-alpine3.19
+FROM php:8.3.36-fpm-alpine
 WORKDIR /var/www/html
 
 # Only install runtime dependencies (no build tools)
@@ -80,6 +80,7 @@ opcache.fast_shutdown=1" > /usr/local/etc/php/conf.d/docker-php-ext-opcache.ini
 COPY --chown=www-data:www-data . .
 COPY --from=vendor --chown=www-data:www-data /app/vendor/ vendor/
 COPY --from=assets --chown=www-data:www-data /app/public/build public/build
+COPY --from=assets --chown=www-data:www-data /app/public/build /var/www/build_cache
 
 # Setup the entrypoint sequence
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh

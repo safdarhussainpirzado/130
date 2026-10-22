@@ -2,53 +2,324 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\Permission;
+use App\Models\Role;
+use App\Models\SystemSetting;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
+use PragmaRX\Google2FA\Google2FA;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
 {
-    use RefreshDatabase;
+    private static int $nextUserId = 1;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Never migrate or connect to the application's configured database.
+        // The master migration uses MySQL partitioning; this fixture contains
+        // only the schema exercised by the real authentication endpoints.
+        config([
+            'database.default' => 'auth_testing',
+            'database.connections.auth_testing' => [
+                'driver' => 'sqlite',
+                'database' => ':memory:',
+                'prefix' => '',
+                'foreign_key_constraints' => true,
+            ],
+            'cache.default' => 'array',
+            'session.driver' => 'array',
+        ]);
+
+        $this->createAuthenticationSchema();
+    }
 
     public function test_login_screen_can_be_rendered(): void
     {
-        $response = $this->get('/login');
-
-        $response->assertStatus(200);
+        $this->get('/login')
+            ->assertOk()
+            ->assertSee('name="username"', false)
+            ->assertSee('name="password"', false)
+            ->assertSee('name="_token"', false)
+            ->assertSee(route('password.request'), false);
     }
 
-    public function test_users_can_authenticate_using_the_login_screen(): void
+    public function test_users_can_authenticate_with_username_and_reach_their_workspace(): void
     {
-        $user = User::factory()->create();
+        $user = $this->createUser();
+        $role = Role::create([
+            'name' => 'agent',
+            'display_name' => 'Call Center Agent',
+            'scope_level' => 'call_centre',
+        ]);
+        $permission = Permission::create([
+            'name' => 'calls.create',
+            'display_name' => 'Create calls',
+            'module' => 'calls',
+        ]);
+        $role->permissions()->attach($permission);
+        $user->update(['role_id' => $role->id]);
 
-        $response = $this->post('/login', [
-            'email' => $user->email,
-            'password' => 'password',
+        $this->get('/login');
+        $oldSessionId = session()->getId();
+
+        $this->post('/login', $this->credentials($user))
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('calls.create'));
+
+        $this->assertAuthenticatedAs($user);
+        $this->assertNotSame($oldSessionId, session()->getId());
+        $this->assertNotNull($user->fresh()->last_login_at);
+        $this->assertDatabaseHas('login_logs', ['user_id' => $user->id]);
+        $this->get(route('auth.heartbeat'))->assertNoContent();
+    }
+
+    public function test_login_respects_the_intended_authenticated_destination(): void
+    {
+        $user = $this->createUser();
+
+        $this->get(route('auth.heartbeat'))->assertRedirect(route('login'));
+
+        $this->post('/login', $this->credentials($user))
+            ->assertRedirect(route('auth.heartbeat'));
+
+        $this->get(route('auth.heartbeat'))->assertNoContent();
+    }
+
+    public function test_invalid_password_shows_an_error_and_keeps_only_the_username(): void
+    {
+        $user = $this->createUser();
+
+        $this->from('/login')->post('/login', [
+            'username' => $user->username,
+            'password' => 'wrong-password',
+        ])->assertRedirect('/login')->assertSessionHasErrors('username');
+
+        $this->assertGuest();
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $user->id,
+            'action' => 'login_failed',
         ]);
 
-        $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $this->get('/login')
+            ->assertOk()
+            ->assertSee(trans('auth.failed'))
+            ->assertSee('value="'.$user->username.'"', false)
+            ->assertDontSee('wrong-password');
     }
 
-    public function test_users_can_not_authenticate_with_invalid_password(): void
+    public function test_unknown_username_cannot_authenticate(): void
     {
-        $user = User::factory()->create();
+        $this->from('/login')->post('/login', [
+            'username' => 'unknown.officer',
+            'password' => 'TestPassword!130',
+        ])->assertRedirect('/login')->assertSessionHasErrors('username');
+
+        $this->assertGuest();
+    }
+
+    public function test_username_and_password_are_required(): void
+    {
+        $this->from('/login')->post('/login', [])
+            ->assertRedirect('/login')
+            ->assertSessionHasErrors(['username', 'password']);
+
+        $this->assertGuest();
+    }
+
+    public function test_repeated_login_attempts_are_rate_limited(): void
+    {
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $this->post('/login', [
+                'username' => 'unknown.officer',
+                'password' => 'wrong-password',
+            ])->assertSessionHasErrors('username');
+        }
 
         $this->post('/login', [
-            'email' => $user->email,
+            'username' => 'unknown.officer',
             'password' => 'wrong-password',
-        ]);
+        ])->assertTooManyRequests();
 
         $this->assertGuest();
     }
 
-    public function test_users_can_logout(): void
+    public function test_inactive_accounts_cannot_authenticate(): void
     {
-        $user = User::factory()->create();
+        $user = $this->createUser(['is_active' => false]);
 
-        $response = $this->actingAs($user)->post('/logout');
+        $this->post('/login', $this->credentials($user))
+            ->assertSessionHasErrors([
+                'username' => 'This account has been deactivated. Contact your administrator.',
+            ]);
 
         $this->assertGuest();
-        $response->assertRedirect('/');
+    }
+
+    public function test_locked_accounts_cannot_authenticate(): void
+    {
+        $user = $this->createUser(['locked_until' => now()->addMinutes(30)]);
+
+        $this->post('/login', $this->credentials($user))
+            ->assertSessionHasErrors('username');
+
+        $this->assertGuest();
+    }
+
+    public function test_remember_me_issues_a_recaller_cookie(): void
+    {
+        $user = $this->createUser();
+
+        $this->post('/login', [...$this->credentials($user), 'remember' => '1'])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect($user->getLandingPageRoute())
+            ->assertCookie(Auth::guard('web')->getRecallerName());
+
+        $this->assertAuthenticatedAs($user);
+        $this->assertNotEmpty($user->fresh()->remember_token);
+    }
+
+    public function test_users_can_logout_and_protected_routes_require_login_again(): void
+    {
+        $this->freezeTime();
+        $user = $this->createUser();
+        $this->post('/login', $this->credentials($user));
+        $this->get(route('auth.heartbeat'))->assertNoContent();
+
+        $this->post('/logout')->assertRedirect('/');
+
+        $this->assertGuest();
+        $this->assertDatabaseHas('login_logs', [
+            'user_id' => $user->id,
+            'logout_at' => now()->toDateTimeString(),
+        ]);
+        $this->get(route('auth.heartbeat'))->assertRedirect(route('login'));
+    }
+
+    public function test_required_two_factor_authentication_blocks_access_until_valid_code(): void
+    {
+        SystemSetting::set('2fa_level', 'all');
+        $user = $this->createUser(['totp_secret' => 'JBSWY3DPEHPK3PXP']);
+        $google2fa = new Google2FA;
+        $code = $google2fa->getCurrentOtp($user->totp_secret);
+        $invalidCode = $code === '111111' ? '222222' : '111111';
+
+        $this->post('/login', $this->credentials($user))->assertRedirect();
+        $this->get(route('auth.heartbeat'))->assertRedirect(route('2fa.index'));
+        $this->get(route('2fa.index'))->assertOk();
+
+        $this->from(route('2fa.index'))->post(route('2fa.verify'), ['code' => $invalidCode])
+            ->assertRedirect(route('2fa.index'))
+            ->assertSessionHasErrors('code');
+        $this->get(route('auth.heartbeat'))->assertRedirect(route('2fa.index'));
+
+        $this->post(route('2fa.verify'), ['code' => $code])
+            ->assertSessionHas('2fa_verified', true)
+            ->assertRedirect(route('dashboard'));
+        $this->get(route('auth.heartbeat'))->assertNoContent();
+
+        $this->post('/logout')->assertSessionMissing('2fa_verified');
+        $this->assertGuest();
+    }
+
+    public function test_required_two_factor_setup_redirects_users_without_a_secret(): void
+    {
+        SystemSetting::set('2fa_level', 'all');
+        $user = $this->createUser();
+
+        $this->post('/login', $this->credentials($user))->assertRedirect();
+        $this->get(route('auth.heartbeat'))->assertRedirect(route('2fa.setup'));
+    }
+
+    private function createUser(array $attributes = []): User
+    {
+        // The legacy UserFactory still uses fields absent from the CRM schema.
+        // Unique IDs also isolate the model's static permission cache per test.
+        return User::forceCreate(array_merge([
+            'id' => self::$nextUserId++,
+            'full_name' => 'Test NHMP Officer',
+            'email' => 'officer@example.test',
+            'mobile_no' => '03001234567',
+            'username' => 'test.officer',
+            'password' => Hash::make('TestPassword!130'),
+            'is_active' => true,
+        ], $attributes));
+    }
+
+    private function credentials(User $user): array
+    {
+        return ['username' => $user->username, 'password' => 'TestPassword!130'];
+    }
+
+    private function createAuthenticationSchema(): void
+    {
+        Schema::create('roles', function (Blueprint $table) {
+            $table->id();
+            $table->string('name')->unique();
+            $table->string('display_name');
+            $table->string('scope_level');
+            $table->string('status')->default('active');
+            $table->timestamps();
+        });
+        Schema::create('permissions', function (Blueprint $table) {
+            $table->id();
+            $table->string('name')->unique();
+            $table->string('display_name');
+            $table->string('module');
+            $table->string('status')->default('active');
+            $table->timestamps();
+        });
+        Schema::create('role_permissions', function (Blueprint $table) {
+            $table->foreignId('role_id')->constrained();
+            $table->foreignId('permission_id')->constrained();
+            $table->primary(['role_id', 'permission_id']);
+        });
+        Schema::create('users', function (Blueprint $table) {
+            $table->id();
+            $table->string('full_name');
+            $table->string('email')->unique();
+            $table->string('mobile_no')->unique();
+            $table->string('username')->unique();
+            $table->string('password');
+            $table->rememberToken();
+            $table->foreignId('role_id')->nullable()->constrained();
+            $table->boolean('is_active')->default(true);
+            $table->unsignedTinyInteger('failed_attempts')->default(0);
+            $table->timestamp('locked_until')->nullable();
+            $table->string('totp_secret')->nullable();
+            $table->timestamp('last_login_at')->nullable();
+            $table->string('last_login_ip')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('system_settings', function (Blueprint $table) {
+            $table->id();
+            $table->string('key_name')->unique();
+            $table->text('value')->nullable();
+            $table->string('description')->nullable();
+            $table->string('group_name')->default('general');
+            $table->unsignedBigInteger('updated_by')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('login_logs', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')->constrained();
+            $table->string('ip_address')->nullable();
+            $table->string('user_agent')->nullable();
+            $table->timestamp('login_at')->useCurrent();
+            $table->timestamp('logout_at')->nullable();
+        });
+        Schema::create('audit_logs', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->string('action');
+            $table->string('ip_address')->nullable();
+            $table->string('user_agent')->nullable();
+            $table->timestamp('created_at')->useCurrent();
+        });
     }
 }

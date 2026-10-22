@@ -33,3 +33,8 @@ Thumbs.db
 *.key
 *.crt
 haproxy/certs/
+
+# Local forensic backups, scratch diagnosis, and editor state
+backups/
+scratch/
+.claude/

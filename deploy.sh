@@ -46,6 +46,11 @@ for node in "${NODES[@]}"; do
         rm -rf ${APP_PATH}/releases/${RELEASE_ID}/storage
         ln -sfn ${APP_PATH}/shared/storage ${APP_PATH}/releases/${RELEASE_ID}/storage
         
+        # Retain previous hashed assets so in-flight requests during rolling transitions do not 404
+        mkdir -p ${APP_PATH}/shared/build/assets
+        cp -rn ${APP_PATH}/releases/${RELEASE_ID}/public/build/assets/* ${APP_PATH}/shared/build/assets/ 2>/dev/null || true
+        cp -rn ${APP_PATH}/shared/build/assets/* ${APP_PATH}/releases/${RELEASE_ID}/public/build/assets/ 2>/dev/null || true
+        
         # Update current pointer
         ln -sfn ${APP_PATH}/releases/${RELEASE_ID} ${APP_PATH}/current
         
