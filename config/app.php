@@ -13,7 +13,7 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Laravel'),
+    'name' => env('APP_NAME', '130 NHMP Helpline'),
 
     'force_https' => env('FORCE_HTTPS', false),
 

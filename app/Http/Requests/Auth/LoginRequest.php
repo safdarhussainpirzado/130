@@ -38,57 +38,86 @@ class LoginRequest extends FormRequest
      *
      * @throws ValidationException
      */
-    public function authenticate(): void
+    /**
+     * Validate the user's password without establishing an authenticated session.
+     * Enforces dummy password hashing on nonexistent accounts to mitigate timing differences.
+     *
+     * @throws ValidationException
+     */
+    public function validateCredentials(): \App\Models\User
     {
         $this->ensureIsNotRateLimited();
 
-        // ── DB-level account lockout check (NIST AC-7 / ISO 27001 A.9.4.2) ──
-        $user = \App\Models\User::where('username', $this->string('username'))->first();
+        $username = (string) $this->string('username')->trim();
+        $password = (string) $this->string('password');
 
-        if ($user) {
-            // Account hard-locked by admin / previous lockout
-            if (!$user->is_active) {
-                throw ValidationException::withMessages([
-                    'username' => 'This account has been deactivated. Contact your administrator.',
-                ]);
-            }
+        /** @var \App\Models\User|null $user */
+        $user = \App\Models\User::where('username', $username)->first();
 
-            // Time-based lockout still active
-            if ($user->locked_until && $user->locked_until->isFuture()) {
-                $remaining = now()->diffInMinutes($user->locked_until, false);
-                throw ValidationException::withMessages([
-                    'username' => "Account locked. Try again in {$remaining} minute(s).",
-                ]);
-            }
+        // Mitigation for account enumeration timing differences
+        if (!$user) {
+            \Illuminate\Support\Facades\Hash::check($password, '$2y$10$e8wVf59B.Z5t9i3s2v4u6.GZq7u8w9x0y1z2a3b4c5d6e7f8g9h0i');
+            \Illuminate\Support\Facades\RateLimiter::hit($this->throttleKey());
+            throw ValidationException::withMessages([
+                'username' => trans('auth.failed'),
+            ]);
         }
 
-        if (! Auth::attempt($this->only('username', 'password'), $this->boolean('remember'))) {
-            RateLimiter::hit($this->throttleKey());
+        // Account hard-locked by admin
+        if (!$user->is_active) {
+            throw ValidationException::withMessages([
+                'username' => 'This account has been deactivated. Contact your administrator.',
+            ]);
+        }
 
-            // Increment failed attempts and lock after 5 consecutive failures
-            if ($user) {
-                $attempts = $user->failed_attempts + 1;
-                $lockUntil = $attempts >= 5 ? now()->addMinutes(30) : null;
-                $user->update([
-                    'failed_attempts' => $attempts,
-                    'locked_until'    => $lockUntil,
-                ]);
+        // Time-based lockout still active
+        if ($user->locked_until && $user->locked_until->isFuture()) {
+            $remaining = now()->diffInMinutes($user->locked_until, false);
+            throw ValidationException::withMessages([
+                'username' => "Account locked. Try again in {$remaining} minute(s).",
+            ]);
+        }
 
-                // Log failed attempt in audit_logs
-                \App\Models\AuditLog::create([
-                    'user_id'    => $user->id,
-                    'action'     => 'login_failed',
-                    'ip_address' => $this->ip(),
-                    'user_agent' => $this->userAgent(),
-                ]);
-            }
+        if (!\Illuminate\Support\Facades\Hash::check($password, $user->password)) {
+            \Illuminate\Support\Facades\RateLimiter::hit($this->throttleKey());
+
+            $attempts = ($user->failed_attempts ?? 0) + 1;
+            $lockUntil = $attempts >= 5 ? now()->addMinutes(30) : null;
+            $user->update([
+                'failed_attempts' => $attempts,
+                'locked_until'    => $lockUntil,
+            ]);
+
+            \App\Models\AuditLog::create([
+                'user_id'    => $user->id,
+                'action'     => 'login_failed',
+                'table_name' => 'users',
+                'record_id'  => $user->id,
+                'new_values' => ['reason' => 'invalid_password', 'attempts' => $attempts],
+                'ip_address' => $this->ip(),
+                'user_agent' => $this->userAgent(),
+            ]);
 
             throw ValidationException::withMessages([
                 'username' => trans('auth.failed'),
             ]);
         }
 
-        RateLimiter::clear($this->throttleKey());
+        \Illuminate\Support\Facades\RateLimiter::clear($this->throttleKey());
+
+        if (($user->failed_attempts ?? 0) > 0) {
+            $user->update(['failed_attempts' => 0]);
+        }
+
+        return $user;
+    }
+
+    /**
+     * Legacy authenticate method for backward compatibility.
+     */
+    public function authenticate(): void
+    {
+        $this->validateCredentials();
     }
 
     /**

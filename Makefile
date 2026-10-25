@@ -1,8 +1,21 @@
-.PHONY: build up down restart test fresh optimize bash logs migrate-legacy bootstrap-db deploy assets sync sync_clear migrate
+.PHONY: build up down restart test test-security security-audit quality-gate fresh optimize bash logs migrate-legacy bootstrap-db deploy assets sync sync_clear migrate
 
 # Run Test Suite
 test:
 	php artisan test tests/Unit
+
+# Run Security-First Penetration & Security Test Suite
+test-security: sync
+	docker compose exec -T app-1 php ./vendor/bin/phpunit tests/Feature/Auth/TwoFactorSecurityTest.php
+
+# Run Dependency and Static Security Audits
+security-audit:
+	composer audit
+	npm audit --audit-level=high
+
+# Run Full Security Quality Gate
+quality-gate: test-security security-audit
+	./scripts/verify_security_standard.sh
 
 # Run Pending Database Migrations
 migrate: sync
@@ -19,6 +32,8 @@ sync:
 		docker cp app/. 130-$$container-1:/var/www/html/app/; \
 		echo "  -> $$container: resources/views/..."; \
 		docker cp resources/views/. 130-$$container-1:/var/www/html/resources/views/; \
+		echo "  -> $$container: public/..."; \
+		docker cp public/. 130-$$container-1:/var/www/html/public/; \
 		echo "  -> $$container: config/..."; \
 		docker cp config/. 130-$$container-1:/var/www/html/config/; \
 		echo "  -> $$container: database/..."; \

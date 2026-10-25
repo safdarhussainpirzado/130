@@ -9,7 +9,7 @@ class RoleController extends Controller
     public function index()
     {
         $this->authorize('roles.view');
-        $roles = \App\Models\Role::with('permissions')->get();
+        $roles = \App\Models\Role::with(['permissions', 'mfaPolicy'])->get();
         // Group permissions by their prefix (e.g. users.view -> users)
         $permissions = \App\Models\Permission::all()->groupBy(function($perm) {
             return explode('.', $perm->name)[0];

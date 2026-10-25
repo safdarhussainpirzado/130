@@ -74,24 +74,31 @@ function createBrowser({ reducedMotion = false, paused = false, storageUnavailab
     };
 }
 
+function assertMotionPaused(elements, paused) {
+    for (const id of ['nhmp-login', 'motorway-story']) {
+        assert.equal(elements.get(id).dataset.paused, String(paused), `${id} shares the motion state`);
+    }
+}
+
 test('enhancements become available only after initialization', () => {
     const { elements, stored } = createBrowser();
     assert.equal(elements.get('togglePassword').hidden, false);
     assert.equal(elements.get('motionToggle').hidden, false);
     assert.equal(elements.get('motorway-story').dataset.motionReady, 'true');
-    assert.equal(elements.get('motorway-story').dataset.paused, 'false');
+    assert.equal(elements.get('nhmp-login').dataset.motionReady, 'true');
+    assertMotionPaused(elements, false);
     assert.equal(stored.has('nhmp_session_logout'), false);
 });
 
 test('a reduced-motion preference initially pauses the scene and prevents playing it', () => {
     const { elements, motionLabel, stored } = createBrowser({ reducedMotion: true });
     const toggle = elements.get('motionToggle');
-    assert.equal(elements.get('motorway-story').dataset.paused, 'true');
+    assertMotionPaused(elements, true);
     assert.equal(toggle.disabled, true);
     assert.equal(toggle.getAttribute('aria-pressed'), 'true');
     assert.equal(motionLabel.textContent, 'Reduced motion on');
     toggle.click();
-    assert.equal(elements.get('motorway-story').dataset.paused, 'true');
+    assertMotionPaused(elements, true);
     assert.equal(stored.has('nhmp_login_motion'), false);
 });
 
@@ -99,11 +106,11 @@ test('changing the system motion preference updates the scene without reloading'
     const { elements, motionLabel, setReducedMotion } = createBrowser();
     const toggle = elements.get('motionToggle');
     setReducedMotion(true);
-    assert.equal(elements.get('motorway-story').dataset.paused, 'true');
+    assertMotionPaused(elements, true);
     assert.equal(toggle.disabled, true);
     assert.equal(motionLabel.textContent, 'Reduced motion on');
     setReducedMotion(false);
-    assert.equal(elements.get('motorway-story').dataset.paused, 'false');
+    assertMotionPaused(elements, false);
     assert.equal(toggle.disabled, false);
     assert.equal(toggle.getAttribute('aria-pressed'), 'false');
     assert.equal(motionLabel.textContent, 'Pause motion');
@@ -114,36 +121,39 @@ test('manual pause persists and survives system-preference and visibility change
     const toggle = elements.get('motionToggle');
     toggle.click();
     assert.equal(stored.get('nhmp_login_motion'), 'paused');
+    assertMotionPaused(elements, true);
     assert.equal(toggle.getAttribute('aria-pressed'), 'true');
     assert.equal(motionLabel.textContent, 'Play motion');
     setReducedMotion(true);
+    assertMotionPaused(elements, true);
     setReducedMotion(false);
     setHidden(true);
+    assertMotionPaused(elements, true);
     setHidden(false);
-    assert.equal(elements.get('motorway-story').dataset.paused, 'true');
+    assertMotionPaused(elements, true);
     toggle.click();
     assert.equal(stored.get('nhmp_login_motion'), 'playing');
-    assert.equal(elements.get('motorway-story').dataset.paused, 'false');
+    assertMotionPaused(elements, false);
     assert.equal(motionLabel.textContent, 'Pause motion');
 });
 
 test('a saved pause is restored, and an otherwise running scene pauses in a hidden tab', () => {
     const saved = createBrowser({ paused: true });
-    assert.equal(saved.elements.get('motorway-story').dataset.paused, 'true');
+    assertMotionPaused(saved.elements, true);
     assert.equal(saved.motionLabel.textContent, 'Play motion');
     const running = createBrowser();
     running.setHidden(true);
-    assert.equal(running.elements.get('motorway-story').dataset.paused, 'true');
+    assertMotionPaused(running.elements, true);
     running.setHidden(false);
-    assert.equal(running.elements.get('motorway-story').dataset.paused, 'false');
+    assertMotionPaused(running.elements, false);
 });
 
 test('unavailable storage leaves password and motion controls usable', () => {
     const { elements } = createBrowser({ storageUnavailable: true });
     elements.get('motionToggle').click();
-    assert.equal(elements.get('motorway-story').dataset.paused, 'true');
+    assertMotionPaused(elements, true);
     elements.get('motionToggle').click();
-    assert.equal(elements.get('motorway-story').dataset.paused, 'false');
+    assertMotionPaused(elements, false);
     elements.get('togglePassword').click();
     assert.equal(elements.get('password').type, 'text');
 });

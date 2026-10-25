@@ -20,10 +20,11 @@ class TwoFactorController extends Controller
         ]);
 
         $user = auth()->user();
-        $google2fa = new Google2FA();
+        $google2fa = new Google2FA;
 
         if ($google2fa->verifyKey($user->totp_secret, $request->code)) {
             session(['2fa_verified' => true]);
+
             return redirect()->intended(route('dashboard'));
         }
 
@@ -33,9 +34,9 @@ class TwoFactorController extends Controller
     public function setup()
     {
         $user = auth()->user();
-        $google2fa = new Google2FA();
+        $google2fa = new Google2FA;
 
-        if (!$user->totp_secret) {
+        if (! $user->totp_secret) {
             $user->totp_secret = $google2fa->generateSecretKey();
             $user->save();
         }

@@ -21,6 +21,7 @@ class User extends Authenticatable
         'mobile_no',
         'username',
         'password',
+        'password_changed_at',
         'role_id',
         'is_active',
         'last_login_at',
@@ -36,11 +37,139 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'password'     => 'hashed',
-            'is_active'    => 'boolean',
-            'last_login_at'=> 'datetime',
-            'locked_until' => 'datetime',
+            'password'            => 'hashed',
+            'password_changed_at' => 'datetime',
+            'is_active'           => 'boolean',
+            'mfa_required'        => 'boolean',
+            'security_version'    => 'integer',
+            'totp_last_step'      => 'integer',
+            'last_login_at'       => 'datetime',
+            'locked_until'        => 'datetime',
+            'mfa_enrolled_at'     => 'datetime',
         ];
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Two-Factor & Security Helpers                                        */
+    /* ------------------------------------------------------------------ */
+
+    public function getDecryptedTotpSecret(): ?string
+    {
+        if (empty($this->totp_secret)) {
+            return null;
+        }
+
+        try {
+            return \Illuminate\Support\Facades\Crypt::decryptString($this->totp_secret);
+        } catch (\Throwable $e) {
+            // If ciphertext cannot be decrypted (e.g. legacy unencrypted secret in test fixture)
+            // check if it's already a valid Base32 string of expected length
+            if (preg_match('/^[A-Z2-7]{16,64}$/i', $this->totp_secret)) {
+                return $this->totp_secret;
+            }
+            \Illuminate\Support\Facades\Log::error("Failed to decrypt TOTP secret for user ID {$this->id}");
+            return null;
+        }
+    }
+
+    public function setEncryptedTotpSecret(?string $secret): void
+    {
+        if (empty($secret)) {
+            $this->totp_secret = null;
+        } else {
+            $this->totp_secret = \Illuminate\Support\Facades\Crypt::encryptString($secret);
+        }
+    }
+
+    public function hasMfaEnrolled(): bool
+    {
+        if (!empty($this->totp_secret)) {
+            return true;
+        }
+
+        return $this->activeWebAuthnCredentials()->exists();
+    }
+
+    public function isPrivileged(): bool
+    {
+        $roleName = $this->role?->name;
+        if ($roleName !== null) {
+            return in_array($roleName, ['super_admin', 'operation_admin', Role::SUPER_ADMIN, Role::IT_ADMIN], true);
+        }
+
+        return in_array((int)$this->role_id, [1, 2], true);
+    }
+
+    public function requiresWebAuthn(): bool
+    {
+        return $this->mfa_assurance_level === 'webauthn';
+    }
+
+    public function bumpSecurityVersion(): void
+    {
+        $this->increment('security_version');
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  15-Day Password Expiry Policy Helpers                             */
+    /* ------------------------------------------------------------------ */
+
+    public function isPasswordExpired(?int $days = null): bool
+    {
+        $days = $days ?? (int) config('auth.password_expiry_days', 15);
+        $changedAt = $this->password_changed_at ?? $this->created_at;
+
+        if (! $changedAt) {
+            return true;
+        }
+
+        return $changedAt->copy()->addDays($days)->isPast();
+    }
+
+    public function daysUntilPasswordExpires(?int $days = null): int
+    {
+        $days = $days ?? (int) config('auth.password_expiry_days', 15);
+        $changedAt = $this->password_changed_at ?? $this->created_at;
+
+        if (! $changedAt) {
+            return 0;
+        }
+
+        $expiryDate = $changedAt->copy()->addDays($days);
+        return max(0, (int) now()->diffInDays($expiryDate, false));
+    }
+
+    public function passwordExpiresAt(?int $days = null): ?\Illuminate\Support\Carbon
+    {
+        $days = $days ?? (int) config('auth.password_expiry_days', 15);
+        $changedAt = $this->password_changed_at ?? $this->created_at;
+
+        return $changedAt ? $changedAt->copy()->addDays($days) : null;
+    }
+
+    public function recoveryCodes(): HasMany
+    {
+        return $this->hasMany(TwoFactorRecoveryCode::class);
+    }
+
+    public function enrollmentAuthorizations(): HasMany
+    {
+        return $this->hasMany(TwoFactorEnrollmentAuthorization::class, 'user_id');
+    }
+
+    public function recoveryApprovals(): HasMany
+    {
+        return $this->hasMany(TwoFactorRecoveryApproval::class, 'user_id');
+    }
+
+    public function webAuthnCredentials(): HasMany
+    {
+        return $this->hasMany(WebAuthnCredential::class);
+    }
+
+    public function activeWebAuthnCredentials(): HasMany
+    {
+        return $this->hasMany(WebAuthnCredential::class)->whereNull('revoked_at');
     }
 
     /* ------------------------------------------------------------------ */
@@ -186,7 +315,8 @@ class User extends Authenticatable
             'geography.offices.view'   => 'admin.offices.index',
             'geography.carriageways.view' => 'admin.carriageways.index',
             'roles.view'               => 'admin.roles.index',
-            'system.settings.view'     => 'admin.settings.index',
+            'security.mfa_roles.view'  => 'admin.mfa-settings.index',
+            'system.settings.view'     => 'admin.mfa-settings.index',
             'system.audit_view'        => 'admin.audit.index',
         ];
 

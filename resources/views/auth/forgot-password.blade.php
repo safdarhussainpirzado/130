@@ -1,283 +1,125 @@
 <x-guest-layout>
-  <style>
-    /* bento elevation */
-    .bento-card {
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-    }
-    
-    /* micro-interactions with ripple effect */
-    .btn-ripple {
-      position: relative;
-      overflow: hidden;
-      transform: translate3d(0,0,0);
-    }
-    .btn-ripple:after {
-      content: "";
-      display: block;
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      top: 0;
-      left: 0;
-      pointer-events: none;
-      background-image: radial-gradient(circle, #fff 10%, transparent 10.01%);
-      background-repeat: no-repeat;
-      background-position: 50%;
-      transform: scale(10,10);
-      opacity: 0;
-      transition: transform .3s, opacity .5s;
-    }
-    .btn-ripple:active:after {
-      transform: scale(0,0);
-      opacity: 0.3;
-      transition: 0s;
-    }
-    
-    /* page entrance animation */
-    .fade-slide-in {
-      animation: fadeSlide 0.6s cubic-bezier(0.2, 0.9, 0.4, 1) forwards;
-    }
-    @keyframes fadeSlide {
-      0% { opacity: 0; transform: translateY(16px); }
-      100% { opacity: 1; transform: translateY(0); }
-    }
-    
-    /* glow effects for glass panels */
-    .glow-shadow {
-      box-shadow: 0 20px 40px -12px rgba(37, 99, 235, 0.15), 0 4px 18px -6px rgba(0, 0, 0, 0.05);
-    }
-    .glow-shadow-lg {
-      box-shadow: 0 25px 50px -12px rgba(37, 99, 235, 0.25);
-    }
-    
-    .input-floating-wrapper input:focus::placeholder {
-      opacity: 0.5;
-    }
-  </style>
+    <div class="login-page {{ $errors->any() ? 'has-login-errors' : '' }}" id="nhmp-login">
+        <div class="ambient-orb ambient-orb-blue" aria-hidden="true"></div>
+        <div class="ambient-orb ambient-orb-mint" aria-hidden="true"></div>
+        <a class="skip-link" href="#forgot-heading">Skip to reset form</a>
 
-  <!-- MAIN BENTO GRID CONTAINER -->
-  <div class="w-full max-w-7xl mx-auto">
-    <div class="flex flex-col md:flex-row gap-6 lg:gap-8 items-stretch">
-
-      <!-- LEFT BRANDING PANEL -->
-      <div class="w-full md:w-[40%] relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-indigo-800 glow-shadow-lg p-8 flex flex-col justify-between bento-card border border-white/30 fade-slide-in" style="animation-delay: 0s;">
-        <!-- abstract animated shapes -->
-        <div class="absolute -top-20 -right-20 w-64 h-64 bg-blue-400/20 rounded-full blur-3xl animate-pulse"></div>
-        <div class="absolute bottom-10 left-0 w-40 h-40 bg-indigo-300/20 rounded-full blur-3xl"></div>
-        <div class="absolute top-1/3 right-10 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
-        
-        <div class="relative z-10">
-          <!-- NHMP Logo / emblem -->
-          <div class="flex items-center gap-3 mb-8">
-            <div class="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-xl border border-white/40">
-              <i class="fa-solid fa-shield-halved text-white text-2xl"></i>
-            </div>
-            <span class="text-white font-black tracking-tight text-xl">NHMP 130</span>
-          </div>
-          <h1 class="text-4xl md:text-5xl font-extrabold text-white leading-tight tracking-tight drop-shadow-lg">
-            Credential<br>Recovery
-          </h1>
-          <p class="text-indigo-100 text-lg mt-4 font-medium max-w-xs">
-            Operational Protocol<br>Tiered Administrator Authorization.
-          </p>
-        </div>
-
-        <div class="relative z-10 mt-10">
-          <div class="flex items-center gap-3 text-white/90 text-sm font-medium">
-            <div class="w-5 h-5 rounded-full bg-emerald-400/30 flex items-center justify-center">
-              <i class="fa-solid fa-check text-emerald-200 text-xs"></i>
-            </div>
-            <span>Operator requests routed to Operation Managers</span>
-          </div>
-          <div class="flex items-center gap-3 text-white/90 text-sm font-medium mt-3">
-            <div class="w-5 h-5 rounded-full bg-emerald-400/30 flex items-center justify-center">
-              <i class="fa-solid fa-check text-emerald-200 text-xs"></i>
-            </div>
-            <span>Peer authorization between Operation Managers</span>
-          </div>
-          <div class="flex items-center gap-3 text-white/90 text-sm font-medium mt-3">
-            <div class="w-5 h-5 rounded-full bg-emerald-400/30 flex items-center justify-center">
-              <i class="fa-solid fa-check text-emerald-200 text-xs"></i>
-            </div>
-            <span>Super Admin recovery isolated to server CLI</span>
-          </div>
-          <!-- subtle animated line -->
-          <div class="mt-8 h-px w-20 bg-gradient-to-r from-white/50 to-transparent"></div>
-          <p class="text-white/70 text-xs mt-4 uppercase tracking-widest font-bold">NHMP · since 2025</p>
-        </div>
-      </div>
-
-      <!-- RIGHT FORM CARD -->
-      <div class="w-full md:w-[60%] bg-white/75 backdrop-blur-xl rounded-3xl glow-shadow border border-white/60 p-6 md:p-8 lg:p-10 bento-card fade-slide-in" style="animation-delay: 0.1s;">
-        
-        <!-- Header -->
-        <div class="mb-6 border-l-4 border-indigo-500 pl-4">
-          <h2 class="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Request Password Reset</h2>
-          <p class="text-slate-500 text-sm font-medium mt-1">
-            Submit your official username or registered email. Your reset request will be routed to the authorized Operation Managers.
-          </p>
-        </div>
-
-        <!-- Session Status: Operation Manager Peer Request -->
-        @if (session('status_op_manager'))
-          <div class="mb-6 p-5 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-start gap-3.5 shadow-sm">
-            <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-md shadow-indigo-600/20">
-              <i class="fa-solid fa-users-gear text-base"></i>
-            </div>
-            <div class="flex-1">
-              <h4 class="text-sm font-black text-indigo-900 tracking-tight">Operation Manager Peer Authorization Dispatched</h4>
-              <p class="text-xs text-indigo-700 mt-1 font-semibold leading-relaxed">
-                {{ session('status_op_manager') }}
-              </p>
-            </div>
-          </div>
-        @endif
-
-        <!-- Session Status: Operator Request -->
-        @if (session('status_operator'))
-          <div class="mb-6 p-5 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-start gap-3.5 shadow-sm">
-            <div class="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-md shadow-emerald-600/20">
-              <i class="fa-solid fa-clipboard-check text-base"></i>
-            </div>
-            <div class="flex-1">
-              <h4 class="text-sm font-black text-emerald-900 tracking-tight">Request Forwarded to Operations Control</h4>
-              <p class="text-xs text-emerald-700 mt-1 font-semibold leading-relaxed">
-                {{ session('status_operator') }}
-              </p>
-            </div>
-          </div>
-        @endif
-
-        <!-- Session Status: Info / Pending -->
-        @if (session('status_info'))
-          <div class="mb-6 p-5 rounded-2xl bg-amber-50 border border-amber-200 flex items-start gap-3.5 shadow-sm">
-            <div class="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-md shadow-amber-500/20">
-              <i class="fa-solid fa-clock text-base"></i>
-            </div>
-            <div class="flex-1">
-              <h4 class="text-sm font-black text-amber-900 tracking-tight">Pending Request Active</h4>
-              <p class="text-xs text-amber-700 mt-1 font-semibold leading-relaxed">
-                {{ session('status_info') }}
-              </p>
-            </div>
-          </div>
-        @endif
-
-        <!-- Error Notification -->
-        @if ($errors->any())
-          <div class="mb-6 p-5 rounded-2xl bg-rose-50 border border-rose-200 flex items-start gap-3.5 shadow-sm">
-            <div class="w-9 h-9 rounded-xl bg-rose-500 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-md shadow-rose-500/20">
-              <i class="fa-solid fa-shield-halved text-base"></i>
-            </div>
-            <div class="flex-1">
-              <h4 class="text-sm font-black text-rose-900 tracking-tight">Security / Policy Notice</h4>
-              <p class="text-xs text-rose-700 mt-1 font-semibold leading-relaxed">
-                @if ($errors->has('identifier'))
-                  {{ $errors->first('identifier') }}
-                @else
-                  Please check the credentials entered or contact the Operations Control Room.
-                @endif
-              </p>
-            </div>
-          </div>
-        @endif
-
-        <!-- FORGOT PASSWORD FORM -->
-        <form id="forgotPasswordForm" class="space-y-6" method="POST" action="{{ route('password.email') }}">
-          @csrf
-
-          <!-- USERNAME OR EMAIL FIELD -->
-          <div class="input-floating-wrapper">
-            <label for="identifier" class="block text-xs font-black tracking-widest uppercase text-slate-400 mb-2">Official Username or Email</label>
-            <div class="relative group">
-              <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
-                <i class="fa-regular fa-user text-slate-400 group-focus-within:text-blue-500 transition-colors"></i>
-              </div>
-              <input id="identifier" 
-                     name="identifier" 
-                     type="text" 
-                     value="{{ old('identifier') }}"
-                     required 
-                     autofocus 
-                     autocomplete="username" 
-                     placeholder="e.g. nhmp_agent or officer@nhmp.gov.pk"
-                     class="block w-full pl-11 pr-4 py-3.5 rounded-xl border border-slate-200 bg-white/80 backdrop-blur-sm shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 text-slate-900 font-medium placeholder:text-slate-400 transition-all hover:bg-white outline-none">
-            </div>
-            <x-input-error :messages="$errors->get('identifier')" class="mt-2 text-rose-500 text-sm font-bold flex items-center gap-1" />
-          </div>
-
-          <!-- OPTIONAL CONTACT / DUTY NOTES -->
-          <div class="input-floating-wrapper">
-            <label for="notes" class="block text-xs font-black tracking-widest uppercase text-slate-400 mb-2">Duty Station / Contact Notes (Optional)</label>
-            <div class="relative group">
-              <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
-                <i class="fa-regular fa-comment-dots text-slate-400 group-focus-within:text-blue-500 transition-colors"></i>
-              </div>
-              <input id="notes" 
-                     name="notes" 
-                     type="text" 
-                     value="{{ old('notes') }}"
-                     placeholder="e.g. Central Zone Beat 14 or Contact: 0300-XXXXXXX"
-                     class="block w-full pl-11 pr-4 py-3.5 rounded-xl border border-slate-200 bg-white/80 backdrop-blur-sm shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 text-slate-900 font-medium placeholder:text-slate-400 transition-all hover:bg-white outline-none">
-            </div>
-          </div>
-
-          <!-- SECURITY HIERARCHY NOTICE BADGE -->
-          <div class="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/70 space-y-2 text-slate-600 text-xs font-medium">
-            <div class="flex items-center gap-2 font-black text-slate-700 text-xs uppercase tracking-wider">
-              <i class="fa-solid fa-shield text-blue-600"></i>
-              <span>Access Hierarchy & Authorization</span>
-            </div>
-            <ul class="space-y-1.5 pl-5 list-disc text-slate-500">
-              <li><strong class="text-slate-700">Operators & Field Personnel:</strong> Reset requests are queued for authorization by on-duty Operation Managers.</li>
-              <li><strong class="text-slate-700">Operation Managers:</strong> Subject to peer authorization by fellow Operation Managers.</li>
-              <li><strong class="text-slate-700">Super Administrator:</strong> Excluded from web resets; root recovery is strictly restricted to server console / SSH.</li>
-            </ul>
-          </div>
-
-          <!-- PRIMARY CTA -->
-          <div class="pt-2">
-            <button type="submit" id="submitBtn" class="btn-ripple w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black tracking-widest uppercase shadow-xl shadow-blue-500/30 hover:shadow-blue-500/40 transition-all hover:-translate-y-0.5 active:scale-[0.98] flex items-center justify-center gap-2 text-base disabled:opacity-75 disabled:pointer-events-none">
-              <span id="btnText">Submit Request to Operation Managers</span>
-              <i id="btnIcon" class="fa-solid fa-paper-plane text-sm"></i>
-              <span id="loadingSpinner" class="hidden"><i class="fa-solid fa-circle-notch fa-spin"></i></span>
-            </button>
-          </div>
-
-          <!-- BACK TO LOGIN LINK -->
-          <div class="text-center pt-2">
-            <a href="{{ route('login') }}" class="inline-flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-blue-600 transition-colors py-2 px-4 rounded-xl hover:bg-slate-100/60">
-              <i class="fa-solid fa-arrow-left text-xs"></i>
-              <span>Back to Sign In</span>
+        <header class="login-header">
+            <a class="brand" href="{{ route('login') }}" aria-label="NHMP 130 sign in">
+                <span class="brand-emblem" aria-hidden="true"><img src="{{ asset('images/login/shield-logo-web.webp') }}" width="68" height="67" alt="" fetchpriority="high" decoding="async"></span>
+                <span class="brand-wordmark">NHMP <strong>130</strong><span>National Highways &amp; Motorway Police</span></span>
             </a>
-          </div>
-        </form>
-        
-        <!-- subtle footer -->
-        <p class="text-[11px] text-slate-400 text-center mt-6 uppercase tracking-wider font-bold">NHMP 130 • Carriageway Emergency CRM</p>
-      </div>
+            <div class="service-pill"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m10 2 6 2.5V10c0 4-6 7-6 7s-6-3-6-7V4.5L10 2Z"/><path d="m7 9 2 2 4-4"/></svg>Security Gate. Identity Recovery.</div>
+        </header>
+
+        <main class="login-main auth-grid-left-form">
+            <!-- LEFT COLUMN: FORM CARD -->
+            <section class="login-card" aria-labelledby="forgot-heading">
+                <div class="card-accent" aria-hidden="true"></div>
+                <div class="card-heading">
+                    <div class="access-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    </div>
+                    <div>
+                        <p class="card-eyebrow">NHMP 130 IDENTITY RECOVERY</p>
+                        <h2 id="forgot-heading" tabindex="-1">Forgot Password<span>.</span></h2>
+                    </div>
+                </div>
+
+                <p class="card-intro">Enter your registered email address and we will dispatch a secure password reset link.</p>
+
+                @if (session('status_operator'))
+                    <div class="login-status" role="status" style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #065f46; padding: 14px 18px; border-radius: 14px; margin-bottom: 20px; font-size: 13px; line-height: 1.5;">
+                        <div style="font-weight: 700; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                            <svg viewBox="0 0 20 20" fill="currentColor" style="width: 16px; height: 16px; color: #10b981;"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                            Request Dispatched to Operation Managers
+                        </div>
+                        {{ session('status_operator') }}
+                    </div>
+                @endif
+
+                @if (session('status_op_manager'))
+                    <div class="login-status" role="status" style="background: rgba(59, 130, 246, 0.12); border: 1px solid rgba(59, 130, 246, 0.3); color: #1e40af; padding: 14px 18px; border-radius: 14px; margin-bottom: 20px; font-size: 13px; line-height: 1.5;">
+                        <div style="font-weight: 700; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                            <svg viewBox="0 0 20 20" fill="currentColor" style="width: 16px; height: 16px; color: #3b82f6;"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                            Peer Authorization Request Submitted
+                        </div>
+                        {{ session('status_op_manager') }}
+                    </div>
+                @endif
+
+                @if (session('status_info'))
+                    <div class="login-status" role="status" style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.3); color: #92400e; padding: 14px 18px; border-radius: 14px; margin-bottom: 20px; font-size: 13px; line-height: 1.5;">
+                        <div style="font-weight: 700; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                            <svg viewBox="0 0 20 20" fill="currentColor" style="width: 16px; height: 16px; color: #f59e0b;"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+                            Pending Request Notice
+                        </div>
+                        {{ session('status_info') }}
+                    </div>
+                @endif
+
+                @if (session('status'))
+                    <div class="login-status" role="status">
+                        {{ session('status') }}
+                    </div>
+                @endif
+
+                @if ($errors->any())
+                    <div class="login-alert" id="login-errors" role="alert" tabindex="-1">
+                        <strong>Reset Request Failed</strong>
+                        @foreach ($errors->all() as $error)
+                            <span>{{ $error }}</span>
+                        @endforeach
+                    </div>
+                @endif
+
+                <form id="loginForm" method="POST" action="{{ route('password.email') }}">
+                    @csrf
+                    <div class="form-field">
+                        <label for="identifier">Registered Email Address or Username</label>
+                        <div class="input-wrap">
+                            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                            <input id="identifier" 
+                                   name="identifier" 
+                                   type="text" 
+                                   value="{{ old('identifier', old('email')) }}" 
+                                   required 
+                                   autofocus 
+                                   autocomplete="username" 
+                                   placeholder="officer@nhmp.gov.pk or username">
+                        </div>
+                    </div>
+
+                    <!-- 3D BUTTON (Matching Login Page) -->
+                    <button type="submit" id="loginButton" class="sign-in-button">
+                        <span id="btnText">Submit Password Reset Request</span>
+                        <svg class="submit-arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+                        <span id="loadingSpinner" class="login-spinner" hidden aria-hidden="true"></span>
+                    </button>
+                    <p id="loginProgress" class="sr-only" role="status" aria-live="polite"></p>
+
+                    <div class="form-options">
+                        <a href="{{ route('login') }}">Remember your password? Sign in &rarr;</a>
+                    </div>
+                </form>
+
+                <div class="card-footer">
+                    <a href="{{ route('login') }}" style="display: inline-flex; align-items: center; gap: 4px; text-decoration: none; color: inherit;">
+                        <svg viewBox="0 0 20 20" fill="none" style="width: 13px; height: 13px; stroke: currentColor; stroke-width: 1.5;"><path d="M15 10H5m4-4l-4 4 4 4"/></svg>
+                        Back to Login
+                    </a>
+                    <span>NHMP 130 CRM</span>
+                </div>
+                <p class="access-help">Need access? Contact your system administrator.</p>
+            </section>
+
+            <!-- RIGHT COLUMN: SCENIC BRANDING CARD -->
+            @include('auth.partials.scenic-branding-card')
+        </main>
+
+        <footer class="login-footer">
+            <span><span class="footer-long">National Highways &amp; Motorway Police · </span>© {{ date('Y') }} NHMP 130</span>
+            <span class="helpline"><span>Roadside assistance</span><a href="tel:130"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m5 2 3 4-2 2c1 3 3 5 6 6l2-2 4 3-1 3C9 19 1 11 2 3l3-1Z"/></svg>130</a></span>
+        </footer>
     </div>
-  </div>
-
-  <script>
-    (function() {
-      "use strict";
-
-      const form = document.getElementById('forgotPasswordForm');
-      const submitBtn = document.getElementById('submitBtn');
-      const btnText = document.getElementById('btnText');
-      const btnIcon = document.getElementById('btnIcon');
-      const spinner = document.getElementById('loadingSpinner');
-
-      if (form && submitBtn) {
-        form.addEventListener('submit', function() {
-          submitBtn.disabled = true;
-          if (btnText) btnText.textContent = 'Transmitting Request...';
-          if (btnIcon) btnIcon.classList.add('hidden');
-          if (spinner) spinner.classList.remove('hidden');
-        });
-      }
-    })();
-  </script>
 </x-guest-layout>

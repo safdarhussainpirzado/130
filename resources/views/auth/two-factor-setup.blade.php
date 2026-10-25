@@ -1,72 +1,164 @@
-@extends('layouts.app')
+<x-guest-layout>
+    <div class="login-page {{ $errors->any() ? 'has-login-errors' : '' }}" id="nhmp-login">
+        <div class="ambient-orb ambient-orb-blue" aria-hidden="true"></div>
+        <div class="ambient-orb ambient-orb-mint" aria-hidden="true"></div>
+        <a class="skip-link" href="#setup-heading">Skip to enrollment</a>
 
-@section('title', 'Secure 2FA Setup - NHMP 130')
+        <header class="login-header">
+            <a class="brand" href="{{ route('login') }}" aria-label="NHMP 130 sign in">
+                <span class="brand-emblem" aria-hidden="true"><img src="{{ asset('images/login/shield-logo-web.webp') }}" width="68" height="67" alt="" fetchpriority="high" decoding="async"></span>
+                <span class="brand-wordmark">NHMP <strong>130</strong><span>National Highways &amp; Motorway Police</span></span>
+            </a>
+            <div class="service-pill"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m10 2 6 2.5V10c0 4-6 7-6 7s-6-3-6-7V4.5L10 2Z"/><path d="m7 9 2 2 4-4"/></svg>Security Gate. Multi-Factor Auth.</div>
+        </header>
 
-@section('page-title', 'Secure 2FA Setup')
-
-@section('content')
-
-
-    <div class="py-12">
-        <div class="max-w-4xl mx-auto sm:px-6 lg:px-8">
-            <div class="bg-white rounded-[3rem] shadow-2xl border border-slate-100 overflow-hidden relative">
-                <div class="absolute -right-20 -top-20 w-80 h-80 bg-blue-600 rounded-full blur-[100px] opacity-[0.05]"></div>
-                
-                <div class="bg-gradient-to-r from-navy-900 via-slate-800 to-navy-900 p-12 text-white relative">
-                    <h3 class="text-2xl font-black tracking-tight uppercase italic scale-y-110">Protocol Initialization</h3>
-                    <p class="text-blue-200 text-[10px] font-black uppercase tracking-[0.3em] mt-2 opacity-60">Synchronize your biometric device with the central command vault</p>
+        <main class="login-main auth-grid-left-form">
+            <!-- LEFT COLUMN: FORM CARD -->
+            <section class="login-card" aria-labelledby="setup-heading">
+                <div class="card-accent" aria-hidden="true"></div>
+                <div class="card-heading">
+                    <div class="access-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    </div>
+                    <div>
+                        <p class="card-eyebrow">NHMP 130 TWO-FACTOR SETUP</p>
+                        <h2 id="setup-heading" tabindex="-1">Set Up Authenticator<span>.</span></h2>
+                    </div>
                 </div>
 
-                <div class="p-16 grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
-                    <!-- QR Code Section -->
-                    <div class="flex flex-col items-center text-center space-y-6">
-                        <div class="p-4 bg-white rounded-[2rem] shadow-[0_20px_40px_rgba(0,0,0,0.05)] border border-slate-100 inline-block group hover:scale-105 transition-transform duration-500">
-                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={{ urlencode($qrCodeUrl) }}" 
-                                 alt="QR Code" 
-                                 class="w-48 h-48 rounded-xl">
-                        </div>
-                        <div>
-                            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Manual Override Key</span>
-                            <code class="px-4 py-2 bg-slate-50 rounded-lg font-mono text-sm font-bold text-navy-900 border border-slate-100 inline-block tracking-widest select-all">
-                                {{ $secret }}
-                            </code>
+                <p class="card-intro">Scan the QR code with Google Authenticator or enter the manual key below.</p>
+
+                <!-- User Identity Badge -->
+                <div class="user-id-pill">
+                    <div class="user-avatar-circle">
+                        {{ strtoupper(substr($user->full_name ?? $user->username ?? 'U', 0, 1)) }}
+                    </div>
+                    <div class="user-meta">
+                        <strong>{{ $user->full_name ?? 'NHMP Personnel' }}</strong>
+                        <span>{{ $user->username }}</span>
+                    </div>
+                    <span class="user-security-badge" style="color: #2563eb; background: #eff6ff; border-color: #bfdbfe;">Enrollment Gate</span>
+                </div>
+
+                @if ($errors->any())
+                    <div class="login-alert" id="login-errors" role="alert" tabindex="-1">
+                        <strong>Activation Failed</strong>
+                        @foreach ($errors->all() as $error)
+                            <span>{{ $error }}</span>
+                        @endforeach
+                    </div>
+                @endif
+
+                <!-- QR Code & Secret Key Box -->
+                <div class="qr-setup-box">
+                    <div class="qr-img-wrapper">
+                        @if (!empty($qrCodeSvg))
+                            {!! $qrCodeSvg !!}
+                        @elseif (!empty($qrCodeDataUri))
+                            <img src="{{ $qrCodeDataUri }}" alt="Scan with Authenticator App" style="width: 180px; height: 180px; display: block; margin: 0 auto;">
+                        @endif
+                    </div>
+                    <div class="secret-key-display">
+                        <span style="font-size: 10px; font-weight: 700; color: #5d728d; text-transform: uppercase; letter-spacing: 0.5px;">Manual Setup Key:</span>
+                        <code class="secret-key-code" id="manualSecretInput">{{ $secret }}</code>
+                        <button type="button" 
+                                id="btnCopySecret"
+                                onclick="copyManualSecret()"
+                                class="btn-action-outline"
+                                style="width: 100%; padding-block: 6px;">
+                            <svg viewBox="0 0 20 20" fill="none" style="width: 13px; height: 13px; stroke: currentColor; stroke-width: 1.5;"><rect x="6" y="6" width="10" height="10" rx="2"/><path d="M4 14V4a2 2 0 0 1 2-2h10"/></svg>
+                            <span id="btnCopyText">Copy Key</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 6-Digit Code Confirmation Form -->
+                <form id="loginForm" method="POST" action="{{ route('2fa.enroll.confirm') }}">
+                    @csrf
+                    <div class="form-field">
+                        <label for="code">Enter 6-digit confirmation code</label>
+                        <div class="input-wrap pin-wrap">
+                            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/></svg>
+                            <input id="code" 
+                                   name="code" 
+                                   type="text" 
+                                   maxlength="6" 
+                                   pattern="[0-9]{6}" 
+                                   inputmode="numeric" 
+                                   required 
+                                   autofocus 
+                                   autocomplete="one-time-code" 
+                                   placeholder="000 000" 
+                                   class="totp-code-input">
                         </div>
                     </div>
 
-                    <!-- Instructions Section -->
-                    <div class="space-y-8">
-                        <div class="flex gap-6">
-                            <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex-shrink-0 flex items-center justify-center font-black">1</div>
-                            <div>
-                                <h4 class="text-sm font-black text-navy-900 uppercase mb-2">Open Authenticator</h4>
-                                <p class="text-xs text-slate-500 font-medium leading-relaxed">Launch Google Authenticator, Authy, or Microsoft Authenticator on your mobile terminal.</p>
-                            </div>
-                        </div>
+                    <!-- 3D BUTTON (Matching Login Page) -->
+                    <button type="submit" id="loginButton" class="sign-in-button">
+                        <span id="btnText">Verify code &amp; activate 2FA</span>
+                        <svg class="submit-arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+                        <span id="loadingSpinner" class="login-spinner" hidden aria-hidden="true"></span>
+                    </button>
+                    <p id="loginProgress" class="sr-only" role="status" aria-live="polite"></p>
+                </form>
 
-                        <div class="flex gap-6">
-                            <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex-shrink-0 flex items-center justify-center font-black">2</div>
-                            <div>
-                                <h4 class="text-sm font-black text-navy-900 uppercase mb-2">Scan Matrix</h4>
-                                <p class="text-xs text-slate-500 font-medium leading-relaxed">Select 'Add Account' and scan the QR matrix displayed on the left of this console.</p>
-                            </div>
-                        </div>
-
-                        <div class="flex gap-6">
-                            <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex-shrink-0 flex items-center justify-center font-black">3</div>
-                            <div>
-                                <h4 class="text-sm font-black text-navy-900 uppercase mb-2">Finalize Link</h4>
-                                <p class="text-xs text-slate-500 font-medium leading-relaxed">Once scanned, navigate back to the dashboard to ensure the protocol is active.</p>
-                            </div>
-                        </div>
-
-                        <div class="pt-6">
-                            <a href="{{ route('dashboard') }}" class="inline-flex px-10 py-4 bg-navy-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:-translate-y-1 transition-all">
-                                Return to Dashboard
-                            </a>
-                        </div>
-                    </div>
+                <div class="mfa-info-note" style="margin-top: 14px;">
+                    <strong>Instructions:</strong> Open <strong>Google Authenticator</strong> or <strong>Microsoft Authenticator</strong>, tap <strong>+</strong>, scan the QR code, and enter the generated 6-digit token.
                 </div>
-            </div>
-        </div>
+
+                <div class="card-footer">
+                    <a href="{{ route('login') }}" style="display: inline-flex; align-items: center; gap: 4px; text-decoration: none; color: inherit;">
+                        <svg viewBox="0 0 20 20" fill="none" style="width: 13px; height: 13px; stroke: currentColor; stroke-width: 1.5;"><path d="M15 10H5m4-4l-4 4 4 4"/></svg>
+                        Cancel &amp; Return to Sign In
+                    </a>
+                    <span>NHMP 130 CRM</span>
+                </div>
+            </section>
+
+            <!-- RIGHT COLUMN: SCENIC BRANDING CARD -->
+            @include('auth.partials.scenic-branding-card')
+        </main>
+
+        <footer class="login-footer">
+            <span><span class="footer-long">National Highways &amp; Motorway Police · </span>© {{ date('Y') }} NHMP 130</span>
+            <span class="helpline"><span>Roadside assistance</span><a href="tel:130"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m5 2 3 4-2 2c1 3 3 5 6 6l2-2 4 3-1 3C9 19 1 11 2 3l3-1Z"/></svg>130</a></span>
+        </footer>
     </div>
-@endsection
+
+    <!-- Vanilla Javascript Copy Function -->
+    <script>
+        function copyManualSecret() {
+            var secret = "{{ $secret }}";
+            var btnText = document.getElementById("btnCopyText");
+            
+            function showSuccess() {
+                if (btnText) {
+                    btnText.innerText = "Copied!";
+                    setTimeout(function() { btnText.innerText = "Copy Key"; }, 2500);
+                }
+            }
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(secret).then(showSuccess, function() {
+                    fallbackCopySecret(secret, showSuccess);
+                });
+            } else {
+                fallbackCopySecret(secret, showSuccess);
+            }
+        }
+
+        function fallbackCopySecret(text, callback) {
+            var tempInput = document.createElement("input");
+            tempInput.value = text;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            try {
+                document.execCommand("copy");
+                callback();
+            } catch (e) {
+                console.error("Copy failed", e);
+            }
+            document.body.removeChild(tempInput);
+        }
+    </script>
+</x-guest-layout>

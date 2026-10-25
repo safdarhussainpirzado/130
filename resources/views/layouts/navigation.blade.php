@@ -22,15 +22,17 @@
 
 
                     <x-nav-link :href="route('admin.users.index')" :active="request()->routeIs('admin.users.*')">
-                        <i class="fa-solid fa-users mr-2"></i> Control Core
+                        <i class="fa-solid fa-users mr-2"></i> User Management
                     </x-nav-link>
+
+                    @can('security.mfa_roles.view')
+                    <x-nav-link :href="route('admin.mfa-settings.index')" :active="request()->routeIs('admin.mfa-settings.*') || request()->routeIs('admin.settings.*')">
+                        <i class="fa-solid fa-shield-halved mr-2"></i> MFA Settings
+                    </x-nav-link>
+                    @endcan
 
                     <x-nav-link :href="route('admin.roles.index')" :active="request()->routeIs('admin.roles.*')">
-                        <i class="fa-solid fa-shield-halved mr-2"></i> Policies
-                    </x-nav-link>
-
-                    <x-nav-link :href="route('admin.settings.index')" :active="request()->routeIs('admin.settings.*')">
-                        <i class="fa-solid fa-sliders mr-2"></i> SysConfigs
+                        <i class="fa-solid fa-user-lock mr-2"></i> Roles &amp; Permissions
                     </x-nav-link>
                 </div>
             </div>

@@ -18,12 +18,14 @@ class PreventBackHistory
         $response = $next($request);
 
         $headers = [
-            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
-            'Pragma' => 'no-cache',
-            'Expires' => '0',
-            'X-Frame-Options' => 'SAMEORIGIN',
+            'Cache-Control'          => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma'                 => 'no-cache',
+            'Expires'                => '0',
+            'X-Frame-Options'        => 'SAMEORIGIN',
             'X-Content-Type-Options' => 'nosniff',
-            'X-XSS-Protection' => '1; mode=block',
+            'X-XSS-Protection'       => '1; mode=block',
+            'Referrer-Policy'        => 'strict-origin-when-cross-origin',
+            'Content-Security-Policy'=> "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self';",
         ];
 
         if (method_exists($response, 'withHeaders')) {

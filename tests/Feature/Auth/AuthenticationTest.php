@@ -37,6 +37,7 @@ class AuthenticationTest extends TestCase
         ]);
 
         $this->createAuthenticationSchema();
+        $this->withoutMiddleware(\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class);
     }
 
     public function test_login_screen_can_be_rendered(): void
@@ -210,15 +211,15 @@ class AuthenticationTest extends TestCase
         $invalidCode = $code === '111111' ? '222222' : '111111';
 
         $this->post('/login', $this->credentials($user))->assertRedirect();
-        $this->get(route('auth.heartbeat'))->assertRedirect(route('2fa.index'));
-        $this->get(route('2fa.index'))->assertOk();
+        $this->get(route('auth.heartbeat'))->assertRedirect(route('2fa.challenge'));
+        $this->get(route('2fa.challenge'))->assertOk();
 
-        $this->from(route('2fa.index'))->post(route('2fa.verify'), ['code' => $invalidCode])
-            ->assertRedirect(route('2fa.index'))
+        $this->from(route('2fa.challenge'))->post(route('2fa.challenge.totp'), ['code' => $invalidCode])
+            ->assertRedirect(route('2fa.challenge'))
             ->assertSessionHasErrors('code');
-        $this->get(route('auth.heartbeat'))->assertRedirect(route('2fa.index'));
+        $this->get(route('auth.heartbeat'))->assertRedirect(route('2fa.challenge'));
 
-        $this->post(route('2fa.verify'), ['code' => $code])
+        $this->post(route('2fa.challenge.totp'), ['code' => $code])
             ->assertSessionHas('2fa_verified', true)
             ->assertRedirect(route('dashboard'));
         $this->get(route('auth.heartbeat'))->assertNoContent();
@@ -233,7 +234,7 @@ class AuthenticationTest extends TestCase
         $user = $this->createUser();
 
         $this->post('/login', $this->credentials($user))->assertRedirect();
-        $this->get(route('auth.heartbeat'))->assertRedirect(route('2fa.setup'));
+        $this->get(route('auth.heartbeat'))->assertRedirect(route('2fa.enroll.required'));
     }
 
     private function createUser(array $attributes = []): User
@@ -243,10 +244,10 @@ class AuthenticationTest extends TestCase
         return User::forceCreate(array_merge([
             'id' => self::$nextUserId++,
             'full_name' => 'Test NHMP Officer',
-            'email' => 'officer@example.test',
-            'mobile_no' => '03001234567',
-            'username' => 'test.officer',
-            'password' => Hash::make('TestPassword!130'),
+            'email' => 'officer' . self::$nextUserId . '@example.test',
+            'mobile_no' => '0300' . self::$nextUserId,
+            'username' => 'test.officer.' . self::$nextUserId,
+            'password' => 'TestPassword!130',
             'is_active' => true,
         ], $attributes));
     }
@@ -291,10 +292,43 @@ class AuthenticationTest extends TestCase
             $table->boolean('is_active')->default(true);
             $table->unsignedTinyInteger('failed_attempts')->default(0);
             $table->timestamp('locked_until')->nullable();
-            $table->string('totp_secret')->nullable();
+            $table->text('totp_secret')->nullable();
+            $table->unsignedBigInteger('totp_last_step')->nullable();
+            $table->boolean('mfa_required')->default(false);
+            $table->string('mfa_assurance_level', 20)->default('totp');
+            $table->unsignedInteger('security_version')->default(1);
+            $table->timestamp('mfa_enrolled_at')->nullable();
             $table->timestamp('last_login_at')->nullable();
             $table->string('last_login_ip')->nullable();
             $table->timestamps();
+        });
+        Schema::create('mfa_role_policies', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('role_id')->unique()->constrained('roles')->cascadeOnDelete();
+            $table->boolean('mfa_required')->default(true);
+            $table->timestamp('scheduled_re_enable_at')->nullable();
+            $table->text('reason')->nullable();
+            $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamps();
+        });
+        Schema::create('webauthn_credentials', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $table->string('credential_id', 255)->unique();
+            $table->text('public_key');
+            $table->unsignedInteger('sign_count')->default(0);
+            $table->string('nickname')->nullable();
+            $table->string('aaguid', 36)->nullable();
+            $table->timestamp('revoked_at')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('two_factor_recovery_codes', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $table->string('code_hash', 255);
+            $table->string('generation_id', 36)->nullable();
+            $table->timestamp('consumed_at')->nullable();
+            $table->timestamp('created_at')->useCurrent();
         });
         Schema::create('system_settings', function (Blueprint $table) {
             $table->id();
@@ -317,6 +351,10 @@ class AuthenticationTest extends TestCase
             $table->id();
             $table->unsignedBigInteger('user_id')->nullable();
             $table->string('action');
+            $table->string('table_name')->nullable();
+            $table->unsignedBigInteger('record_id')->nullable();
+            $table->text('old_values')->nullable();
+            $table->text('new_values')->nullable();
             $table->string('ip_address')->nullable();
             $table->string('user_agent')->nullable();
             $table->timestamp('created_at')->useCurrent();

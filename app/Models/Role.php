@@ -19,6 +19,8 @@ class Role extends Model
 
     protected $fillable = ['name', 'display_name', 'scope_level', 'status'];
 
+    protected $appends = ['is_mfa_enforced', 'is_mfa_protected'];
+
     public function users()
     {
         return $this->hasMany(User::class);
@@ -27,5 +29,26 @@ class Role extends Model
     public function permissions()
     {
         return $this->belongsToMany(Permission::class, 'role_permissions');
+    }
+
+    public function mfaPolicy()
+    {
+        return $this->hasOne(MfaRolePolicy::class);
+    }
+
+    public function getIsMfaEnforcedAttribute(): bool
+    {
+        if (in_array($this->name, [self::SUPER_ADMIN, self::IT_ADMIN])) {
+            return true;
+        }
+
+        $policy = $this->relationLoaded('mfaPolicy') ? $this->mfaPolicy : $this->mfaPolicy()->first();
+
+        return $policy ? $policy->isEnforcedNow() : true;
+    }
+
+    public function getIsMfaProtectedAttribute(): bool
+    {
+        return in_array($this->name, [self::SUPER_ADMIN, self::IT_ADMIN]);
     }
 }

@@ -84,9 +84,10 @@ class ResetAdminPassword extends Command
         ];
 
         $user->forceFill([
-            'password' => Hash::make($password),
-            'remember_token' => Str::random(60),
-            'locked_until' => null,
+            'password'            => Hash::make($password),
+            'password_changed_at' => now(),
+            'remember_token'      => Str::random(60),
+            'locked_until'        => null,
         ]);
 
         if (array_key_exists('failed_attempts', $user->getAttributes())) {

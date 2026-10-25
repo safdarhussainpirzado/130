@@ -26,11 +26,18 @@ class PasswordResetLinkController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'identifier' => ['required', 'string', 'max:100'],
+            'identifier' => ['nullable', 'string', 'max:100'],
+            'email'      => ['nullable', 'string', 'max:100'],
             'notes'      => ['nullable', 'string', 'max:500'],
         ]);
 
-        $identifier = trim($request->input('identifier'));
+        $identifier = trim($request->input('identifier') ?? $request->input('email') ?? '');
+
+        if (empty($identifier)) {
+            return back()->withInput()->withErrors([
+                'identifier' => 'Please provide your registered email address or username.',
+            ]);
+        }
 
         // Look up by username or email
         $user = User::where('email', $identifier)

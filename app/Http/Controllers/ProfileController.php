@@ -28,7 +28,7 @@ class ProfileController extends Controller
     {
         $request->user()->fill($request->validated());
 
-        if ($request->user()->isDirty('email')) {
+        if ($request->user()->isDirty('email') && \Illuminate\Support\Facades\Schema::hasColumn('users', 'email_verified_at')) {
             $request->user()->email_verified_at = null;
         }
 

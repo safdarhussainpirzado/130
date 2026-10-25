@@ -10,7 +10,7 @@
     <div x-data="roleManager(@js([
         'items' => $roles,
         'permissions' => $permissions
-    ]))" class="space-y-8 relative mt-4 max-w-[1700px] mx-auto pb-32" @keydown.escape="showDetailsModal = false; showViewModal = false; showConfirmModal = false" x-cloak>
+    ]))" class="space-y-8 relative mt-4 max-w-[1700px] mx-auto pb-32" @keydown.escape="showDetailsModal = false; showViewModal = false; showConfirmModal = false; showMfaModal = false" x-cloak>
 
 
         <!-- Floating Sidebar Toggle -->
@@ -155,18 +155,31 @@
                                         </div>
 
                                         <div class="pt-5 border-t border-slate-100 space-y-3 w-full">
-                                            <!-- Action Grid: 3-col × 2-row icon buttons -->
-                                            <div class="grid grid-cols-3 gap-2">
-                                                <button @click="viewItem(item)" title="View Permissions" class="w-9 h-9 rounded-xl bg-emerald-500 border border-emerald-600 text-white hover:bg-emerald-600 active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
+                                            <!-- Action Grid: 6 icon buttons -->
+                                            <div class="grid grid-cols-6 gap-1.5">
+                                                <button @click="viewItem(item)" title="View Capabilities" class="w-8 h-8 rounded-xl bg-blue-600 border border-blue-700 text-white hover:bg-blue-700 active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
                                                     <i class="fa-solid fa-eye text-xs"></i>
                                                 </button>
-                                                <button @click="editItem(item)" title="Edit Role" class="w-9 h-9 rounded-xl bg-blue-500 border border-blue-600 text-white hover:bg-blue-600 active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
-                                                    <i class="fa-solid fa-sliders text-xs"></i>
+                                                <button @click="configurePermissions(item)" title="Configure Permissions" class="w-8 h-8 rounded-xl bg-indigo-600 border border-indigo-700 text-white hover:bg-indigo-700 active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
+                                                    <i class="fa-solid fa-microchip text-xs"></i>
                                                 </button>
-                                                <button @click="confirmStatus(item)" title="Toggle State" :class="item.status === 'active' ? 'bg-amber-500 border-amber-600 hover:bg-amber-600' : 'bg-emerald-500 border-emerald-600 hover:bg-emerald-600'" class="w-9 h-9 rounded-xl text-white border active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
+                                                <button @click="editDetails(item)" title="Edit Basic Details" class="w-8 h-8 rounded-xl bg-sky-500 border border-sky-600 text-white hover:bg-sky-600 active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
+                                                    <i class="fa-solid fa-pen-to-square text-xs"></i>
+                                                </button>
+                                                <template x-if="item.is_mfa_protected">
+                                                    <button type="button" disabled title="Protected Role: 2FA is permanently enforced" class="w-8 h-8 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
+                                                        <i class="fa-solid fa-shield-halved text-xs"></i>
+                                                    </button>
+                                                </template>
+                                                <template x-if="!item.is_mfa_protected">
+                                                    <button @click="openMfaModal(item)" :title="item.is_mfa_enforced ? '2FA Enforced (Click to configure/exempt)' : '2FA Exempt (Click to enforce)'" :class="item.is_mfa_enforced ? 'bg-emerald-600 border-emerald-700 hover:bg-emerald-700' : 'bg-amber-500 border-amber-600 hover:bg-amber-600'" class="w-8 h-8 rounded-xl text-white border active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
+                                                        <i class="fa-solid fa-shield-halved text-xs"></i>
+                                                    </button>
+                                                </template>
+                                                <button @click="confirmStatus(item)" title="Toggle State" :class="item.status === 'active' ? 'bg-slate-800 border-slate-900 hover:bg-slate-950' : 'bg-rose-500 border-rose-600 hover:bg-rose-600'" class="w-8 h-8 rounded-xl text-white border active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
                                                     <i class="fa-solid fa-power-off text-xs"></i>
                                                 </button>
-                                                <button @click="confirmDelete(item)" title="Delete Role" class="w-9 h-9 rounded-xl bg-rose-600 border border-rose-700 text-white hover:bg-rose-700 active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
+                                                <button @click="confirmDelete(item)" title="Delete Role" class="w-8 h-8 rounded-xl bg-rose-600 border border-rose-700 text-white hover:bg-rose-700 active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
                                                     <i class="fa-solid fa-trash-alt text-xs"></i>
                                                 </button>
                                             </div>
@@ -242,16 +255,26 @@
                                         </td>
                                         <td class="px-6 text-center" :class="density === 'condensed' ? 'py-3' : 'py-5'">
                                             <div class="flex items-center justify-center gap-1.5 whitespace-nowrap mx-auto">
-                                                <button @click="viewItem(item)" title="View Capabilities" class="w-9 h-9 bg-blue-500 border border-blue-600 text-white hover:bg-blue-600 transition-all flex items-center justify-center rounded-xl shadow-sm active:scale-95 group/btn">
+                                                <button @click="viewItem(item)" title="View Capabilities" class="w-9 h-9 bg-blue-600 border border-blue-700 text-white hover:bg-blue-700 transition-all flex items-center justify-center rounded-xl shadow-sm active:scale-95 group/btn">
                                                     <i class="fa-solid fa-eye text-[10px]"></i>
                                                 </button>
-                                                <button @click="configurePermissions(item)" title="Configure Permissions" class="w-9 h-9 bg-indigo-500 border border-indigo-600 text-white hover:bg-indigo-600 transition-all flex items-center justify-center rounded-xl shadow-sm active:scale-95 group/btn">
+                                                <button @click="configurePermissions(item)" title="Configure Permissions" class="w-9 h-9 bg-indigo-600 border border-indigo-700 text-white hover:bg-indigo-700 transition-all flex items-center justify-center rounded-xl shadow-sm active:scale-95 group/btn">
                                                     <i class="fa-solid fa-microchip text-[10px] group-hover:rotate-12 transition-transform"></i>
                                                 </button>
-                                                <button @click="editDetails(item)" title="Edit Basic Details" class="w-9 h-9 bg-blue-50 border border-blue-100 text-blue-600 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center rounded-xl shadow-sm active:scale-95 group/btn">
+                                                <button @click="editDetails(item)" title="Edit Basic Details" class="w-9 h-9 bg-sky-500 border border-sky-600 text-white hover:bg-sky-600 transition-all flex items-center justify-center rounded-xl shadow-sm active:scale-95 group/btn">
                                                     <i class="fa-solid fa-pen-to-square text-[10px]"></i>
                                                 </button>
-                                                <button @click="confirmStatus(item)" title="Toggle State" :class="item.status === 'active' ? 'bg-amber-500 border-amber-600 hover:bg-amber-600' : 'bg-emerald-500 border-emerald-600 hover:bg-emerald-600'" class="w-9 h-9 text-white border transition-all flex items-center justify-center rounded-xl shadow-sm active:scale-95">
+                                                <template x-if="item.is_mfa_protected">
+                                                    <button type="button" disabled title="Protected Role: 2FA is permanently enforced" class="w-9 h-9 bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed flex items-center justify-center rounded-xl shadow-sm">
+                                                        <i class="fa-solid fa-shield-halved text-[10px]"></i>
+                                                    </button>
+                                                </template>
+                                                <template x-if="!item.is_mfa_protected">
+                                                    <button @click="openMfaModal(item)" :title="item.is_mfa_enforced ? '2FA Enforced (Click to configure/exempt)' : '2FA Exempt (Click to enforce)'" :class="item.is_mfa_enforced ? 'bg-emerald-600 border-emerald-700 hover:bg-emerald-700' : 'bg-amber-500 border-amber-600 hover:bg-amber-600'" class="w-9 h-9 text-white border transition-all flex items-center justify-center rounded-xl shadow-sm active:scale-95 group/btn">
+                                                        <i class="fa-solid fa-shield-halved text-[10px]"></i>
+                                                    </button>
+                                                </template>
+                                                <button @click="confirmStatus(item)" title="Toggle State" :class="item.status === 'active' ? 'bg-slate-800 border-slate-900 hover:bg-slate-950' : 'bg-rose-500 border-rose-600 hover:bg-rose-600'" class="w-9 h-9 text-white border transition-all flex items-center justify-center rounded-xl shadow-sm active:scale-95">
                                                     <i class="fa-solid fa-power-off text-[10px]"></i>
                                                 </button>
                                                 <button @click="confirmDelete(item)" title="Delete Role" class="w-9 h-9 bg-rose-600 border border-rose-700 text-white hover:bg-rose-700 transition-all flex items-center justify-center rounded-xl shadow-sm active:scale-95">
@@ -629,6 +652,55 @@
             </div>
         </div>
 
+        <!-- MFA Policy Enforcement Modal -->
+        <div x-show="showMfaModal" class="fixed inset-0 z-[10000] overflow-y-auto px-4 py-6" x-transition.opacity x-cloak>
+            <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" @click="closeMfaModal()"></div>
+            <div class="flex min-h-full items-center justify-center p-4">
+                <div class="relative bg-white rounded-[2rem] shadow-2xl border border-slate-100 max-w-lg w-full p-8 text-left overflow-hidden animate-scale-up">
+                    <div class="flex items-center gap-3.5 pb-5 border-b border-slate-100">
+                        <div class="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center text-xl shadow-sm shrink-0">
+                            <i class="fa-solid fa-shield-halved"></i>
+                        </div>
+                        <div>
+                            <span class="text-[9px] font-black uppercase tracking-widest text-slate-400">Security Governance</span>
+                            <h3 class="text-lg font-black text-blue-900">Role 2FA Policy</h3>
+                            <p class="text-xs text-slate-500 font-medium" x-text="selectedMfaRole ? selectedMfaRole.display_name + ' (' + selectedMfaRole.name + ')' : ''"></p>
+                        </div>
+                    </div>
+
+                    <form @submit.prevent="submitRoleMfa()" class="mt-6 space-y-4">
+                        <div class="p-4 rounded-xl border text-xs" :class="mfaTargetRequired ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900' : 'bg-amber-50/70 border-amber-200 text-amber-900'">
+                            <p class="font-bold flex items-center gap-2">
+                                <i :class="mfaTargetRequired ? 'fa-solid fa-circle-check text-emerald-600' : 'fa-solid fa-triangle-exclamation text-amber-600'"></i>
+                                <span x-text="mfaTargetRequired ? 'Enforce Two-Factor Authentication' : 'Set Operational Exemption'"></span>
+                            </p>
+                            <p class="mt-1 opacity-90 leading-relaxed font-medium" x-text="mfaTargetRequired ? 'All staff assigned to this role will be strictly required to configure and verify 2FA upon sign in.' : 'Staff assigned to this role will be permitted to sign in with their username and password only.'"></p>
+                        </div>
+
+                        <div class="space-y-1.5" x-show="!mfaTargetRequired">
+                            <label class="block text-xs font-bold text-slate-700">
+                                Reason for Exemption <span class="text-red-500">*</span>
+                            </label>
+                            <textarea x-model="mfaReason" rows="3" class="w-full rounded-xl border-slate-200 text-xs focus:ring-blue-500 focus:border-blue-500 font-medium p-3" placeholder="State operational reason (e.g., Highway dispatch patrol deployment, temporary wireless console coverage)..."></textarea>
+                        </div>
+
+                        <div class="space-y-1.5" x-show="!mfaTargetRequired">
+                            <label class="block text-xs font-bold text-slate-700">Scheduled Re-Enable Date (Optional)</label>
+                            <input type="datetime-local" x-model="mfaScheduledDate" class="w-full rounded-xl border-slate-200 text-xs focus:ring-blue-500 focus:border-blue-500 p-2.5">
+                        </div>
+
+                        <div class="pt-5 border-t border-slate-100 flex items-center justify-end gap-3">
+                            <button type="button" @click="closeMfaModal()" class="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold text-xs transition-all">Cancel</button>
+                            <button type="submit" :disabled="(!mfaTargetRequired && !mfaReason.trim()) || mfaSaving" :class="mfaTargetRequired ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-amber-500 hover:bg-amber-600 text-white'" class="px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-md disabled:opacity-40 flex items-center gap-2">
+                                <i x-show="mfaSaving" class="fas fa-circle-notch animate-spin text-xs"></i>
+                                <span x-text="mfaTargetRequired ? 'Enforce 2FA' : 'Confirm Exemption'"></span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
         @include('components.confirm-modal')
         </div>
 
@@ -676,6 +748,12 @@
                     showViewModal: false,
                     showDetailsModal: false,
                     showConfirmModal: false,
+                    showMfaModal: false,
+                    selectedMfaRole: null,
+                    mfaTargetRequired: true,
+                    mfaReason: '',
+                    mfaScheduledDate: '',
+                    mfaSaving: false,
                     modalMode: 'add', // 'add' or 'edit'
                     viewingItem: null,
                     selectedItem: null,
@@ -775,12 +853,18 @@
 
                     // Action Triggers
                     addRole() {
+                        this.showViewModal = false;
+                        this.showMfaModal = false;
+                        this.showConfirmModal = false;
                         this.resetForm();
                         this.modalMode = 'add';
                         this.showDetailsModal = true;
                     },
 
                     editDetails(item) {
+                        this.showViewModal = false;
+                        this.showMfaModal = false;
+                        this.showConfirmModal = false;
                         this.form = { 
                             id: item.id,
                             name: item.name,
@@ -792,7 +876,15 @@
                         this.showDetailsModal = true;
                     },
 
+                    editItem(item) {
+                        this.editDetails(item);
+                    },
+
                     configurePermissions(item) {
+                        this.showViewModal = false;
+                        this.showDetailsModal = false;
+                        this.showMfaModal = false;
+                        this.showConfirmModal = false;
                         this.form = { 
                             id: item.id,
                             name: item.name,
@@ -805,11 +897,17 @@
                     },
 
                     viewItem(item) {
+                        this.showDetailsModal = false;
+                        this.showMfaModal = false;
+                        this.showConfirmModal = false;
                         this.viewingItem = item;
                         this.showViewModal = true;
                     },
 
                     confirmStatus(item) {
+                        this.showViewModal = false;
+                        this.showDetailsModal = false;
+                        this.showMfaModal = false;
                         this.selectedItem = item;
                         const willBeActive = item.status !== 'active';
                         this.confirmConfig = {
@@ -843,7 +941,73 @@
                         this.showConfirmModal = true;
                     },
 
+                    openMfaModal(role) {
+                        if (role.is_mfa_protected) return;
+                        this.showViewModal = false;
+                        this.showDetailsModal = false;
+                        this.showConfirmModal = false;
+                        this.selectedMfaRole = role;
+                        this.mfaTargetRequired = !role.is_mfa_enforced;
+                        this.mfaReason = '';
+                        this.mfaScheduledDate = '';
+                        this.mfaSaving = false;
+                        this.showMfaModal = true;
+                    },
+
+                    closeMfaModal() {
+                        this.showMfaModal = false;
+                        this.selectedMfaRole = null;
+                        this.mfaReason = '';
+                        this.mfaScheduledDate = '';
+                        this.mfaSaving = false;
+                    },
+
+                    async submitRoleMfa() {
+                        if (!this.selectedMfaRole) return;
+                        if (!this.mfaTargetRequired && !this.mfaReason.trim()) {
+                            showError("Please state an operational reason for the exemption.");
+                            return;
+                        }
+
+                        this.mfaSaving = true;
+                        try {
+                            const response = await fetch(`/mgmt/mfa-settings/roles/${this.selectedMfaRole.id}/toggle`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                                },
+                                body: JSON.stringify({
+                                    mfa_required: this.mfaTargetRequired ? 1 : 0,
+                                    reason: this.mfaReason,
+                                    scheduled_re_enable_at: this.mfaScheduledDate || null
+                                })
+                            });
+
+                            const result = await response.json();
+                            if (response.ok && result.success) {
+                                this.selectedMfaRole.is_mfa_enforced = this.mfaTargetRequired;
+                                const idx = this.items.findIndex(i => i.id === this.selectedMfaRole.id);
+                                if (idx !== -1) {
+                                    this.items[idx].is_mfa_enforced = this.mfaTargetRequired;
+                                }
+                                showSuccess(result.message);
+                                this.closeMfaModal();
+                            } else {
+                                showError(result.message || "Failed to update 2FA policy.");
+                            }
+                        } catch (err) {
+                            showError("Network error while updating 2FA policy.");
+                        } finally {
+                            this.mfaSaving = false;
+                        }
+                    },
+
                     confirmDelete(item) {
+                        this.showViewModal = false;
+                        this.showDetailsModal = false;
+                        this.showMfaModal = false;
                         this.selectedItem = item;
                         this.confirmConfig = {
                             title: 'Purge Role Point',

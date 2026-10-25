@@ -54,6 +54,8 @@ class UserController extends Controller
             'role_id'        => ['required', 'exists:roles,id'],
         ]);
 
+        $validated['password_changed_at'] = now();
+
         $user = User::create($validated);
 
         // Attach initial scopes if provided
@@ -139,9 +141,10 @@ class UserController extends Controller
         } catch (\Throwable $e) {}
 
         $user->forceFill([
-            'password'       => Hash::make($validated['password']),
-            'locked_until'   => null,
-            'remember_token' => Str::random(60),
+            'password'            => Hash::make($validated['password']),
+            'password_changed_at' => now(),
+            'locked_until'        => null,
+            'remember_token'      => Str::random(60),
         ]);
 
         if (array_key_exists('failed_attempts', $user->getAttributes())) {
@@ -390,9 +393,9 @@ class UserController extends Controller
         if ($unitId === null) return; // null = all of type — always valid
 
         $exists = match ($unitType) {
-            'zone'   => Zone::where('id', $unitId)->exists(),
-            'sector' => Sector::where('id', $unitId)->exists(),
-            'beat'   => Beat::where('id', $unitId)->exists(),
+            'zone'   => Office::zones()->where('id', $unitId)->exists(),
+            'sector' => Office::sectors()->where('id', $unitId)->exists(),
+            'beat'   => Office::beats()->where('id', $unitId)->exists(),
             default  => true, // national / call_centre don't need a unit_id
         };
 

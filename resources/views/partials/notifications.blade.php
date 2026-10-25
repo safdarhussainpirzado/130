@@ -3,6 +3,7 @@
         // This script will run every time this partial is loaded (on page load or Bento Bridge swap)
         const triggerNotifications = () => {
             @if (session('success')) showSuccess("{{ session('success') }}"); @endif
+            @if (session('status')) showSuccess("{{ session('status') }}"); @endif
             @if (session('error')) showError("{{ session('error') }}"); @endif
             @if (session('failure')) showError("{{ session('failure') }}", "Failure"); @endif
             @if (session('warning')) showWarning("{{ session('warning') }}"); @endif

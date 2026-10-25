@@ -1,0 +1,710 @@
+@charset "UTF-8";
+
+/* ==========================================================================
+   NHMP 130 Helpline CRM - 2FA Design System (Matching Login Aesthetic)
+   ========================================================================== */
+
+/* VERTICAL HIGHWAY SCENE & TIGER INTERCEPTOR ANIMATION */
+.vertical-motorway-stage {
+    position: relative;
+    width: 100%;
+    min-height: 270px;
+    max-height: 340px;
+    height: 100%;
+    border-radius: 22px;
+    overflow: hidden;
+    background: radial-gradient(ellipse at center 40%, #e0f2fe 0%, #d1fae5 70%, #a7f3d0 100%);
+    border: 1.5px solid #ffffffd0;
+    box-shadow: 0 14px 34px -12px rgba(67, 103, 150, 0.22), inset 0 1px 0 #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-block: 10px 14px;
+}
+
+.vertical-highway {
+    position: relative;
+    width: 280px;
+    height: 100%;
+    min-height: 270px;
+    display: flex;
+    justify-content: center;
+    perspective: 550px;
+    transform-style: preserve-3d;
+}
+
+/* 3D Asphalt Highway stretching down */
+.highway-asphalt {
+    position: absolute;
+    inset: 0 12px;
+    background: linear-gradient(180deg, #131a26 0%, #1e2638 50%, #171f2e 100%);
+    transform: rotateX(24deg);
+    transform-origin: center bottom;
+    border-left: 4px solid #ffffff;
+    border-right: 4px solid #ffffff;
+    box-shadow: inset 0 0 35px rgba(0, 0, 0, 0.8), 0 15px 30px rgba(15, 23, 42, 0.4);
+    overflow: hidden;
+}
+
+/* White Center Dashed Markings Streaming Downward */
+.highway-lane-divider {
+    position: absolute;
+    top: -60px;
+    bottom: -60px;
+    left: 50%;
+    width: 4px;
+    transform: translateX(-50%);
+    background: repeating-linear-gradient(
+        180deg,
+        #ffffff 0px,
+        #ffffff 26px,
+        transparent 26px,
+        transparent 52px
+    );
+    background-size: 4px 52px;
+    animation: verticalRoadStream 0.42s linear infinite;
+}
+
+@keyframes verticalRoadStream {
+    0% { background-position: 0 0; }
+    100% { background-position: 0 52px; }
+}
+
+/* Reflective Cat's Eyes Road Studs */
+.road-studs-left, .road-studs-right {
+    position: absolute;
+    top: -60px;
+    bottom: -60px;
+    width: 3px;
+    background: repeating-linear-gradient(
+        180deg,
+        #f59e0b 0px,
+        #f59e0b 6px,
+        transparent 6px,
+        transparent 36px
+    );
+    background-size: 3px 36px;
+    animation: verticalRoadStream 0.42s linear infinite;
+    opacity: 0.85;
+}
+.road-studs-left { left: 6px; }
+.road-studs-right { right: 6px; }
+
+/* Overhead Highway Gate Sign */
+.highway-gantry {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 15;
+    padding: 4px 12px;
+    background: rgba(30, 41, 59, 0.82);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    white-space: nowrap;
+}
+.gantry-sign {
+    font-size: 9px;
+    font-weight: 750;
+    letter-spacing: 1.2px;
+    color: #e2e8f0;
+    text-transform: uppercase;
+}
+.gantry-sign strong {
+    color: #38bdf8;
+}
+
+/* THE REAL NHMP TIGER PATROL VEHICLE (Drifting & Moving Smoothly on Road) */
+.tiger-patrol-vehicle {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    width: 230px;
+    margin-left: -115px;
+    z-index: 20;
+    animation: tigerHighwayDrift 9s cubic-bezier(0.42, 0, 0.58, 1) infinite;
+    transform-origin: center 65%;
+    pointer-events: none;
+}
+
+@keyframes tigerHighwayDrift {
+    0% {
+        transform: translate3d(0px, 0px, 0) rotate(0deg);
+    }
+    16% {
+        /* Drift smoothly to left lane with realistic counter-steer */
+        transform: translate3d(-34px, -12px, 0) rotate(-3.5deg);
+    }
+    30% {
+        /* Steady patrol in left lane */
+        transform: translate3d(-36px, 6px, 0) rotate(-0.5deg);
+    }
+    46% {
+        /* Glide across to center */
+        transform: translate3d(-4px, 12px, 0) rotate(1.5deg);
+    }
+    64% {
+        /* Drift smoothly into right lane */
+        transform: translate3d(32px, -10px, 0) rotate(3deg);
+    }
+    78% {
+        /* Steady patrol in right lane */
+        transform: translate3d(34px, 6px, 0) rotate(0.5deg);
+    }
+    92% {
+        /* Returning smoothly to center */
+        transform: translate3d(6px, -4px, 0) rotate(-1deg);
+    }
+    100% {
+        transform: translate3d(0px, 0px, 0) rotate(0deg);
+    }
+}
+
+.tiger-car-image {
+    display: block;
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 14px 14px rgba(0, 0, 0, 0.55));
+}
+
+.tiger-shadow {
+    position: absolute;
+    bottom: 6px;
+    left: 14px;
+    right: 14px;
+    height: 18px;
+    background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0) 70%);
+    filter: blur(4px);
+    z-index: -1;
+}
+
+/* Realistic Headlight Light Cones onto Asphalt */
+.tiger-headlight-beam {
+    position: absolute;
+    top: -34px;
+    width: 48px;
+    height: 85px;
+    background: linear-gradient(0deg, rgba(254, 240, 138, 0.38) 0%, rgba(254, 240, 138, 0) 100%);
+    clip-path: polygon(25% 100%, 75% 100%, 100% 0%, 0% 0%);
+    pointer-events: none;
+    filter: blur(3px);
+    z-index: 10;
+}
+.beam-left { left: 34px; transform: rotate(-5deg); }
+.beam-right { right: 68px; transform: rotate(5deg); }
+
+/* Roof Police Emergency Strobes (Flashing Red and Blue) */
+.tiger-lightbar-glow {
+    position: absolute;
+    top: 38px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 58px;
+    height: 12px;
+    display: flex;
+    justify-content: space-between;
+    pointer-events: none;
+    z-index: 25;
+}
+
+.strobe-beacon {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+}
+.beacon-red {
+    background: #ef4444;
+    box-shadow: 0 0 10px #ef4444, 0 0 20px #ef4444;
+    animation: beaconStrobeRed 0.28s steps(1) infinite;
+}
+.beacon-blue {
+    background: #38bdf8;
+    box-shadow: 0 0 10px #38bdf8, 0 0 20px #38bdf8;
+    animation: beaconStrobeBlue 0.28s steps(1) infinite;
+}
+
+@keyframes beaconStrobeRed {
+    0%, 49% { opacity: 1; transform: scale(1.15); }
+    50%, 100% { opacity: 0.15; transform: scale(0.9); }
+}
+@keyframes beaconStrobeBlue {
+    0%, 49% { opacity: 0.15; transform: scale(0.9); }
+    50%, 100% { opacity: 1; transform: scale(1.15); }
+}
+
+/* Pause Motion Integration */
+[data-paused="true"] .highway-lane-divider,
+[data-paused="true"] .road-studs-left,
+[data-paused="true"] .road-studs-right,
+[data-paused="true"] .tiger-patrol-vehicle {
+    animation-play-state: paused !important;
+}
+
+/* USER IDENTITY CARD PILL (Matching Login Light Theme) */
+.user-id-pill {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    border: 1px solid #c8d7eb;
+    border-radius: 14px;
+    background: #ffffff94;
+    box-shadow: 0 2px 6px rgba(113, 139, 179, 0.08), inset 0 1px 0 #fff;
+    margin-bottom: 16px;
+}
+.user-avatar-circle {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    background: linear-gradient(135deg, #286fd4, #6354ce);
+    color: #fff;
+    display: grid;
+    place-items: center;
+    font-size: 13px;
+    font-weight: 800;
+    box-shadow: 0 3px 8px rgba(40, 111, 212, 0.35);
+    flex-shrink: 0;
+}
+.user-meta strong {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: #2f4666;
+    line-height: 1.2;
+}
+.user-meta span {
+    font-size: 11px;
+    color: #5d728d;
+    font-family: monospace;
+}
+.user-security-badge {
+    font-size: 9px;
+    font-weight: 750;
+    color: #1f6b55;
+    background: #dff5eb;
+    border: 1px solid #b7e7d4;
+    border-radius: 20px;
+    padding: 4px 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    white-space: nowrap;
+}
+
+/* TOTP 6-DIGIT PIN INPUT STYLING */
+.pin-wrap input.totp-code-input {
+    height: 52px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.35em;
+    text-align: center;
+    padding-inline: 16px;
+    color: #263454;
+}
+
+/* RECOVERY CODES GRID (For Recovery Codes View) */
+.recovery-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    padding: 14px;
+    background: #192233;
+    border-radius: 16px;
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4);
+    margin-bottom: 14px;
+}
+.recovery-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 11px;
+    background: #252f44;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 9px;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: #38bdf8;
+    user-select: all;
+}
+.recovery-chip span {
+    color: #64748b;
+    font-size: 10px;
+    user-select: none;
+}
+
+.action-buttons-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+.btn-action-outline {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 12px;
+    border: 1px solid #c8d7eb;
+    border-radius: 11px;
+    background: #ffffffa6;
+    font-size: 11px;
+    font-weight: 650;
+    color: #435a78;
+    cursor: pointer;
+    transition: all 0.18s;
+}
+.btn-action-outline:hover {
+    background: #ffffff;
+    border-color: #7396d9;
+    color: #286fd4;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(40, 111, 212, 0.12);
+}
+
+/* QR CODE BOX (For 2FA Setup) */
+.qr-setup-box {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    padding: 14px;
+    border: 1px solid #c8d7eb;
+    border-radius: 18px;
+    background: #ffffffa6;
+    margin-bottom: 16px;
+}
+.qr-img-wrapper {
+    flex: 0 0 120px;
+    height: 120px;
+    background: #ffffff;
+    padding: 6px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(40, 111, 212, 0.1), inset 0 0 0 1px #e2e8f0;
+}
+.qr-img-wrapper svg, .qr-img-wrapper img {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+.secret-key-display {
+    flex: 1;
+    min-width: 0;
+}
+.secret-key-code {
+    display: block;
+    padding: 8px 10px;
+    border: 1px solid #c8d7eb;
+    border-radius: 9px;
+    background: #f8fafc;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    font-weight: 750;
+    color: #2563eb;
+    letter-spacing: 0.8px;
+    word-break: break-all;
+    margin-block: 4px 8px;
+}
+
+/* 2FA Form Options Links */
+.form-options-2fa {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 8px;
+}
+.form-options-2fa a {
+    color: #4964af;
+    font-size: 11px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.15s;
+}
+.form-options-2fa a:hover {
+    text-decoration: underline;
+    color: #286fd4;
+}
+
+/* Callout Note */
+.mfa-info-note {
+    padding: 10px 14px;
+    border: 1px solid #c8d7eb;
+    border-radius: 12px;
+    background: #f1f7fe;
+    color: #3b5373;
+    font-size: 11px;
+    line-height: 1.5;
+    margin-bottom: 16px;
+}
+.mfa-info-note strong {
+    color: #2563eb;
+}
+
+/* ==========================================================================
+   FORM ON LEFT, SCENIC CARD ON RIGHT LAYOUT (Matches NHMP Traveller Mockups)
+   ========================================================================== */
+.auth-grid-left-form {
+    display: grid;
+    grid-template-columns: minmax(360px, 460px) minmax(0, 1.35fr);
+    grid-template-rows: minmax(0, 1fr) 28px;
+    column-gap: clamp(24px, 4vw, 56px);
+    align-items: center;
+    padding-block: 10px;
+    width: 100%;
+    max-width: 1280px;
+    margin-inline: auto;
+    min-height: 0;
+}
+
+.auth-grid-left-form .login-card {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    justify-self: start;
+    width: 100%;
+    max-width: 460px;
+}
+
+.scenic-card {
+    grid-column: 2;
+    grid-row: 1 / -1;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    max-height: 600px;
+    border-radius: 28px;
+    overflow: hidden;
+    border: 1.5px solid #ffffffd0;
+    box-shadow: 0 24px 55px -15px rgba(8, 45, 104, 0.28), 0 6px 18px rgba(15, 23, 42, 0.08);
+    background: #0f172a;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.scenic-bg-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 75%;
+    transform: scale(1.02);
+    transition: transform 8s cubic-bezier(0.2, 0.9, 0.4, 1);
+}
+.scenic-card:hover .scenic-bg-img {
+    transform: scale(1.05);
+}
+
+.scenic-vignette {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        180deg,
+        rgba(8, 45, 104, 0.45) 0%,
+        rgba(8, 45, 104, 0.05) 30%,
+        rgba(15, 23, 42, 0.15) 60%,
+        rgba(8, 45, 104, 0.88) 100%
+    );
+    pointer-events: none;
+}
+
+.scenic-top-bar {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    gap: 12px;
+}
+
+.scenic-brand-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 14px;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+.scenic-shield-icon {
+    width: 26px;
+    height: 26px;
+    object-fit: contain;
+}
+
+.scenic-brand-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: #1e3a8a;
+    line-height: 1.1;
+    display: block;
+}
+.scenic-brand-title strong {
+    color: #0d57bb;
+}
+
+.scenic-brand-sub {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: #586b88;
+    display: block;
+}
+
+.scenic-pill-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 7px 14px;
+    border-radius: 9999px;
+    background: rgba(8, 45, 104, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 750;
+    letter-spacing: 0.6px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+}
+
+.scenic-bottom-panel {
+    position: relative;
+    z-index: 10;
+    margin: 16px;
+    padding: 16px 20px;
+    border-radius: 20px;
+    background: rgba(8, 45, 104, 0.82);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+    color: #ffffff;
+}
+
+.scenic-features-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.scenic-feat-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    font-weight: 650;
+    color: #f1f5f9;
+}
+.scenic-feat-item svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.scenic-footer-caption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding-top: 10px;
+    font-size: 10px;
+    color: #cbd5e1;
+    font-weight: 600;
+}
+
+.scenic-helpline {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #facc15;
+    font-weight: 750;
+}
+.scenic-helpline strong {
+    font-size: 12px;
+    color: #ffffff;
+    background: #0d57bb;
+    padding: 2px 7px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+@media (max-width: 900px) {
+    .auth-grid-left-form {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    .scenic-card {
+        display: none;
+    }
+    .auth-grid-left-form .login-card {
+        max-width: 100%;
+    }
+}
+
+/* ==========================================================================
+   SCENIC CARD SLIDER & CROSSFADE TRANSITIONS
+   ========================================================================== */
+.scenic-slider-wrapper {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+}
+
+.scenic-slide {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1), transform 6s cubic-bezier(0.2, 0.9, 0.4, 1);
+    transform: scale(1.02);
+    pointer-events: none;
+}
+
+.scenic-slide.active {
+    opacity: 1;
+    transform: scale(1.05);
+    pointer-events: auto;
+}
+
+.slider-dots {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.slider-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.45);
+    transition: all 0.35s ease;
+    cursor: pointer;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.slider-dot:hover {
+    background: rgba(255, 255, 255, 0.8);
+    transform: scale(1.2);
+}
+
+.slider-dot.active {
+    width: 22px;
+    background: #38bdf8;
+    border-color: #7dd3fc;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.85);
+}

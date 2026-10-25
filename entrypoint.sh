@@ -18,18 +18,18 @@ mkdir -p storage/framework/sessions \
 # 3. Uses flock and atomic file rename to prevent concurrent startup race conditions.
 if [ -d "/var/www/build_cache" ]; then
     echo "📦 Publishing frontend build assets to public volume..."
-    mkdir -p public/build/assets
+    mkdir -p public/build/assets 2>/dev/null || true
     (
         flock -x 200
         # Step A: Publish new/updated versioned assets non-destructively
-        cp -rn /var/www/build_cache/assets/* public/build/assets/ 2>/dev/null || cp -rf /var/www/build_cache/assets/* public/build/assets/
+        cp -rn /var/www/build_cache/assets/* public/build/assets/ 2>/dev/null || cp -rf /var/www/build_cache/assets/* public/build/assets/ 2>/dev/null || true
         # Step B: Write manifest atomically via temporary file to prevent partial reads
-        cp -f /var/www/build_cache/manifest.json public/build/manifest.json.tmp
-        mv -f public/build/manifest.json.tmp public/build/manifest.json
+        cp -f /var/www/build_cache/manifest.json public/build/manifest.json.tmp 2>/dev/null || true
+        mv -f public/build/manifest.json.tmp public/build/manifest.json 2>/dev/null || true
         # Step C: Enforce safe read-only serving permissions
         find public/build -type d -exec chmod 755 {} + 2>/dev/null || true
         find public/build -type f -exec chmod 644 {} + 2>/dev/null || true
-    ) 200>public/build/.asset_publish.lock
+    ) 200>/tmp/.asset_publish.lock || true
 fi
 
 # Clear anything cached wrongly during build transport

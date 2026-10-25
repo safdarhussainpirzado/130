@@ -5,7 +5,7 @@ use App\Http\Controllers\CallController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
-use App\Http\Controllers\SettingController;
+use App\Http\Controllers\Admin\MfaSettingController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\OfficeController;
 use App\Http\Controllers\CarriagewayController;
@@ -100,13 +100,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/ajax/spatial-contacts', [CallController::class, 'spatialContacts'])->name('api.spatialContacts');
     Route::get('/api/notifications/poll', [CallController::class, 'getNotificationsPoll'])->name('api.notifications.poll');
     Route::post('/api/dispatch/ping', [CallController::class, 'sendReminder'])->name('api.calls.reminder');
+    Route::post('/api/calls/{call}/reminder', [CallController::class, 'sendReminder'])->name('api.calls.reminder.call');
     
     // Administrative Modules
     Route::prefix('mgmt')->name('admin.')->group(function() {
         Route::middleware('can:users.view')->group(function() {
             Route::resource('users', UserController::class);
-            Route::post('users/{user}/toggle-status',  [UserController::class, 'toggleStatus'])->name('users.toggleStatus')->middleware('can:users.manage_status');
-            Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.resetPassword')->middleware('can:users.manage_password');
+            Route::post('users/{user}/toggle-status',  [UserController::class, 'toggleStatus'])->name('users.toggleStatus')->middleware(['can:users.manage_status', 'mfa.fresh:user_status_toggle']);
+            Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.resetPassword')->middleware(['can:users.manage_password', 'mfa.fresh:user_password_reset']);
 
             // Password reset requests management
             Route::get('password-requests',                        [UserController::class, 'getPasswordRequests'])->name('users.passwordRequests.index');
@@ -114,23 +115,44 @@ Route::middleware('auth')->group(function () {
 
             // Dynamic multi-scope management
             Route::get('users/{user}/scopes',                    [UserController::class, 'getScopes'])->name('users.scopes.index')->middleware('can:users.manage_scopes');
-            Route::post('users/{user}/scopes',                   [UserController::class, 'addScope'])->name('users.scopes.add')->middleware('can:users.manage_scopes');
-            Route::patch('users/{user}/scopes/{scope}',          [UserController::class, 'updateScope'])->name('users.scopes.update')->middleware('can:users.manage_scopes');
-            Route::delete('users/{user}/scopes/{scope}',         [UserController::class, 'removeScope'])->name('users.scopes.remove')->middleware('can:users.manage_scopes');
+            Route::post('users/{user}/scopes',                   [UserController::class, 'addScope'])->name('users.scopes.add')->middleware(['can:users.manage_scopes', 'mfa.fresh:user_scopes_modify']);
+            Route::patch('users/{user}/scopes/{scope}',          [UserController::class, 'updateScope'])->name('users.scopes.update')->middleware(['can:users.manage_scopes', 'mfa.fresh:user_scopes_modify']);
+            Route::delete('users/{user}/scopes/{scope}',         [UserController::class, 'removeScope'])->name('users.scopes.remove')->middleware(['can:users.manage_scopes', 'mfa.fresh:user_scopes_modify']);
         });
 
         Route::middleware('can:roles.view')->group(function() {
             Route::resource('roles', RoleController::class);
-            Route::post('roles/{role}/toggle-status', [RoleController::class, 'toggleStatus'])->name('roles.toggleStatus');
+            Route::post('roles/{role}/toggle-status', [RoleController::class, 'toggleStatus'])->name('roles.toggleStatus')->middleware('mfa.fresh:role_status_toggle');
             Route::resource('permissions', \App\Http\Controllers\PermissionController::class)->middleware('can:permissions.view');
-            Route::post('permissions/{permission}/toggle-status', [\App\Http\Controllers\PermissionController::class, 'toggleStatus'])->name('permissions.toggleStatus');
+            Route::post('permissions/{permission}/toggle-status', [\App\Http\Controllers\PermissionController::class, 'toggleStatus'])->name('permissions.toggleStatus')->middleware('mfa.fresh:permission_status_toggle');
             Route::get('audit', [AuditController::class, 'index'])->name('audit.index')->middleware('can:system.audit_view');
             Route::resource('tts-scripts', TtsScriptController::class)->except(['show', 'edit', 'update'])->middleware('can:system.tts_scripts.manage');
         });
 
-        Route::middleware('can:system.settings.view')->group(function() {
-            Route::get('settings', [SettingController::class, 'index'])->name('settings.index');
-            Route::patch('settings', [SettingController::class, 'update'])->name('settings.update')->middleware('can:system.settings.update');
+        // MFA & Security Settings (Restricted to Super Admin & Operations Manager)
+        Route::middleware('can:security.mfa_roles.view')->group(function() {
+            Route::get('mfa-settings', [MfaSettingController::class, 'index'])->name('mfa-settings.index');
+            Route::get('settings', [MfaSettingController::class, 'index'])->name('settings.index');
+            Route::get('settings/mfa-roles', [MfaSettingController::class, 'index'])->name('settings.mfa-roles.index');
+
+            Route::post('mfa-settings/roles/{role}/toggle', [MfaSettingController::class, 'toggleRole'])
+                ->middleware('can:security.mfa_roles.manage')
+                ->name('mfa-settings.roles.toggle');
+            Route::post('settings/mfa-roles/{role}/toggle', [MfaSettingController::class, 'toggleRole'])
+                ->middleware('can:security.mfa_roles.manage')
+                ->name('settings.mfa-roles.toggle');
+
+            Route::post('mfa-settings/users/{user}/reset', [MfaSettingController::class, 'resetUser'])
+                ->middleware('can:security.mfa_roles.manage')
+                ->name('mfa-settings.users.reset');
+
+            Route::post('mfa-settings/users/{user}/revoke', [MfaSettingController::class, 'revokeUser'])
+                ->middleware('can:security.mfa_roles.manage')
+                ->name('mfa-settings.users.revoke');
+
+            Route::post('mfa-settings/users/{user}/enforce', [MfaSettingController::class, 'enforceUser'])
+                ->middleware('can:security.mfa_roles.manage')
+                ->name('mfa-settings.users.enforce');
         });
 
         Route::middleware('can:geography.offices.view')->group(function() {

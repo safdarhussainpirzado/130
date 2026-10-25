@@ -48,6 +48,7 @@ if (page) {
     const updateMotion = () => {
         const paused = reducedMotion.matches || motionPaused;
         scene.dataset.paused = String(paused || document.hidden);
+        page.dataset.paused = scene.dataset.paused;
         motionToggle.disabled = reducedMotion.matches;
         motionToggle.setAttribute('aria-pressed', String(paused));
         motionLabel.textContent = reducedMotion.matches ? 'Reduced motion on' : (motionPaused ? 'Play motion' : 'Pause motion');
@@ -63,5 +64,6 @@ if (page) {
     visibilityToggle.hidden = false;
     motionToggle.hidden = false;
     scene.dataset.motionReady = 'true';
+    page.dataset.motionReady = 'true';
     document.getElementById('login-errors')?.focus();
 }

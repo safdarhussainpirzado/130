@@ -90,4 +90,15 @@ class UserPolicy
     {
         return $admin->hasPermission('users.manage_scopes') && $this->canManage($admin, $target);
     }
+
+    public function viewRoleMfaPolicies(User $admin): bool
+    {
+        return $admin->hasPermission('security.mfa_roles.view') || $admin->isPrivileged();
+    }
+
+    public function manageRoleMfaPolicies(User $admin): bool
+    {
+        return $admin->hasPermission('security.mfa_roles.manage') || $admin->isPrivileged();
+    }
 }
+

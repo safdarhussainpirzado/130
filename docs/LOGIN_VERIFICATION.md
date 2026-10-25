@@ -2,7 +2,7 @@
 
 The redesigned login page preserves the CRM's **username and password** contract, existing account recovery link, remember option, role-based redirect, and two-factor enforcement. Email login is not supported by the current authentication request.
 
-Verified on 22 October 2026: **13 tests, 97 assertions passed** in `tests/Feature/Auth/AuthenticationTest.php`, plus **10 frontend behavior tests** in `tests/Frontend/login.test.mjs`. Blade compilation and the production Vite build also passed. No production database or real user account was used.
+Reverified on 23 October 2026 after the production asset build: **13 tests, 97 assertions passed** in `tests/Feature/Auth/AuthenticationTest.php`, plus **10 frontend behavior tests** in `tests/Frontend/login.test.mjs`. Isolated Blade compilation, PHP syntax validation, and Pint formatting checks also passed. No production database or real user account was used.
 
 ## Run the focused checks
 
@@ -21,14 +21,14 @@ php vendor/bin/phpunit tests/Feature/Auth/AuthenticationTest.php --display-warni
 
 The test class explicitly selects its own `auth_testing` connection backed by SQLite `:memory:` and creates only the schema needed by authentication. It does not run `RefreshDatabase`, production migrations, or application seeders. The fixture avoids the master migration's MySQL-specific partitioning and the legacy user factory's obsolete fields. Array-backed cache and sessions keep test state isolated.
 
-The WSL PHP runtime used for this verification lacked PDO database drivers. SQLite support was downloaded with `apt download php8.3-sqlite3`, extracted into `scratch/auth-test-runtime/extracted` using `dpkg-deb -x`, and loaded for the individual PHP process with:
+The WSL PHP runtime used for this verification lacked PDO database drivers. SQLite support was downloaded with `apt download php8.3-sqlite3=8.3.6-0maysync1`, extracted into `scratch/auth-test-runtime/extracted` using `dpkg-deb -x`, and loaded for the individual PHP process with:
 
 ```bash
 php -d extension="$PWD/scratch/auth-test-runtime/extracted/usr/lib/php/20230831/pdo_sqlite.so" \
     vendor/bin/phpunit tests/Feature/Auth/AuthenticationTest.php --display-warnings
 ```
 
-Use that PHP invocation with the environment overrides above when reproducing the same runtime. No system packages were installed. The extension path is specific to PHP 8.3's module ABI.
+Use that PHP invocation with the environment overrides above when reproducing the same runtime. The Ubuntu base package was used because the cached updates-package URL returned HTTP 404. Select an available package compatible with your PHP runtime. No system packages were installed. The extension path is specific to PHP 8.3's module ABI.
 
 To compile templates without changing the application's normal view cache:
 
@@ -44,7 +44,11 @@ php artisan view:cache
 
 Run the dependency-free frontend checks with `node --test tests/Frontend/login.test.mjs`. They exercise the actual login script with browser/DOM mocks, including initial and changing reduced-motion preferences, saved pause preferences, hidden tabs, unavailable storage, accessible password toggling, loading and browser-back recovery, and error focus.
 
-Browser verification covered successful sign-in to the agent workspace and logout, invalid credentials, empty-field validation, password visibility, remember me, pause persistence, and the account recovery link. Desktop (1440px), mobile (390px), and small mobile (320px) layouts were inspected; mobile layouts had no horizontal page overflow. CSS separately disables all animation for reduced-motion users and keeps the complete SVG still without JavaScript.
+The revised layout was inspected at 1440×900, 1366×768, 1024×768, 390×844, 360×640, 320×568, and 844×390. Normal login states matched the viewport dimensions without page overflow or internal form-card scrolling. The invalid-credentials state also fit without page or card scrolling on desktop and at 390×844, 360×640, 320×568, and 844×390.
+
+Browser interaction checks confirmed password show/hide, remember selection, successful sign-in to the real agent workspace, and logout back to login. The shared pause control set both the page and scene to their paused state; computed animation states confirmed that route progression and the moving Tiger vehicle were paused. CSS also disables animation for reduced-motion users and keeps the complete SVG still without JavaScript.
+
+Live HTTP checks used the isolated preview with active CSRF middleware. A login POST without a CSRF token returned **419**. An invalid password returned the visible credential error, retained username, and omitted the password. Valid credentials rendered the real agent workspace at `/calls/create` with **200** and issued a remember cookie. POST logout returned to login; a subsequent protected heartbeat request redirected to login. The account recovery page returned **200**. A separate cookie jar kept these checks independent of the visual browser session.
 
 | Case | Verified behavior |
 | --- | --- |
@@ -62,7 +66,7 @@ Browser verification covered successful sign-in to the agent workspace and logou
 | Required two-factor verification | Blocks access, rejects an invalid code, accepts a current code, and clears two-factor session state on logout. |
 | Required two-factor setup | Redirects a user without a secret to setup. |
 
-These checks execute the real authentication routes, request, controller, and middleware. They cover the focused login flow; they do not establish that the full application test suite or production MySQL migrations pass. Browser verification used a separate scratch SQLite database with synthetic data and isolated session/view/log directories. The temporary preview server, synthetic database, and extracted test runtime were removed after verification.
+These checks execute the real authentication routes, request, controller, and middleware. They cover the focused login flow; they do not establish that the full application test suite or production MySQL migrations pass. Browser verification used a separate scratch SQLite database with synthetic data and isolated session/view/log directories. After verification, the owned preview server was stopped and the exact generated `scratch/auth-test-runtime` directory, including the synthetic database, sessions, and extracted extension, was removed. Preexisting scratch files were preserved.
 
 ## Existing backend findings
 

@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <title>@yield('title', config('app.name', 'NHMP 130 CRM'))</title>
+    <title>@yield('title', config('app.name', '130 NHMP Helpline'))</title>
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -636,6 +636,15 @@
                             </a>
                         @endcan
 
+                        @can('security.mfa_roles.view')
+                            <a href="{{ route('admin.mfa-settings.index') }}"
+                                class="nav-item {{ request()->routeIs('admin.mfa-settings.*') || request()->routeIs('admin.settings.*') ? 'active' : '' }}">
+                                <span class="nav-icon text-cyan-600"><i class="fa-solid fa-shield-halved"></i></span>
+                                <span class="nav-label">MFA Settings</span>
+                                <span class="nav-tooltip">MFA Settings</span>
+                            </a>
+                        @endcan
+
                         <a href="{{ route('admin.offices.index') }}"
                             class="nav-item {{ request()->routeIs('admin.offices.*') ? 'active' : '' }}">
                             <span class="nav-icon"><i class="fa-solid fa-earth-asia"></i></span>
@@ -749,15 +758,6 @@
                                 <span class="nav-icon"><i class="fa-solid fa-fingerprint"></i></span>
                                 <span class="nav-label">Security Audit Logs</span>
                                 <span class="nav-tooltip">Security Audit Logs</span>
-                            </a>
-                        @endcan
-
-                        @can('system.settings.view')
-                            <a href="{{ route('admin.settings.index') }}"
-                                class="nav-item {{ request()->routeIs('admin.settings.*') ? 'active' : '' }}">
-                                <span class="nav-icon"><i class="fa-solid fa-sliders"></i></span>
-                                <span class="nav-label">System Settings</span>
-                                <span class="nav-tooltip">Settings</span>
                             </a>
                         @endcan
                     @endif
@@ -1019,6 +1019,7 @@
         });
     </script>
 
+    @include('partials.notifications')
     @stack('scripts')
 </body>
 

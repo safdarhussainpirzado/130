@@ -114,4 +114,16 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Password Expiration Policy (NHMP Security Standard)
+    |--------------------------------------------------------------------------
+    |
+    | Defines the maximum lifetime (in days) of a user password before a mandatory
+    | reset is enforced upon next login. Set to 15 days by operational policy.
+    |
+    */
+
+    'password_expiry_days' => (int) env('PASSWORD_EXPIRY_DAYS', 15),
+
 ];

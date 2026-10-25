@@ -48,9 +48,10 @@ class PasswordController extends Controller
         ]);
 
         $user->update([
-            'password'        => Hash::make($validated['password']),
-            'failed_attempts' => 0,   // Reset lockout counter on password change
-            'locked_until'    => null,
+            'password'            => Hash::make($validated['password']),
+            'password_changed_at' => now(),
+            'failed_attempts'     => 0,   // Reset lockout counter on password change
+            'locked_until'        => null,
         ]);
 
         return back()->with('status', 'password-updated');

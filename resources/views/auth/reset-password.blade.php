@@ -1,293 +1,118 @@
 <x-guest-layout>
-  <style>
-    /* bento elevation */
-    .bento-card {
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-    }
-    
-    /* micro-interactions with ripple effect */
-    .btn-ripple {
-      position: relative;
-      overflow: hidden;
-      transform: translate3d(0,0,0);
-    }
-    .btn-ripple:after {
-      content: "";
-      display: block;
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      top: 0;
-      left: 0;
-      pointer-events: none;
-      background-image: radial-gradient(circle, #fff 10%, transparent 10.01%);
-      background-repeat: no-repeat;
-      background-position: 50%;
-      transform: scale(10,10);
-      opacity: 0;
-      transition: transform .3s, opacity .5s;
-    }
-    .btn-ripple:active:after {
-      transform: scale(0,0);
-      opacity: 0.3;
-      transition: 0s;
-    }
-    
-    /* page entrance animation */
-    .fade-slide-in {
-      animation: fadeSlide 0.6s cubic-bezier(0.2, 0.9, 0.4, 1) forwards;
-    }
-    @keyframes fadeSlide {
-      0% { opacity: 0; transform: translateY(16px); }
-      100% { opacity: 1; transform: translateY(0); }
-    }
-    
-    /* glow effects for glass panels */
-    .glow-shadow {
-      box-shadow: 0 20px 40px -12px rgba(37, 99, 235, 0.15), 0 4px 18px -6px rgba(0, 0, 0, 0.05);
-    }
-    .glow-shadow-lg {
-      box-shadow: 0 25px 50px -12px rgba(37, 99, 235, 0.25);
-    }
-    
-    .input-floating-wrapper input:focus::placeholder {
-      opacity: 0.5;
-    }
-  </style>
+    <div class="login-page {{ $errors->any() ? 'has-login-errors' : '' }}" id="nhmp-login">
+        <div class="ambient-orb ambient-orb-blue" aria-hidden="true"></div>
+        <div class="ambient-orb ambient-orb-mint" aria-hidden="true"></div>
+        <a class="skip-link" href="#reset-heading">Skip to reset form</a>
 
-  <!-- MAIN BENTO GRID CONTAINER -->
-  <div class="w-full max-w-7xl mx-auto">
-    <div class="flex flex-col md:flex-row gap-6 lg:gap-8 items-stretch">
-
-      <!-- LEFT BRANDING PANEL -->
-      <div class="w-full md:w-[40%] relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-indigo-800 glow-shadow-lg p-8 flex flex-col justify-between bento-card border border-white/30 fade-slide-in" style="animation-delay: 0s;">
-        <!-- abstract animated shapes -->
-        <div class="absolute -top-20 -right-20 w-64 h-64 bg-blue-400/20 rounded-full blur-3xl animate-pulse"></div>
-        <div class="absolute bottom-10 left-0 w-40 h-40 bg-indigo-300/20 rounded-full blur-3xl"></div>
-        <div class="absolute top-1/3 right-10 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
-        
-        <div class="relative z-10">
-          <!-- NHMP Logo / emblem -->
-          <div class="flex items-center gap-3 mb-8">
-            <div class="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-xl border border-white/40">
-              <i class="fa-solid fa-shield-halved text-white text-2xl"></i>
-            </div>
-            <span class="text-white font-black tracking-tight text-xl">NHMP 130</span>
-          </div>
-          <h1 class="text-4xl md:text-5xl font-extrabold text-white leading-tight tracking-tight drop-shadow-lg">
-            Set New<br>Password
-          </h1>
-          <p class="text-indigo-100 text-lg mt-4 font-medium max-w-xs">
-            Mandatory Security Policy<br>Enforce compliant credentials.
-          </p>
-        </div>
-
-        <div class="relative z-10 mt-10">
-          <div class="flex items-center gap-3 text-white/90 text-sm font-medium">
-            <div class="w-5 h-5 rounded-full bg-emerald-400/30 flex items-center justify-center">
-              <i class="fa-solid fa-check text-emerald-200 text-xs"></i>
-            </div>
-            <span>Minimum 12 characters length</span>
-          </div>
-          <div class="flex items-center gap-3 text-white/90 text-sm font-medium mt-3">
-            <div class="w-5 h-5 rounded-full bg-emerald-400/30 flex items-center justify-center">
-              <i class="fa-solid fa-check text-emerald-200 text-xs"></i>
-            </div>
-            <span>Uppercase, lowercase & numeric digits</span>
-          </div>
-          <div class="flex items-center gap-3 text-white/90 text-sm font-medium mt-3">
-            <div class="w-5 h-5 rounded-full bg-emerald-400/30 flex items-center justify-center">
-              <i class="fa-solid fa-check text-emerald-200 text-xs"></i>
-            </div>
-            <span>Special symbols required</span>
-          </div>
-          <!-- subtle animated line -->
-          <div class="mt-8 h-px w-20 bg-gradient-to-r from-white/50 to-transparent"></div>
-          <p class="text-white/70 text-xs mt-4 uppercase tracking-widest font-bold">NHMP · since 2025</p>
-        </div>
-      </div>
-
-      <!-- RIGHT FORM CARD -->
-      <div class="w-full md:w-[60%] bg-white/75 backdrop-blur-xl rounded-3xl glow-shadow border border-white/60 p-6 md:p-8 lg:p-10 bento-card fade-slide-in" style="animation-delay: 0.1s;">
-        
-        <!-- Header -->
-        <div class="mb-6 border-l-4 border-indigo-500 pl-4">
-          <h2 class="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Configure New Password</h2>
-          <p class="text-slate-500 text-sm font-medium mt-1">
-            Choose a strong, complex password to replace your previous credentials.
-          </p>
-        </div>
-
-        <!-- Errors Alert -->
-        @if ($errors->any())
-          <div class="mb-6 p-4 rounded-2xl bg-rose-50 border border-rose-200/80 flex items-start gap-3 shadow-sm">
-            <div class="w-9 h-9 rounded-xl bg-rose-500 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-md shadow-rose-500/20">
-              <i class="fa-solid fa-triangle-exclamation text-base"></i>
-            </div>
-            <div class="flex-1">
-              <h4 class="text-sm font-black text-rose-900 tracking-tight">Password Reset Error</h4>
-              <p class="text-xs text-rose-700 mt-0.5 font-semibold leading-relaxed">
-                Please check the requirements below and ensure your passwords match.
-              </p>
-            </div>
-          </div>
-        @endif
-
-        <!-- RESET PASSWORD FORM -->
-        <form id="resetPasswordForm" class="space-y-6" method="POST" action="{{ route('password.store') }}">
-          @csrf
-
-          <!-- Password Reset Token -->
-          <input type="hidden" name="token" value="{{ $request->route('token') }}">
-
-          <!-- EMAIL FIELD -->
-          <div class="input-floating-wrapper">
-            <label for="email" class="block text-xs font-black tracking-widest uppercase text-slate-400 mb-2">Registered Email</label>
-            <div class="relative group">
-              <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
-                <i class="fa-regular fa-envelope text-slate-400 group-focus-within:text-blue-500 transition-colors"></i>
-              </div>
-              <input id="email" 
-                     name="email" 
-                     type="email" 
-                     value="{{ old('email', $request->email) }}" 
-                     required 
-                     autofocus 
-                     autocomplete="username" 
-                     class="block w-full pl-11 pr-4 py-3.5 rounded-xl border border-slate-200 bg-white/80 backdrop-blur-sm shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 text-slate-900 font-medium placeholder:text-slate-400 transition-all hover:bg-white outline-none">
-            </div>
-            <x-input-error :messages="$errors->get('email')" class="mt-2 text-rose-500 text-sm font-bold flex items-center gap-1" />
-          </div>
-
-          <!-- NEW PASSWORD FIELD -->
-          <div class="input-floating-wrapper">
-            <label for="password" class="block text-xs font-black tracking-widest uppercase text-slate-400 mb-2">New Password</label>
-            <div class="relative group">
-              <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
-                <i class="fa-solid fa-lock text-slate-400 group-focus-within:text-blue-500 transition-colors"></i>
-              </div>
-              <input id="password" 
-                     name="password" 
-                     type="password" 
-                     required 
-                     autocomplete="new-password" 
-                     placeholder="••••••••••••"
-                     class="block w-full pl-11 pr-12 py-3.5 rounded-xl border border-slate-200 bg-white/80 backdrop-blur-sm shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 text-slate-900 font-medium tracking-wider placeholder:tracking-normal transition-all hover:bg-white outline-none">
-              <button type="button" id="togglePassword" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors z-10" aria-label="Toggle password visibility">
-                <i class="fa-regular fa-eye-slash text-lg"></i>
-              </button>
-            </div>
-            <x-input-error :messages="$errors->get('password')" class="mt-2 text-rose-500 text-sm font-bold flex items-center gap-1" />
-          </div>
-
-          <!-- CONFIRM PASSWORD FIELD -->
-          <div class="input-floating-wrapper">
-            <label for="password_confirmation" class="block text-xs font-black tracking-widest uppercase text-slate-400 mb-2">Confirm New Password</label>
-            <div class="relative group">
-              <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
-                <i class="fa-solid fa-shield-halved text-slate-400 group-focus-within:text-blue-500 transition-colors"></i>
-              </div>
-              <input id="password_confirmation" 
-                     name="password_confirmation" 
-                     type="password" 
-                     required 
-                     autocomplete="new-password" 
-                     placeholder="••••••••••••"
-                     class="block w-full pl-11 pr-12 py-3.5 rounded-xl border border-slate-200 bg-white/80 backdrop-blur-sm shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 text-slate-900 font-medium tracking-wider placeholder:tracking-normal transition-all hover:bg-white outline-none">
-              <button type="button" id="toggleConfirmPassword" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors z-10" aria-label="Toggle confirm password visibility">
-                <i class="fa-regular fa-eye-slash text-lg"></i>
-              </button>
-            </div>
-            <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2 text-rose-500 text-sm font-bold flex items-center gap-1" />
-          </div>
-
-          <!-- PASSWORD POLICY BADGE -->
-          <div class="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/70">
-            <p class="text-xs font-black text-slate-700 uppercase tracking-widest mb-2 flex items-center gap-2">
-              <i class="fa-solid fa-shield text-blue-600"></i>
-              <span>Mandatory Security Requirements</span>
-            </p>
-            <ul class="text-xs text-slate-600 space-y-1.5 font-medium">
-              <li class="flex items-center gap-2">
-                <i class="fa-solid fa-circle-check text-emerald-500 text-[10px]"></i>
-                <span>Minimum 12 characters in length</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <i class="fa-solid fa-circle-check text-emerald-500 text-[10px]"></i>
-                <span>Must include both Uppercase and Lowercase letters</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <i class="fa-solid fa-circle-check text-emerald-500 text-[10px]"></i>
-                <span>Must include at least one Number (0-9)</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <i class="fa-solid fa-circle-check text-emerald-500 text-[10px]"></i>
-                <span>Must include at least one Symbol (!@#$%^&*...)</span>
-              </li>
-            </ul>
-          </div>
-
-          <!-- PRIMARY CTA -->
-          <div class="pt-2">
-            <button type="submit" id="submitBtn" class="btn-ripple w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black tracking-widest uppercase shadow-xl shadow-blue-500/30 hover:shadow-blue-500/40 transition-all hover:-translate-y-0.5 active:scale-[0.98] flex items-center justify-center gap-2 text-base disabled:opacity-75 disabled:pointer-events-none">
-              <span id="btnText">Update Password</span>
-              <i id="btnIcon" class="fa-solid fa-check text-sm"></i>
-              <span id="loadingSpinner" class="hidden"><i class="fa-solid fa-circle-notch fa-spin"></i></span>
-            </button>
-          </div>
-
-          <!-- BACK TO LOGIN LINK -->
-          <div class="text-center pt-2">
-            <a href="{{ route('login') }}" class="inline-flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-blue-600 transition-colors py-2 px-4 rounded-xl hover:bg-slate-100/60">
-              <i class="fa-solid fa-arrow-left text-xs"></i>
-              <span>Cancel and Return to Sign In</span>
+        <header class="login-header">
+            <a class="brand" href="{{ route('login') }}" aria-label="NHMP 130 sign in">
+                <span class="brand-emblem" aria-hidden="true"><img src="{{ asset('images/login/shield-logo-web.webp') }}" width="68" height="67" alt="" fetchpriority="high" decoding="async"></span>
+                <span class="brand-wordmark">NHMP <strong>130</strong><span>National Highways &amp; Motorway Police</span></span>
             </a>
-          </div>
-        </form>
-        
-        <!-- subtle footer -->
-        <p class="text-[11px] text-slate-400 text-center mt-6 uppercase tracking-wider font-bold">NHMP 130 • Carriageway Emergency CRM</p>
-      </div>
+            <div class="service-pill"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m10 2 6 2.5V10c0 4-6 7-6 7s-6-3-6-7V4.5L10 2Z"/><path d="m7 9 2 2 4-4"/></svg>Security Gate. Password Reset.</div>
+        </header>
+
+        <main class="login-main auth-grid-left-form">
+            <!-- LEFT COLUMN: FORM CARD -->
+            <section class="login-card" aria-labelledby="reset-heading">
+                <div class="card-accent" aria-hidden="true"></div>
+                <div class="card-heading">
+                    <div class="access-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    </div>
+                    <div>
+                        <p class="card-eyebrow">NHMP 130 IDENTITY RECOVERY</p>
+                        <h2 id="reset-heading" tabindex="-1">Reset Password<span>.</span></h2>
+                    </div>
+                </div>
+
+                <p class="card-intro">Enter your account credentials and define your new strong security password.</p>
+
+                @if ($errors->any())
+                    <div class="login-alert" id="login-errors" role="alert" tabindex="-1">
+                        <strong>Password Reset Failed</strong>
+                        @foreach ($errors->all() as $error)
+                            <span>{{ $error }}</span>
+                        @endforeach
+                    </div>
+                @endif
+
+                <form id="loginForm" method="POST" action="{{ route('password.store') }}">
+                    @csrf
+                    <!-- Password Reset Token -->
+                    <input type="hidden" name="token" value="{{ $request->route('token') }}">
+
+                    <div class="form-field">
+                        <label for="email">Account Email Address</label>
+                        <div class="input-wrap">
+                            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                            <input id="email" 
+                                   name="email" 
+                                   type="email" 
+                                   value="{{ old('email', $request->email) }}" 
+                                   required 
+                                   autofocus 
+                                   autocomplete="username" 
+                                   placeholder="officer@nhmp.gov.pk">
+                        </div>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="password">New Password</label>
+                        <div class="input-wrap">
+                            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/></svg>
+                            <input id="password" 
+                                   name="password" 
+                                   type="password" 
+                                   required 
+                                   autocomplete="new-password" 
+                                   placeholder="Enter your new password">
+                            <button type="button" id="togglePassword" hidden aria-label="Show password" aria-controls="password" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="m4 3 16 18"/></svg></button>
+                        </div>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="password_confirmation">Confirm New Password</label>
+                        <div class="input-wrap">
+                            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/></svg>
+                            <input id="password_confirmation" 
+                                   name="password_confirmation" 
+                                   type="password" 
+                                   required 
+                                   autocomplete="new-password" 
+                                   placeholder="Confirm your new password">
+                        </div>
+                    </div>
+
+                    <!-- 3D BUTTON (Matching Login Page) -->
+                    <button type="submit" id="loginButton" class="sign-in-button">
+                        <span id="btnText">Reset Password &amp; Continue</span>
+                        <svg class="submit-arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+                        <span id="loadingSpinner" class="login-spinner" hidden aria-hidden="true"></span>
+                    </button>
+                    <p id="loginProgress" class="sr-only" role="status" aria-live="polite"></p>
+
+                    <div class="form-options">
+                        <a href="{{ route('login') }}">Back to sign in &rarr;</a>
+                    </div>
+                </form>
+
+                <div class="card-footer">
+                    <a href="{{ route('login') }}" style="display: inline-flex; align-items: center; gap: 4px; text-decoration: none; color: inherit;">
+                        <svg viewBox="0 0 20 20" fill="none" style="width: 13px; height: 13px; stroke: currentColor; stroke-width: 1.5;"><path d="M15 10H5m4-4l-4 4 4 4"/></svg>
+                        Back to Login
+                    </a>
+                    <span>NHMP 130 CRM</span>
+                </div>
+            </section>
+
+            <!-- RIGHT COLUMN: SCENIC BRANDING CARD -->
+            @include('auth.partials.scenic-branding-card')
+        </main>
+
+        <footer class="login-footer">
+            <span><span class="footer-long">National Highways &amp; Motorway Police · </span>© {{ date('Y') }} NHMP 130</span>
+            <span class="helpline"><span>Roadside assistance</span><a href="tel:130"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m5 2 3 4-2 2c1 3 3 5 6 6l2-2 4 3-1 3C9 19 1 11 2 3l3-1Z"/></svg>130</a></span>
+        </footer>
     </div>
-  </div>
-
-  <script>
-    (function() {
-      "use strict";
-
-      function setupPasswordToggle(inputId, buttonId) {
-        const input = document.getElementById(inputId);
-        const btn = document.getElementById(buttonId);
-        if (!input || !btn) return;
-        const icon = btn.querySelector('i');
-        btn.addEventListener('click', function() {
-          const isPassword = input.getAttribute('type') === 'password';
-          input.setAttribute('type', isPassword ? 'text' : 'password');
-          if (icon) {
-            icon.classList.toggle('fa-eye-slash', !isPassword);
-            icon.classList.toggle('fa-eye', isPassword);
-          }
-        });
-      }
-
-      setupPasswordToggle('password', 'togglePassword');
-      setupPasswordToggle('password_confirmation', 'toggleConfirmPassword');
-
-      const form = document.getElementById('resetPasswordForm');
-      const submitBtn = document.getElementById('submitBtn');
-      const btnText = document.getElementById('btnText');
-      const btnIcon = document.getElementById('btnIcon');
-      const spinner = document.getElementById('loadingSpinner');
-
-      if (form && submitBtn) {
-        form.addEventListener('submit', function() {
-          submitBtn.disabled = true;
-          if (btnText) btnText.textContent = 'Updating Credentials...';
-          if (btnIcon) btnIcon.classList.add('hidden');
-          if (spinner) spinner.classList.remove('hidden');
-        });
-      }
-    })();
-  </script>
 </x-guest-layout>

@@ -49,9 +49,12 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const fetchOptions = {
                 method: options.method || 'GET',
+                cache: 'no-cache',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-PJAX': 'true',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
                 }
             };
@@ -83,6 +86,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const html = await response.text();
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
+
+            // Cleanly destroy existing Alpine reactive tree to prevent memory leaks and dangling watchers
+            if (window.Alpine && typeof window.Alpine.destroyTree === 'function' && mainArea) {
+                try {
+                    window.Alpine.destroyTree(mainArea);
+                } catch (e) {
+                    // Ignore destroy errors on uninitialized subtrees
+                }
+            }
 
             // Swap Main Content
             const newMain = doc.querySelector('main');

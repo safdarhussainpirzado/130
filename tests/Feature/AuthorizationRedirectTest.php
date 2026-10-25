@@ -16,6 +16,7 @@ class AuthorizationRedirectTest extends TestCase
     {
         parent::setUp();
         $this->artisan('db:seed');
+        $this->withoutMiddleware(\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class);
     }
 
     /** @test */
@@ -47,7 +48,7 @@ class AuthorizationRedirectTest extends TestCase
         $callType = DB::table('call_types')->first();
         
         $response = $this->actingAs($supervisor)->post('/calls', [
-            'caller_number' => '03001234567',
+            'caller_number' => '03009998877',
             'call_type_id' => $callType->id,
             'caller_name' => 'John Doe',
         ]);
@@ -56,7 +57,7 @@ class AuthorizationRedirectTest extends TestCase
         $response->assertSessionHas('error', 'Unauthorized access. You have been redirected to your authorized workspace.');
         
         $this->assertDatabaseMissing('calls', [
-            'caller_number' => '03001234567',
+            'caller_number' => '03009998877',
         ]);
     }
 }

@@ -13,20 +13,28 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*');
+        $middleware->alias([
+            'mfa.fresh' => \App\Http\Middleware\RequireFreshMfa::class,
+        ]);
+        $middleware->priority([
+            \App\Http\Middleware\TwoFactorEnforcement::class,
+            \Illuminate\Auth\Middleware\Authenticate::class,
+        ]);
         $middleware->web(append: [
             \App\Http\Middleware\TwoFactorEnforcement::class,
+            \App\Http\Middleware\EnsurePasswordNotExpired::class,
             \App\Http\Middleware\PreventBackHistory::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->respond(function ($response, $e, $request) {
             if ($response->getStatusCode() === 403 && ! $request->expectsJson()) {
-                /** @var \App\Models\User $user */
-                $user = auth()->user();
+                /** @var \App\Models\User|null $user */
+                $user = \Illuminate\Support\Facades\Auth::user();
                 if ($user) {
                     $landing = $user->getLandingPageRoute();
-                    // Prevent infinite redirect loop if landing page itself is causing the 403
-                    if ($request->url() !== $landing) {
+                    // Prevent infinite redirect loop if landing page itself is causing the 403 on GET
+                    if ($request->url() !== $landing || $request->method() !== 'GET') {
                         return redirect($landing)
                             ->with('error', 'Unauthorized access. You have been redirected to your authorized workspace.');
                     }
