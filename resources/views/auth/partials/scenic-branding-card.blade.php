@@ -1,6 +1,31 @@
 @php
     $slides = [
         [
+            'image' => asset('images/login/slider-6.webp'),
+            'location' => 'Petaro · Indus Highway N-55',
+            'tagline' => 'Riverine Patrol · Jamshoro Sindh',
+        ],
+        [
+            'image' => asset('images/login/slider-7.webp'),
+            'location' => 'Lyari Expressway · Karachi',
+            'tagline' => 'Urban Elevated Viaduct · Sindh',
+        ],
+        [
+            'image' => asset('images/login/slider-8.webp'),
+            'location' => 'Sukkur–Rohri · M-5 Motorway',
+            'tagline' => 'Indus Basin Command · Sindh',
+        ],
+        [
+            'image' => asset('images/login/slider-9.webp'),
+            'location' => 'Bholari–Hyderabad · M-9 Motorway',
+            'tagline' => 'Airbase Sector Patrol · Sindh',
+        ],
+        [
+            'image' => asset('images/login/slider-10.webp'),
+            'location' => 'Khairpur Mirs · National Highway N-5',
+            'tagline' => 'Date Palm Oasis Patrol · Sindh',
+        ],
+        [
             'image' => asset('images/login/slider-1.webp'),
             'location' => 'Hazara Motorway · E-35',
             'tagline' => 'Viaduct Patrol · KPK',
@@ -55,11 +80,11 @@
             <img src="{{ asset('images/login/shield-logo-web.webp') }}" alt="" class="scenic-shield-icon">
             <div>
                 <span class="scenic-brand-title">NHMP <strong>130</strong></span>
-                <span class="scenic-brand-sub" id="sliderLocationSub">Hazara Motorway · E-35</span>
+                <span class="scenic-brand-sub" id="sliderLocationSub">{{ $slides[0]['location'] }}</span>
             </div>
         </div>
         <div class="scenic-pill-tag">
-            <span id="sliderPillTag">Safer Journeys · Stronger Pakistan</span>
+            <span id="sliderPillTag">{{ $slides[0]['tagline'] }}</span>
         </div>
     </div>
 

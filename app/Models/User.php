@@ -136,7 +136,11 @@ class User extends Authenticatable
         }
 
         $expiryDate = $changedAt->copy()->addDays($days);
-        return max(0, (int) now()->diffInDays($expiryDate, false));
+        if ($expiryDate->isPast()) {
+            return 0;
+        }
+
+        return max(0, (int) ceil(now()->floatDiffInDays($expiryDate, false)));
     }
 
     public function passwordExpiresAt(?int $days = null): ?\Illuminate\Support\Carbon

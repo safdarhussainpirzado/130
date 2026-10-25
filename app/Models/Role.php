@@ -14,6 +14,7 @@ class Role extends Model
     const BEAT_OPERATOR    = 'beat_operator';
     const AGENT_SUPERVISOR = 'agent_supervisor';
     const AGENT            = 'agent';
+    const OPERATOR         = 'agent';
 
     public $timestamps = true;
 

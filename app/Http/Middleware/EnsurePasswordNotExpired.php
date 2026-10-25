@@ -10,7 +10,7 @@ use Symfony\Component\HttpFoundation\Response;
 class EnsurePasswordNotExpired
 {
     /**
-     * Routes exempt from password expiration redirection.
+     * Route name exemptions.
      */
     private const EXEMPT_ROUTES = [
         'password.expired',
@@ -18,6 +18,17 @@ class EnsurePasswordNotExpired
         'logout',
         'login',
         'auth.heartbeat',
+    ];
+
+    /**
+     * URI pattern exemptions.
+     */
+    private const EXEMPT_PATTERNS = [
+        'password/expired*',
+        'logout*',
+        'login*',
+        'auth/heartbeat*',
+        'up',
     ];
 
     /**
@@ -33,14 +44,14 @@ class EnsurePasswordNotExpired
             return $next($request);
         }
 
-        // Allow health check routes
-        if ($request->is('up')) {
+        // Check URI pattern exemptions
+        if ($request->is(...self::EXEMPT_PATTERNS)) {
             return $next($request);
         }
 
         $currentRoute = $request->route()?->getName();
 
-        if (in_array($currentRoute, self::EXEMPT_ROUTES, true)) {
+        if ($currentRoute && in_array($currentRoute, self::EXEMPT_ROUTES, true)) {
             return $next($request);
         }
 
