@@ -397,23 +397,29 @@
         </div>
 
         {{-- Case Classification Donut --}}
+        {{-- Help Classification --}}
         <div class="bc ac-vio">
             <div class="ch">
                 <div class="ci bg-violet-100"><i class="fa-solid fa-chart-pie text-violet-600"></i></div>
-                <div>
+                <div class="flex-1">
                     <div class="ct">Help Classification</div>
-                    <div class="cst">By Call Category</div>
+                    <div class="cst" id="categorySubtitle">All-Time Cases (709k+ Total)</div>
+                </div>
+                <div class="fp shrink-0">
+                    <button class="on" onclick="setCategoryRange('all',this)">All</button>
+                    <button onclick="setCategoryRange('30d',this)">30d</button>
+                    <button onclick="setCategoryRange('7d',this)">7d</button>
                 </div>
             </div>
             <div class="relative" style="height:190px;">
-                <canvas id="categoryChart" role="img" aria-label="Call categories donut">Medical 45, Breakdown 32, Road Hazard 18, Crime 12, General 25.</canvas>
+                <canvas id="categoryChart" role="img" aria-label="Call categories donut">Call categories distribution.</canvas>
                 <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style="padding-bottom:8px;">
-                    <div class="text-2xl font-black text-slate-800" id="totalCases">132</div>
+                    <div class="text-2xl font-black text-slate-800" id="totalCases">{{ number_format($callCategories->sum('count')) }}</div>
                     <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Cases</div>
                 </div>
             </div>
             <div class="divider"></div>
-            <div class="space-y-2 flex-1">
+            <div class="space-y-2 flex-1" id="categoryLegend">
                 @foreach($callCategories as $cat)
                 @php
                     $palette = ['#0ea5e9','#10b981','#f59e0b','#f43f5e','#8b5cf6','#f97316','#14b8a6'];
@@ -422,10 +428,10 @@
                     $pct_cat = round(($cat->count / $total_cat) * 100);
                 @endphp
                 <div class="flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: '{{ $palette[$ci] }}' }"></span>
-                    <span class="text-xs font-semibold text-slate-600 flex-1 min-w-0 truncate">{{ $cat->category }}</span>
+                    <span class="w-2 h-2 rounded-full shrink-0" style="background-color: {{ $palette[$ci] }}"></span>
+                    <span class="text-xs font-semibold text-slate-600 flex-1 min-w-0 truncate">{{ ucwords(str_replace('_', ' ', $cat->category)) }}</span>
                     <span class="text-[10px] font-black text-slate-400 shrink-0">{{ $pct_cat }}%</span>
-                    <span class="text-xs font-black text-slate-700 shrink-0 w-6 text-right">{{ $cat->count }}</span>
+                    <span class="text-xs font-black text-slate-700 shrink-0 w-16 text-right">{{ number_format($cat->count) }}</span>
                 </div>
                 @endforeach
             </div>
@@ -780,7 +786,7 @@
 {{-- Chart.js is already loaded in layouts.app --}}
 <script>
 /* ─── Global chart refs for filter updates ─── */
-window._dashboardCharts = window._dashboardCharts || { prio: null, weekly: null, agent: null, sunburst: null };
+window._dashboardCharts = window._dashboardCharts || { prio: null, weekly: null, agent: null, sunburst: null, category: null };
 window._dashboardAlpineApp = null;
 
 /* ─── Filter helpers ──────────────────────────*/
@@ -788,6 +794,50 @@ function setFilterActive(btn) {
     if (!btn) return;
     btn.closest('.fp').querySelectorAll('button').forEach(b => b.classList.remove('on'));
     btn.classList.add('on');
+}
+
+async function setCategoryRange(r, btn) {
+    setFilterActive(btn);
+    const canvas = document.getElementById('categoryChart');
+    if (!canvas) return;
+    canvas.style.opacity = '0.4';
+    try {
+        const res = await fetch(`/dashboard/chart-data?chart=category&range=${r}`);
+        const data = await res.json();
+        
+        const sub = document.getElementById('categorySubtitle');
+        if (sub) {
+            sub.textContent = r === 'all' ? 'All-Time Cases (709k+ Total)' : (r === '30d' ? '30-Day Distribution' : '7-Day Distribution');
+        }
+
+        if (window._dashboardAlpineApp && typeof window._dashboardAlpineApp.buildCategoryChart === 'function') {
+            window._dashboardAlpineApp.buildCategoryChart(data);
+        }
+
+        const leg = document.getElementById('categoryLegend');
+        if (leg && Array.isArray(data)) {
+            const palette = ['#0ea5e9','#10b981','#f59e0b','#f43f5e','#8b5cf6','#f97316','#14b8a6'];
+            const total = data.reduce((s, d) => s + (+d.count), 0);
+            leg.innerHTML = data.map((d, i) => {
+                const color = palette[i % palette.length];
+                const count = +d.count;
+                const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                const catName = (d.category || '').replace(/_/g, ' ').replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+                return `
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full shrink-0" style="background-color: ${color}"></span>
+                        <span class="text-xs font-semibold text-slate-600 flex-1 min-w-0 truncate">${catName}</span>
+                        <span class="text-[10px] font-black text-slate-400 shrink-0">${pct}%</span>
+                        <span class="text-xs font-black text-slate-700 shrink-0 w-16 text-right">${count.toLocaleString()}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+    } catch (e) {
+        console.error('Failed to update category chart:', e);
+    } finally {
+        canvas.style.opacity = '1';
+    }
 }
 
 async function setPrioRange(r, btn) {
@@ -858,10 +908,15 @@ async function setAgentRange(r, btn) {
     try {
         const res = await fetch(`/dashboard/chart-data?chart=agent&range=${r}`);
         const data = await res.json();
-        if (window._dashboardCharts.agent && data.labels) {
-            window._dashboardCharts.agent.data.labels = data.labels;
-            window._dashboardCharts.agent.data.datasets[0].data = data.values;
-            window._dashboardCharts.agent.update();
+        if (window._dashboardAlpineApp && typeof window._dashboardAlpineApp.buildAgentChart === 'function') {
+            window._dashboardAlpineApp.buildAgentChart(data);
+        } else {
+            const chart = Chart.getChart(canvas) || window._dashboardCharts.agent;
+            if (chart && data.labels) {
+                chart.data.labels = data.labels.map(name => (name || '').replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()));
+                chart.data.datasets[0].data = data.values;
+                chart.update();
+            }
         }
     } catch (e) {
         console.error('Failed to update agent chart:', e);
@@ -1017,17 +1072,24 @@ function dashboardApp(data) {
         buildCategoryChart(data) {
             const ctx = document.getElementById('categoryChart');
             if (!ctx) return;
+            const existing = Chart.getChart(ctx) || window._dashboardCharts?.category;
+            if (existing) existing.destroy();
+
             const counts = data.map(d => +d.count);
             const total  = counts.reduce((s,v) => s+v, 0);
             const el = document.getElementById('totalCases');
-            if (el) el.textContent = total;
-            new Chart(ctx, {
+            if (el) el.textContent = total.toLocaleString();
+
+            const palette = ['#0ea5e9','#10b981','#f59e0b','#f43f5e','#8b5cf6','#f97316','#14b8a6'];
+            const labels = data.map(d => (d.category || '').replace(/_/g, ' ').replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()));
+
+            window._dashboardCharts.category = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: data.map(d => d.category),
+                    labels: labels,
                     datasets: [{
                         data: counts,
-                        backgroundColor: ['#0ea5e9','#10b981','#f59e0b','#f43f5e','#8b5cf6','#f97316','#14b8a6'],
+                        backgroundColor: palette,
                         hoverOffset: 10, borderRadius: 6, borderWidth: 2, borderColor: '#fff'
                     }]
                 },
@@ -1039,6 +1101,9 @@ function dashboardApp(data) {
         buildAssetStatusChart(data) {
             const ctx = document.getElementById('assetStatusChart');
             if (!ctx) return;
+            const existing = Chart.getChart(ctx);
+            if (existing) existing.destroy();
+
             const auth = +(data.find(d => d.status === 'authorized')?.count || 0);
             const lock = +(data.find(d => d.status === 'locked')?.count     || 0);
             
@@ -1066,6 +1131,9 @@ function dashboardApp(data) {
         buildGaugeChart() {
             const ctx = document.getElementById('gaugeChart');
             if (!ctx) return;
+            const existing = Chart.getChart(ctx);
+            if (existing) existing.destroy();
+
             const slaVal = Number(this.slaValue || 0);
             new Chart(ctx, {
                 type: 'doughnut',
@@ -1088,6 +1156,9 @@ function dashboardApp(data) {
         buildPriorityChart(data) {
             const ctx = document.getElementById('priorityChart');
             if (!ctx) return;
+            const existing = Chart.getChart(ctx) || window._dashboardCharts?.prio;
+            if (existing) existing.destroy();
+
             const dates = [...new Set(data.map(d => d.date))].sort();
             const get = (p) => dates.map(dt => +(data.find(d => d.date===dt && +d.priority===p)?.count || 0));
             window._dashboardCharts.prio = new Chart(ctx, {
@@ -1177,6 +1248,9 @@ function dashboardApp(data) {
         buildRoadChart(data) {
             const ctx = document.getElementById('roadChart');
             if (!ctx) return;
+            const existing = Chart.getChart(ctx);
+            if (existing) existing.destroy();
+
             new Chart(ctx, {
                 type: 'doughnut',
                 data: {
@@ -1195,6 +1269,8 @@ function dashboardApp(data) {
         buildSunburstChart(raw) {
             const ctx = document.getElementById('sunburstChart');
             if (!ctx) return;
+            const existing = Chart.getChart(ctx) || window._dashboardCharts?.sunburst;
+            if (existing) existing.destroy();
             
             const zones = Object.keys(raw);
             const palette = ['#0ea5e9','#10b981','#8b5cf6','#f59e0b','#f43f5e','#f97316','#ec4899','#6366f1','#14b8a6','#facc15'];
@@ -1218,7 +1294,7 @@ function dashboardApp(data) {
                 });
             });
 
-            new Chart(ctx, {
+            window._dashboardCharts.sunburst = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
                     datasets: [
@@ -1331,13 +1407,15 @@ function dashboardApp(data) {
                     }
                 }]
             });
-            const chart = Chart.getChart(ctx);
         },
 
         /* ── Sector Polar ──────────────────────── */
         buildSectorPolarChart(data) {
             const ctx = document.getElementById('sectorPolarChart');
             if (!ctx) return;
+            const existing = Chart.getChart(ctx);
+            if (existing) existing.destroy();
+
             const border = ['#f97316', '#0ea5e9', '#14b8a6', '#8b5cf6', '#f43f5e', '#f59e0b', '#10b981', '#ec4899', '#6366f1', '#06b6d4', '#84cc16', '#eab308'];
             const cols = border.map(c => c + 'b3'); // roughly 0.7 opacity
             new Chart(ctx, {
@@ -1358,15 +1436,26 @@ function dashboardApp(data) {
         buildAgentChart(data) {
             const ctx = document.getElementById('agentChart');
             if (!ctx) return;
+            const existing = Chart.getChart(ctx) || window._dashboardCharts?.agent;
+            if (existing) existing.destroy();
             
-            const labels = data.map(d => {
-                const name = d.username || '';
-                return name.replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
-            });
-            const values = data.map(d => +d.total_calls);
+            let labels = [];
+            let values = [];
+            if (Array.isArray(data)) {
+                labels = data.map(d => {
+                    const name = d.username || '';
+                    return name.replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+                });
+                values = data.map(d => +d.total_calls);
+            } else if (data && data.labels) {
+                labels = (data.labels || []).map(name => {
+                    return (name || '').replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+                });
+                values = (data.values || []).map(v => +v);
+            }
             const palette = ['#0ea5e9','#10b981','#8b5cf6','#f59e0b','#f43f5e'];
 
-            new Chart(ctx, {
+            window._dashboardCharts.agent = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: labels,
@@ -1455,6 +1544,9 @@ function dashboardApp(data) {
         buildShiftChart(data) {
             const ctx = document.getElementById('shiftChart');
             if (!ctx) return;
+            const existing = Chart.getChart(ctx);
+            if (existing) existing.destroy();
+
             // Sort higher bars first
             data = [...data].map(d => ({...d, total: +d.pending + +d.in_progress + +d.completed})).sort((a,b) => b.total - a.total);
             new Chart(ctx, {
@@ -1493,6 +1585,9 @@ function dashboardApp(data) {
         buildHourlyProgressChart(labels, values) {
             const ctx = document.getElementById('hourlyProgressChart');
             if (!ctx) return;
+            const existing = Chart.getChart(ctx);
+            if (existing) existing.destroy();
+
             new Chart(ctx, {
                 type: 'bar',
                 data: {

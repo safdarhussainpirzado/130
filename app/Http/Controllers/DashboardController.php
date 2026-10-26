@@ -47,6 +47,7 @@ class DashboardController extends Controller
                 'weekly'   => $this->getWeeklyChartData($range),
                 'sunburst' => $this->getSunburstDistribution($range),
                 'agent'    => $this->getAgentChartData($range),
+                'category' => $this->getCategoryChartData($range),
                 default    => ['error' => 'Unknown chart type']
             };
         });
@@ -123,13 +124,15 @@ class DashboardController extends Controller
             ->limit(10)
             ->get();
 
-        // ── 4. Call Category Distribution (Donut - Last 30 Days) ────────
-        $callCategories = DB::table('calls')
-            ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
-            ->select('call_types.category', DB::raw('count(*) as count'))
-            ->where('calls.created_at', '>=', now()->subDays(30))
-            ->groupBy('call_types.category')
-            ->get();
+        // ── 4. Call Category Distribution (Donut - Default All-Time) ────────
+        $callCategories = Cache::remember('dashboard_call_categories_all', 60, function () {
+            return DB::table('calls')
+                ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
+                ->select('call_types.category', DB::raw('count(*) as count'))
+                ->groupBy('call_types.category')
+                ->orderBy('count', 'desc')
+                ->get();
+        });
 
         // ── 5. Sentinel Distribution (Active state) ─────────────────────
         $tigerStatus = DB::table('users')
@@ -642,5 +645,26 @@ class DashboardController extends Controller
             'labels' => $agents->pluck('username')->all(),
             'values' => $agents->pluck('total_calls')->all(),
         ];
+    }
+
+    /**
+     * Category distribution helper for all, 30d, 7d.
+     */
+    protected function getCategoryChartData(string $range = 'all'): array
+    {
+        $query = DB::table('calls')
+            ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
+            ->select('call_types.category', DB::raw('count(*) as count'));
+
+        if ($range === '7d') {
+            $query->where('calls.created_at', '>=', now()->subDays(7)->startOfDay());
+        } elseif ($range === '30d') {
+            $query->where('calls.created_at', '>=', now()->subDays(30)->startOfDay());
+        }
+
+        return $query->groupBy('call_types.category')
+            ->orderBy('count', 'desc')
+            ->get()
+            ->all();
     }
 }

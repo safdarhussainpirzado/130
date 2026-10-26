@@ -49,7 +49,28 @@ class MfaPolicyResolver
             return true;
         }
 
-        // 2. Disabled for all other non-privileged operational roles (agents, operators, supervisors)
+        // 2. Resolve dynamic role policy from database for primary role
+        $roleId = (int) $user->role_id;
+        if ($roleId > 0) {
+            $policy = $this->getPolicyForRole($roleId);
+            if ($policy && $policy->isEnforcedNow()) {
+                return true;
+            }
+        }
+
+        // 3. Multi-role check: If user has secondary roles/scopes, any enforced role takes precedence
+        $allRoleIds = $this->getUserAllRoleIds($user);
+        foreach ($allRoleIds as $extraRoleId) {
+            if ($extraRoleId === $roleId) {
+                continue;
+            }
+            $extraPolicy = $this->getPolicyForRole($extraRoleId);
+            if ($extraPolicy && $extraPolicy->isEnforcedNow()) {
+                return true;
+            }
+        }
+
+        // 4. Fallback: Role is currently exempt / not enforced
         return false;
     }
 
