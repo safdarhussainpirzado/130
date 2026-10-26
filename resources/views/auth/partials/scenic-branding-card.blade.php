@@ -112,75 +112,13 @@
                     <span class="slider-dot {{ $index === 0 ? 'active' : '' }}" 
                           data-dot-index="{{ $index }}"
                           title="{{ $slide['location'] }}"
-                          onclick="goToSlide({{ $index }})"></span>
+                          role="button"
+                          tabindex="0"
+                          aria-label="Go to slide {{ $index + 1 }}: {{ $slide['location'] }}"></span>
                 @endforeach
             </div>
             <span class="scenic-helpline">Helpline: <strong>130</strong></span>
         </div>
     </div>
 
-    <!-- Vanilla Javascript Slider Engine (Crossfade + Touch/Click + Pause-on-Hover) -->
-    <script>
-        (function() {
-            var slider = document.getElementById('nhmpScenicSlider');
-            if (!slider) return;
-
-            var slides = slider.querySelectorAll('.scenic-slide');
-            var dots = slider.querySelectorAll('.slider-dot');
-            var locSub = document.getElementById('sliderLocationSub');
-            var pillTag = document.getElementById('sliderPillTag');
-            var currentIndex = 0;
-            var timer = null;
-            var delay = 4800; // 4.8s per slide
-
-            function showSlide(index) {
-                if (index < 0) index = slides.length - 1;
-                if (index >= slides.length) index = 0;
-                currentIndex = index;
-
-                slides.forEach(function(s, i) {
-                    if (i === currentIndex) {
-                        s.classList.add('active');
-                        var loc = s.getAttribute('data-location');
-                        var tag = s.getAttribute('data-tagline');
-                        if (locSub && loc) locSub.textContent = loc;
-                        if (pillTag && tag) pillTag.textContent = tag;
-                    } else {
-                        s.classList.remove('active');
-                    }
-                });
-
-                dots.forEach(function(d, i) {
-                    if (i === currentIndex) {
-                        d.classList.add('active');
-                    } else {
-                        d.classList.remove('active');
-                    }
-                });
-            }
-
-            function startTimer() {
-                stopTimer();
-                timer = setInterval(function() {
-                    showSlide(currentIndex + 1);
-                }, delay);
-            }
-
-            function stopTimer() {
-                if (timer) {
-                    clearInterval(timer);
-                    timer = null;
-                }
-            }
-
-            window.goToSlide = function(i) {
-                showSlide(i);
-                startTimer();
-            };
-
-            slider.addEventListener('mouseenter', stopTimer);
-            slider.addEventListener('mouseleave', startTimer);
-            startTimer();
-        })();
-    </script>
 </div>

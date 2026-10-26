@@ -4,15 +4,61 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
+use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
     /**
      * Display the dynamic operational dashboard providing core CRM data directly to the user.
      */
-    public function index()
+    public function index(Request $request)
     {
         $this->authorize('dashboard.view');
+
+        // Optional cache bust via ?refresh=1
+        if ($request->boolean('refresh')) {
+            Cache::forget('dashboard_main_metrics_v2');
+        }
+
+        // Cache high-level dashboard metrics for 60 seconds (Redis)
+        $data = Cache::remember('dashboard_main_metrics_v2', 60, function () {
+            return $this->computeDashboardMetrics();
+        });
+
+        return view('dashboard', $data);
+    }
+
+    /**
+     * AJAX endpoint for dynamic range filtering on dashboard charts.
+     */
+    public function chartData(Request $request)
+    {
+        $this->authorize('dashboard.view');
+
+        $chart = $request->query('chart');
+        $range = $request->query('range', '7d');
+
+        $cacheKey = "chart_data_{$chart}_{$range}";
+        
+        $result = Cache::remember($cacheKey, 60, function () use ($chart, $range) {
+            return match ($chart) {
+                'priority' => $this->getPriorityChartData($range),
+                'weekly'   => $this->getWeeklyChartData($range),
+                'sunburst' => $this->getSunburstDistribution($range),
+                'agent'    => $this->getAgentChartData($range),
+                default    => ['error' => 'Unknown chart type']
+            };
+        });
+
+        return response()->json($result);
+    }
+
+    /**
+     * Compute all operational metrics with optimized single-query aggregations.
+     */
+    protected function computeDashboardMetrics(): array
+    {
         // ── 1. High-Level KPIs ──────────────────────────────────────────
         $activeCallsCount = DB::table('calls')
             ->whereIn('status', ['pending', 'in_progress'])
@@ -30,78 +76,73 @@ class DashboardController extends Controller
             ? round(($activeSentinelsCount / $totalSystemUsers) * 100)
             : 0;
 
-        $slaFilter = function($query) {
-            $query->whereIn('calls.status', ['completed', 'pending', 'in_progress'])
-                  ->whereNotIn('calls.call_sub_type_id', function($subQuery) {
-                      $subQuery->select('id')->from('call_sub_types')->whereIn('name', ['Junk', 'Silent']);
-                  })
-                  ->where(function($q) {
-                      $q->whereNotIn('calls.call_type_id', function($subQ) {
-                          $subQ->select('id')->from('call_types')->where('name', 'Information');
-                      })->orWhereNotNull('calls.office_id');
-                  });
+        // ── Analytical Filter Setup (Prefetched IDs to eliminate nested subqueries) ──
+        $junkSilentSubTypeIds = DB::table('call_sub_types')
+            ->whereIn('name', ['Junk', 'Silent'])
+            ->pluck('id')
+            ->all();
+
+        $infoTypeId = DB::table('call_types')
+            ->where('name', 'Information')
+            ->value('id');
+
+        $applyAnalyticalFilter = function ($query) use ($junkSilentSubTypeIds, $infoTypeId) {
+            if (!empty($junkSilentSubTypeIds)) {
+                $query->whereNotIn('calls.call_sub_type_id', $junkSilentSubTypeIds);
+            }
+            if ($infoTypeId) {
+                $query->where(function ($q) use ($infoTypeId) {
+                    $q->where('calls.call_type_id', '!=', $infoTypeId)
+                      ->orWhereNotNull('calls.office_id');
+                });
+            }
         };
 
-        $totalSlaCalls = DB::table('calls')->where($slaFilter)->count();
-        $completedCalls = DB::table('calls')->where($slaFilter)->where('status', 'completed')->count();
-        $slaValue = $totalSlaCalls > 0 ? round(($completedCalls / $totalSlaCalls) * 100) : 0;
-
-        $slaBreakdown = DB::table('calls')
+        // ── 2. SLA Breakdown & Overall SLA in ONE Aggregated Query ─────────
+        $slaBreakdownQuery = DB::table('calls')
             ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
             ->select(
                 'call_types.priority',
                 DB::raw('COUNT(*) as total_calls'),
-                DB::raw('SUM(CASE WHEN calls.status = \'completed\' THEN 1 ELSE 0 END) as completed_calls')
+                DB::raw("SUM(CASE WHEN calls.status = 'completed' THEN 1 ELSE 0 END) as completed_calls")
             )
-            ->where($slaFilter)
-            ->groupBy('call_types.priority')
-            ->get()->keyBy('priority');
+            ->whereIn('calls.status', ['completed', 'pending', 'in_progress']);
 
-        // ── 2. Pending Alerts ───────────────────────────────────────────
+        $applyAnalyticalFilter($slaBreakdownQuery);
+        $slaBreakdown = $slaBreakdownQuery->groupBy('call_types.priority')->get()->keyBy('priority');
+
+        $totalSlaCalls = $slaBreakdown->sum('total_calls');
+        $completedCalls = $slaBreakdown->sum('completed_calls');
+        $slaValue = $totalSlaCalls > 0 ? round(($completedCalls / $totalSlaCalls) * 100) : 0;
+
+        // ── 3. Pending Alerts (Recent 10, Indexed Order) ────────────────
         $pendingAlerts = \App\Models\Call::with(['callType', 'office'])
             ->where('status', 'pending')
-            ->orderBy(
-                \App\Models\CallType::select('priority')
-                    ->whereColumn('call_types.id', 'calls.call_type_id')
-                    ->take(1),
-                'asc'
-            )
+            ->orderBy('priority', 'asc')
             ->orderBy('created_at', 'asc')
             ->limit(10)
             ->get();
 
-        // ── Analytical Filter (Excludes Junk/Silent and Unassigned Info) ──
-        $analyticalFilter = function($query) {
-            $query->whereNotIn('calls.call_sub_type_id', function($subQuery) {
-                      $subQuery->select('id')->from('call_sub_types')->whereIn('name', ['Junk', 'Silent']);
-                  })
-                  ->where(function($q) {
-                      $q->whereNotIn('calls.call_type_id', function($subQ) {
-                          $subQ->select('id')->from('call_types')->where('name', 'Information');
-                      })->orWhereNotNull('calls.office_id');
-                  });
-        };
-
-        // ── 3. Call Category Distribution (Donut) ──────────────────────
+        // ── 4. Call Category Distribution (Donut - Last 30 Days) ────────
         $callCategories = DB::table('calls')
             ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
             ->select('call_types.category', DB::raw('count(*) as count'))
-            // Removed analyticalFilter to show ALL calls including unassigned/junk/silent
+            ->where('calls.created_at', '>=', now()->subDays(30))
             ->groupBy('call_types.category')
             ->get();
 
-        // ── 4. Sentinel Distribution (Active state) ─────────────────────
+        // ── 5. Sentinel Distribution (Active state) ─────────────────────
         $tigerStatus = DB::table('users')
             ->select('is_active as status', DB::raw('count(*) as count'))
             ->groupBy('is_active')
             ->get()
-            ->map(function($i) {
+            ->map(function ($i) {
                 $i->status = $i->status ? 'authorized' : 'locked';
                 return $i;
             });
 
-        // ── 5. Hourly Heatmap (Last 7 Days) ────────────────────────────
-        $heatmapRaw = DB::table('calls')
+        // ── 6. Hourly Heatmap (Last 7 Days) ────────────────────────────
+        $heatmapRawQuery = DB::table('calls')
             ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
             ->select(
                 DB::raw('DAYOFWEEK(calls.created_at) as day'),
@@ -109,10 +150,10 @@ class DashboardController extends Controller
                 'call_types.name as type',
                 DB::raw('count(*) as count')
             )
-            ->where('calls.created_at', '>=', now()->subDays(7))
-            ->where($analyticalFilter)
-            ->groupBy('day', 'hour', 'call_types.name')
-            ->get();
+            ->where('calls.created_at', '>=', now()->subDays(7));
+
+        $applyAnalyticalFilter($heatmapRawQuery);
+        $heatmapRaw = $heatmapRawQuery->groupBy('day', 'hour', 'call_types.name')->get();
 
         $heatmapData = collect();
         $dateMap = [];
@@ -132,7 +173,7 @@ class DashboardController extends Controller
                 ]);
             }
         }
-        $heatmapData = $heatmapData->keyBy(function($item) { return $item->day . '-' . $item->hour; });
+        $heatmapData = $heatmapData->keyBy(fn($item) => $item->day . '-' . $item->hour);
 
         foreach ($heatmapRaw as $row) {
             $key = $row->day . '-' . $row->hour;
@@ -144,32 +185,26 @@ class DashboardController extends Controller
         }
         $heatmapData = $heatmapData->values();
 
-        // ── 6. Priority Trajectory (Last 7 Days) ───────────────────────
-        $priorityDist = DB::table('calls')
-            ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
-            ->select(
-                'call_types.priority',
-                DB::raw('DATE(calls.created_at) as date'),
-                DB::raw('count(*) as count')
-            )
-            ->where('calls.created_at', '>=', now()->subDays(7))
-            ->where($analyticalFilter)
-            ->groupBy('call_types.priority', 'date')
-            ->get();
+        // ── 7. Priority Trajectory (Default 7 Days) ─────────────────────
+        $priorityData = $this->getPriorityChartData('7d');
+        $priorityDist = $priorityData['raw'];
 
-        // ── 7. Agent Performance ────────────────────────────────────────
-        $agentPerformance = DB::table('calls')
+        // ── 8. Agent Performance (Top 5 Responders) ─────────────────────
+        $agentPerfQuery = DB::table('calls')
             ->join('users', 'calls.agent_id', '=', 'users.id')
             ->select('users.full_name as username', DB::raw('count(*) as total_calls'))
             ->where('calls.status', 'completed')
-            ->where($analyticalFilter)
-            ->groupBy('users.full_name') // Switch to using full_name instead of username
+            ->where('calls.created_at', '>=', now()->subDays(30));
+
+        $applyAnalyticalFilter($agentPerfQuery);
+        $agentPerformance = $agentPerfQuery
+            ->groupBy('users.id', 'users.full_name')
             ->orderBy('total_calls', 'desc')
             ->limit(5)
             ->get();
 
-        // ── 8. Beat Incident Ranking ───────────────────────────────────────────
-        $beatIntensity = DB::table('calls')
+        // ── 9. Beat Incident Ranking ────────────────────────────────────
+        $beatIntensityQuery = DB::table('calls')
             ->join('offices as beat', 'calls.office_id', '=', 'beat.id')
             ->leftJoin('offices as sector', 'beat.parent_id', '=', 'sector.id')
             ->leftJoin('offices as zone', 'sector.parent_id', '=', 'zone.id')
@@ -180,26 +215,22 @@ class DashboardController extends Controller
                 DB::raw('count(*) as count')
             )
             ->where('beat.type', 'beat')
-            ->where($analyticalFilter)
+            ->where('calls.created_at', '>=', now()->subDays(30));
+
+        $applyAnalyticalFilter($beatIntensityQuery);
+        $beatIntensity = $beatIntensityQuery
             ->groupBy('beat.name', 'sector.name', 'zone.name')
             ->orderBy('count', 'desc')
             ->limit(8)
             ->get();
 
-        // ── 9. Weekly Volume ────────────────────────────────────────────
-        $weeklyDist = DB::table('calls')
-            ->select(DB::raw('DATE(created_at) as date'), DB::raw('count(*) as count'))
-            ->groupBy('date')
-            ->orderBy('date', 'desc')
-            ->limit(7)
-            ->get()->reverse()->values();
+        // ── 10. Weekly Call Volume (Default 7 Days) ─────────────────────
+        $weeklyData = $this->getWeeklyChartData('7d');
+        $chartLabels = collect($weeklyData['labels']);
+        $chartData   = collect($weeklyData['values']);
 
-        $chartLabels = $weeklyDist->pluck('date')
-            ->map(fn($d) => \Carbon\Carbon::parse($d)->format('M d'));
-        $chartData = $weeklyDist->pluck('count');
-
-        // ── 10. Sector Load ───────────────────────────────────────────────
-        $sectorLoad = DB::table('calls')
+        // ── 11. Sector Load ─────────────────────────────────────────────
+        $sectorLoadQuery = DB::table('calls')
             ->join('offices as o', 'calls.office_id', '=', 'o.id')
             ->leftJoin('offices as p1', 'o.parent_id', '=', 'p1.id')
             ->select(
@@ -211,14 +242,17 @@ class DashboardController extends Controller
                 DB::raw('count(*) as count')
             )
             ->where('calls.office_id', '!=', 1)
-            ->where($analyticalFilter)
+            ->where('calls.created_at', '>=', now()->subDays(30));
+
+        $applyAnalyticalFilter($sectorLoadQuery);
+        $sectorLoad = $sectorLoadQuery
             ->groupBy('name')
             ->having('name', '!=', 'Other')
             ->orderBy('count', 'desc')
             ->limit(6)
             ->get();
 
-        // ── 11. Zone Wise Helps Percentage ────────────────
+        // ── 12. Zone Wise Helps Percentage ──────────────────────────────
         $carriageTypeSplit = DB::table('calls')
             ->join('offices as o', 'calls.office_id', '=', 'o.id')
             ->leftJoin('offices as p1', 'o.parent_id', '=', 'p1.id')
@@ -232,10 +266,11 @@ class DashboardController extends Controller
                 END as type"),
                 DB::raw('count(*) as count')
             )
+            ->where('calls.created_at', '>=', now()->subDays(30))
             ->groupBy('type')
             ->get();
 
-        // ── 12. Zone Wise Activity ─────────────────────────────────────
+        // ── 13. Zone Wise Activity ─────────────────────────────────────
         $shiftDeployment = DB::table('calls')
             ->join('offices as o', 'calls.office_id', '=', 'o.id')
             ->leftJoin('offices as p1', 'o.parent_id', '=', 'p1.id')
@@ -247,69 +282,57 @@ class DashboardController extends Controller
                     WHEN p2.type = 'zone' THEN p2.name 
                     ELSE 'Other' 
                 END as name"),
-                DB::raw('SUM(CASE WHEN calls.status = \'pending\' THEN 1 ELSE 0 END) as pending'),
-                DB::raw('SUM(CASE WHEN calls.status = \'in_progress\' THEN 1 ELSE 0 END) as in_progress'),
-                DB::raw('SUM(CASE WHEN calls.status = \'completed\' THEN 1 ELSE 0 END) as completed')
+                DB::raw("SUM(CASE WHEN calls.status = 'pending' THEN 1 ELSE 0 END) as pending"),
+                DB::raw("SUM(CASE WHEN calls.status = 'in_progress' THEN 1 ELSE 0 END) as in_progress"),
+                DB::raw("SUM(CASE WHEN calls.status = 'completed' THEN 1 ELSE 0 END) as completed")
             )
             ->where('calls.office_id', '!=', 1)
+            ->where('calls.created_at', '>=', now()->subDays(7))
             ->groupBy('name')
             ->get();
 
-        // ── 13. Sunburst Hierarchical Data (Zone -> Sector -> Category) ──
-        $sunburstRaw = DB::table('calls')
-            ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
-            ->join('offices as o', 'calls.office_id', '=', 'o.id')
-            ->leftJoin('offices as p1', 'o.parent_id', '=', 'p1.id')
-            ->leftJoin('offices as p2', 'p1.parent_id', '=', 'p2.id')
-            ->select(
-                DB::raw("CASE 
-                    WHEN o.type = 'zone' THEN o.name 
-                    WHEN p1.type = 'zone' THEN p1.name 
-                    WHEN p2.type = 'zone' THEN p2.name 
-                    ELSE 'Other' 
-                END as zone_name"),
-                DB::raw("CASE 
-                    WHEN o.type = 'sector' THEN o.name 
-                    WHEN p1.type = 'sector' THEN p1.name 
-                    ELSE 'Other' 
-                END as sector_name"),
-                'call_types.category',
-                DB::raw('count(*) as count')
-            )
-            ->where('calls.office_id', '!=', 1) // Exclude HQ / Unassigned
-            ->whereNotNull('calls.office_id')
-            ->groupBy('zone_name', 'sector_name', 'call_types.category')
+        // ── 14. Operations Sunburst Data (Default: Today) ───────────────
+        $sunburstData = $this->getSunburstDistribution('today');
+
+        // ── 15. NHMP Help Line Performance (Single Aggregated Query) ────
+        $helplineAverages = DB::table('calls')
+            ->where('created_at', '>=', now()->subDays(30))
+            ->selectRaw('AVG(wait_time_seconds) as avg_wait, AVG(agent_call_duration) as avg_talk, AVG(response_time_sec) as avg_response')
+            ->first();
+
+        $avgWaitTime     = round($helplineAverages->avg_wait ?? 14);
+        $avgTalkTime     = round($helplineAverages->avg_talk ?? 105);
+        $avgResponseTime = round($helplineAverages->avg_response ?? 420);
+
+        $helpLineMetrics = (object)[
+            'wait_time' => $avgWaitTime,
+            'talk_time' => $avgTalkTime,
+            'response_time' => $avgResponseTime,
+            'efficiency_score' => 92
+        ];
+
+        // ── 16. Hourly In-Progress (Computed here instead of in Blade) ──
+        $hourlyInProgress = DB::table('calls')
+            ->select(DB::raw('HOUR(created_at) as hour'), DB::raw('count(*) as count'))
+            ->where('status', 'in_progress')
+            ->where('created_at', '>=', now()->subHours(24))
+            ->groupBy('hour')
+            ->orderBy('hour')
             ->get();
 
-        $sunburstData = [];
-        foreach ($sunburstRaw as $row) {
-            if ($row->zone_name === 'Other' || $row->sector_name === 'Other') continue;
-            
-            if (!isset($sunburstData[$row->zone_name])) {
-                $sunburstData[$row->zone_name] = ['count' => 0, 'sectors' => []];
-            }
-            $sunburstData[$row->zone_name]['count'] += $row->count;
-            
-            if (!isset($sunburstData[$row->zone_name]['sectors'][$row->sector_name])) {
-                $sunburstData[$row->zone_name]['sectors'][$row->sector_name] = ['count' => 0, 'categories' => []];
-            }
-            $sunburstData[$row->zone_name]['sectors'][$row->sector_name]['count'] += $row->count;
-            
-            if (!isset($sunburstData[$row->zone_name]['sectors'][$row->sector_name]['categories'][$row->category])) {
-                $sunburstData[$row->zone_name]['sectors'][$row->sector_name]['categories'][$row->category] = 0;
-            }
-            $sunburstData[$row->zone_name]['sectors'][$row->sector_name]['categories'][$row->category] += $row->count;
+        if ($hourlyInProgress->isEmpty()) {
+            $hourlyInProgress = collect(range(0, 7))->map(fn($i) => (object)[
+                'hour' => (now()->hour - $i + 24) % 24,
+                'count' => rand(5, 25)
+            ])->reverse()->values();
         }
 
-        // ── 14. NHMP Help Line Performance ──────────────────────────────
-        $avgWaitTime = DB::table('calls')->whereNotNull('wait_time_seconds')->avg('wait_time_seconds') ?? 0;
-        $avgTalkTime = DB::table('calls')->whereNotNull('agent_call_duration')->avg('agent_call_duration') ?? 0;
-        $avgResponseTime = DB::table('calls')->whereNotNull('response_time_sec')->avg('response_time_sec') ?? 0;
+        $hourlyLabels = $hourlyInProgress->pluck('hour')->map(fn($h) => str_pad($h, 2, '0', STR_PAD_LEFT) . ':00');
+        $hourlyData   = $hourlyInProgress->pluck('count');
 
         // ═══════════════════════════════════════════════════════════════
-        //  FALLBACK DUMMY DATA (used when DB tables are empty)
+        //  FALLBACK DUMMY DATA (when DB tables have zero activity)
         // ═══════════════════════════════════════════════════════════════
-
         if ($callCategories->isEmpty()) {
             $callCategories = collect([
                 (object)['category' => 'Medical Emergency', 'count' => 45],
@@ -330,27 +353,6 @@ class DashboardController extends Controller
             $fleetUtilization     = 85;
         }
 
-        if ($heatmapData->isEmpty()) {
-            $dummy = [];
-            for ($d = 1; $d <= 7; $d++) {
-                for ($h = 0; $h < 24; $h++) {
-                    $dummy[] = (object)['day' => $d, 'hour' => $h, 'count' => rand(0, 15)];
-                }
-            }
-            $heatmapData = collect($dummy);
-        }
-
-        if ($priorityDist->isEmpty()) {
-            $dummy = [];
-            for ($i = 0; $i < 7; $i++) {
-                $date    = now()->subDays($i)->format('Y-m-d');
-                $dummy[] = (object)['priority' => 1, 'date' => $date, 'count' => rand(2, 8)];
-                $dummy[] = (object)['priority' => 2, 'date' => $date, 'count' => rand(5, 15)];
-                $dummy[] = (object)['priority' => 3, 'date' => $date, 'count' => rand(10, 25)];
-            }
-            $priorityDist = collect($dummy);
-        }
-
         if ($agentPerformance->isEmpty()) {
             $agentPerformance = collect([
                 (object)['username' => 'Agent Alpha',   'total_calls' => 120],
@@ -369,11 +371,6 @@ class DashboardController extends Controller
                 (object)['name' => 'Islamabad Toll',   'sector_name' => 'Rwp Sector',        'zone_name' => 'North Zone',   'count' => 29],
                 (object)['name' => 'Peshawar Point',   'sector_name' => 'Peshawar Sector',   'zone_name' => 'West Zone',    'count' => 24],
             ]);
-        }
-
-        if ($chartLabels->isEmpty()) {
-            $chartLabels = collect(['Apr 13','Apr 14','Apr 15','Apr 16','Apr 17','Apr 18','Apr 19']);
-            $chartData   = collect([34, 41, 38, 52, 47, 61, 55]);
         }
 
         if ($sectorLoad->isEmpty()) {
@@ -422,56 +419,10 @@ class DashboardController extends Controller
             ];
         }
 
-        if ($pendingAlerts->isEmpty()) {
-            $pendingAlerts = collect([
-                (object)[
-                    'id' => 1, 'call_number' => 'NHMP-130-9821', 'status' => 'pending',
-                    'created_at' => now()->subMinutes(5),
-                    'callType' => (object)['name' => 'Accident P1', 'priority' => 1],
-                    'office'     => (object)['name' => 'S-1 Beat'],
-                ],
-                (object)[
-                    'id' => 2, 'call_number' => 'NHMP-130-9825', 'status' => 'pending',
-                    'created_at' => now()->subMinutes(12),
-                    'callType' => (object)['name' => 'Breakdown', 'priority' => 2],
-                    'office'     => (object)['name' => 'N-5 Beat'],
-                ],
-                (object)[
-                    'id' => 3, 'call_number' => 'NHMP-130-9830', 'status' => 'pending',
-                    'created_at' => now()->subMinutes(25),
-                    'callType' => (object)['name' => 'Medical', 'priority' => 1],
-                    'beat'     => (object)['name' => 'S-1 Beat'],
-                ],
-                (object)[
-                    'id' => 4, 'call_number' => 'NHMP-130-9832', 'status' => 'pending',
-                    'created_at' => now()->subMinutes(34),
-                    'callType' => (object)['name' => 'Fire', 'priority' => 1],
-                    'beat'     => (object)['name' => 'M-4 Beat'],
-                ],
-                (object)[
-                    'id' => 5, 'call_number' => 'NHMP-130-9838', 'status' => 'pending',
-                    'created_at' => now()->subMinutes(41),
-                    'callType' => (object)['name' => 'Road Hazard', 'priority' => 3],
-                    'office'     => (object)['name' => 'B-101 Beat'],
-                ],
-            ]);
-        }
-
         if ($activeCallsCount === 0) { $activeCallsCount = 47; }
         if ($p1EmergencyCount === 0) { $p1EmergencyCount = 6;  }
 
-        if ($avgWaitTime == 0) { $avgWaitTime = 14; }
-        if ($avgTalkTime == 0) { $avgTalkTime = 105; }
-        if ($avgResponseTime == 0) { $avgResponseTime = 420; }
-        
-        $helpLineMetrics = (object)[
-            'wait_time' => $avgWaitTime,
-            'talk_time' => $avgTalkTime,
-            'response_time' => $avgResponseTime,
-            'efficiency_score' => 92
-        ];
-
-        return view('dashboard', compact(
+        return compact(
             'activeCallsCount',
             'p1EmergencyCount',
             'activeSentinelsCount',
@@ -492,7 +443,204 @@ class DashboardController extends Controller
             'slaValue',
             'slaBreakdown',
             'helpLineMetrics',
-            'sunburstData'
-        ));
+            'sunburstData',
+            'hourlyLabels',
+            'hourlyData',
+            'hourlyInProgress'
+        );
+    }
+
+    /**
+     * Priority Trajectory distribution helper for 7d, 14d, 30d.
+     */
+    protected function getPriorityChartData(string $range = '7d'): array
+    {
+        $days = match ($range) {
+            '14d' => 14,
+            '30d' => 30,
+            default => 7,
+        };
+
+        $junkSilentSubTypeIds = DB::table('call_sub_types')
+            ->whereIn('name', ['Junk', 'Silent'])
+            ->pluck('id')
+            ->all();
+
+        $infoTypeId = DB::table('call_types')
+            ->where('name', 'Information')
+            ->value('id');
+
+        $query = DB::table('calls')
+            ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
+            ->select(
+                'call_types.priority',
+                DB::raw('DATE(calls.created_at) as date'),
+                DB::raw('count(*) as count')
+            )
+            ->where('calls.created_at', '>=', now()->subDays($days)->startOfDay());
+
+        if (!empty($junkSilentSubTypeIds)) {
+            $query->whereNotIn('calls.call_sub_type_id', $junkSilentSubTypeIds);
+        }
+        if ($infoTypeId) {
+            $query->where(function ($q) use ($infoTypeId) {
+                $q->where('calls.call_type_id', '!=', $infoTypeId)
+                  ->orWhereNotNull('calls.office_id');
+            });
+        }
+
+        $raw = $query->groupBy('call_types.priority', 'date')->get();
+
+        // Build continuous date array
+        $dateLabels = [];
+        $rawDates = [];
+        for ($i = $days - 1; $i >= 0; $i--) {
+            $dt = now()->subDays($i)->format('Y-m-d');
+            $rawDates[] = $dt;
+            $dateLabels[] = Carbon::parse($dt)->format('M d');
+        }
+
+        $lookup = [];
+        foreach ($raw as $item) {
+            $lookup[$item->date][$item->priority] = (int)$item->count;
+        }
+
+        $p1 = [];
+        $p2 = [];
+        $p3 = [];
+
+        foreach ($rawDates as $dt) {
+            $p1[] = $lookup[$dt][1] ?? 0;
+            $p2[] = $lookup[$dt][2] ?? 0;
+            $p3[] = $lookup[$dt][3] ?? 0;
+        }
+
+        return [
+            'labels' => $dateLabels,
+            'p1'     => $p1,
+            'p2'     => $p2,
+            'p3'     => $p3,
+            'raw'    => $raw
+        ];
+    }
+
+    /**
+     * Call volume distribution helper for 7d, 14d, 30d.
+     */
+    protected function getWeeklyChartData(string $range = '7d'): array
+    {
+        $days = match ($range) {
+            '14d' => 14,
+            '30d' => 30,
+            default => 7,
+        };
+
+        $volumeRaw = DB::table('calls')
+            ->select(DB::raw('DATE(created_at) as date'), DB::raw('count(*) as count'))
+            ->where('created_at', '>=', now()->subDays($days)->startOfDay())
+            ->groupBy('date')
+            ->pluck('count', 'date')
+            ->all();
+
+        $labels = [];
+        $values = [];
+
+        for ($i = $days - 1; $i >= 0; $i--) {
+            $dt = now()->subDays($i)->format('Y-m-d');
+            $labels[] = Carbon::parse($dt)->format('M d');
+            $values[] = (int)($volumeRaw[$dt] ?? 0);
+        }
+
+        return [
+            'labels' => $labels,
+            'values' => $values,
+            'range'  => $range,
+            'total'  => array_sum($values)
+        ];
+    }
+
+    /**
+     * Operations Sunburst hierarchical distribution helper for 'today' and 'week'.
+     */
+    protected function getSunburstDistribution(string $range = 'today'): array
+    {
+        $startDate = ($range === 'week') 
+            ? now()->subDays(7)->startOfDay() 
+            : now()->startOfDay();
+
+        $sunburstRaw = DB::table('calls')
+            ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
+            ->join('offices as o', 'calls.office_id', '=', 'o.id')
+            ->leftJoin('offices as p1', 'o.parent_id', '=', 'p1.id')
+            ->leftJoin('offices as p2', 'p1.parent_id', '=', 'p2.id')
+            ->select(
+                DB::raw("CASE 
+                    WHEN o.type = 'zone' THEN o.name 
+                    WHEN p1.type = 'zone' THEN p1.name 
+                    WHEN p2.type = 'zone' THEN p2.name 
+                    ELSE 'Other' 
+                END as zone_name"),
+                DB::raw("CASE 
+                    WHEN o.type = 'sector' THEN o.name 
+                    WHEN p1.type = 'sector' THEN p1.name 
+                    ELSE 'Other' 
+                END as sector_name"),
+                'call_types.category',
+                DB::raw('count(*) as count')
+            )
+            ->where('calls.office_id', '!=', 1)
+            ->whereNotNull('calls.office_id')
+            ->where('calls.created_at', '>=', $startDate)
+            ->groupBy('zone_name', 'sector_name', 'call_types.category')
+            ->get();
+
+        $sunburstData = [];
+        foreach ($sunburstRaw as $row) {
+            if ($row->zone_name === 'Other' || $row->sector_name === 'Other') continue;
+
+            if (!isset($sunburstData[$row->zone_name])) {
+                $sunburstData[$row->zone_name] = ['count' => 0, 'sectors' => []];
+            }
+            $sunburstData[$row->zone_name]['count'] += $row->count;
+
+            if (!isset($sunburstData[$row->zone_name]['sectors'][$row->sector_name])) {
+                $sunburstData[$row->zone_name]['sectors'][$row->sector_name] = ['count' => 0, 'categories' => []];
+            }
+            $sunburstData[$row->zone_name]['sectors'][$row->sector_name]['count'] += $row->count;
+
+            if (!isset($sunburstData[$row->zone_name]['sectors'][$row->sector_name]['categories'][$row->category])) {
+                $sunburstData[$row->zone_name]['sectors'][$row->sector_name]['categories'][$row->category] = 0;
+            }
+            $sunburstData[$row->zone_name]['sectors'][$row->sector_name]['categories'][$row->category] += $row->count;
+        }
+
+        return $sunburstData;
+    }
+
+    /**
+     * Agent performance leaderboard helper for today, week, month.
+     */
+    protected function getAgentChartData(string $range = 'today'): array
+    {
+        $startDate = match ($range) {
+            'today' => now()->startOfDay(),
+            'month' => now()->subDays(30)->startOfDay(),
+            default => now()->subDays(7)->startOfDay(),
+        };
+
+        $agents = DB::table('calls')
+            ->join('users', 'calls.agent_id', '=', 'users.id')
+            ->select('users.full_name as username', DB::raw('count(*) as total_calls'))
+            ->where('calls.status', 'completed')
+            ->where('calls.created_at', '>=', $startDate)
+            ->groupBy('users.id', 'users.full_name')
+            ->orderBy('total_calls', 'desc')
+            ->limit(5)
+            ->get();
+
+        return [
+            'labels' => $agents->pluck('username')->all(),
+            'values' => $agents->pluck('total_calls')->all(),
+        ];
     }
 }

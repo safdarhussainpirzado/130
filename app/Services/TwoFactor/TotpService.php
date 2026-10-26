@@ -118,9 +118,9 @@ class TotpService
             $currentStep = (int) $this->google2fa->getTimestamp();
             $lastAcceptedStep = (int) ($user->totp_last_step ?? 0);
 
-            // Test window: [-1, 0, +1] time steps
+            // Test window: [-2, -1, 0, +1, +2] time steps (±60s tolerance for mobile drift)
             $matchedStep = null;
-            for ($offset = -1; $offset <= 1; $offset++) {
+            for ($offset = -2; $offset <= 2; $offset++) {
                 $step = $currentStep + $offset;
                 $expected = str_pad((string) $this->google2fa->oathTotp($secret, $step), 6, '0', STR_PAD_LEFT);
                 if (hash_equals($expected, $code)) {
@@ -158,6 +158,7 @@ class TotpService
     /**
      * Verify a code against an uncommitted pending secret during enrollment.
      * Returns the matched step so it can be consumed atomically upon activation.
+     * Allows a ±90-second verification window during first-time enrollment to accommodate mobile drift.
      *
      * @return array{success: bool, reason: string, matched_step?: int}
      */
@@ -170,7 +171,7 @@ class TotpService
 
         $currentStep = (int) $this->google2fa->getTimestamp();
 
-        for ($offset = -1; $offset <= 1; $offset++) {
+        for ($offset = -3; $offset <= 3; $offset++) {
             $step = $currentStep + $offset;
             $expected = str_pad((string) $this->google2fa->oathTotp($secret, $step), 6, '0', STR_PAD_LEFT);
             if (hash_equals($expected, $code)) {

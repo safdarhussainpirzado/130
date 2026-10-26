@@ -13,7 +13,9 @@ sudo ufw default allow outgoing
 # Allow SSH (Critical!)
 sudo ufw allow ssh
 
-# Allow HAProxy Traffic
+# Allow HAProxy Traffic (Standard HTTP/HTTPS & Custom Ports)
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
 sudo ufw allow 7085/tcp
 sudo ufw allow 8085/tcp
 

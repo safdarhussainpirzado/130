@@ -165,7 +165,7 @@
     /* Custom Tooltip */
     #hm-tooltip {
         position: fixed; pointer-events: none; z-index: 9999;
-        background: rgba(15, 23, 42, 0.98); backdrop-blur: 12px;
+        background: rgba(15, 23, 42, 0.98); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
         color: white; padding: 14px; border-radius: 16px;
         box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
         border: 1px solid rgba(255,255,255,0.12);
@@ -214,44 +214,29 @@
 @php
     $callCategories = collect($callCategories)->sortByDesc('count')->values();
     $carriageTypeSplit = collect($carriageTypeSplit)->sortByDesc('count')->values();
-    
-    // Hourly In Progress (Last 24 Hours) mockup or query
-    $hourlyInProgress = \Illuminate\Support\Facades\DB::table('calls')
-        ->select(\Illuminate\Support\Facades\DB::raw('HOUR(created_at) as hour'), \Illuminate\Support\Facades\DB::raw('count(*) as count'))
-        ->where('status', 'in_progress')
-        ->where('created_at', '>=', now()->subHours(24))
-        ->groupBy('hour')
-        ->orderBy('hour')
-        ->get();
-        
-    if ($hourlyInProgress->isEmpty()) {
-        $hourlyInProgress = collect(range(0, 7))->map(function($i) {
-            return (object)['hour' => (now()->hour - $i + 24) % 24, 'count' => rand(5, 25)];
-        })->reverse()->values();
-    }
-    
-    $hourlyLabels = $hourlyInProgress->pluck('hour')->map(fn($h) => str_pad($h, 2, '0', STR_PAD_LEFT).':00');
-    $hourlyData = $hourlyInProgress->pluck('count');
+
+    $dashboardJsonData = [
+        'labels'            => $chartLabels,
+        'values'            => $chartData,
+        'categories'        => $callCategories,
+        'tigerStatus'       => $tigerStatus,
+        'heatmapData'       => $heatmapData,
+        'priorityDist'      => $priorityDist,
+        'agentPerf'         => $agentPerformance,
+        'beatIntensity'     => $beatIntensity,
+        'sectorLoad'        => $sectorLoad,
+        'carriageTypeSplit' => $carriageTypeSplit,
+        'shiftDeployment'   => $shiftDeployment,
+        'slaValue'          => $slaValue,
+        'hourlyLabels'      => $hourlyLabels,
+        'hourlyData'        => $hourlyData,
+        'sunburstData'      => $sunburstData
+    ];
 @endphp
 
+<script id="dashboard-raw-data" type="application/json">{!! json_encode($dashboardJsonData) !!}</script>
 <script>
-    window._dashboardData = {
-        labels: @js($chartLabels),
-        values: @js($chartData),
-        categories: @js($callCategories),
-        tigerStatus: @js($tigerStatus),
-        heatmapData: @js($heatmapData),
-        priorityDist: @js($priorityDist),
-        agentPerf: @js($agentPerformance),
-        beatIntensity: @js($beatIntensity),
-        sectorLoad: @js($sectorLoad),
-        carriageTypeSplit: @js($carriageTypeSplit),
-        shiftDeployment: @js($shiftDeployment),
-        slaValue: @js($slaValue),
-        hourlyLabels: @js($hourlyLabels),
-        hourlyData: @js($hourlyData),
-        sunburstData: @js($sunburstData)
-    };
+    window._dashboardData = JSON.parse(document.getElementById('dashboard-raw-data').textContent);
 </script>
 
 <div
@@ -437,7 +422,7 @@
                     $pct_cat = round(($cat->count / $total_cat) * 100);
                 @endphp
                 <div class="flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full shrink-0" style="background:{{ $palette[$ci] }}"></span>
+                    <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: '{{ $palette[$ci] }}' }"></span>
                     <span class="text-xs font-semibold text-slate-600 flex-1 min-w-0 truncate">{{ $cat->category }}</span>
                     <span class="text-[10px] font-black text-slate-400 shrink-0">{{ $pct_cat }}%</span>
                     <span class="text-xs font-black text-slate-700 shrink-0 w-6 text-right">{{ $cat->count }}</span>
@@ -518,7 +503,7 @@
                     <span class="text-emerald-500">{{ $helpLineMetrics->efficiency_score }}%</span>
                 </div>
                 <div class="pbar-wrap">
-                    <div class="pbar-fill" style="width:{{ $helpLineMetrics->efficiency_score }}%; background: #10b981;"></div>
+                    <div class="pbar-fill" :style="{ width: '{{ $helpLineMetrics->efficiency_score }}%', background: '#10b981' }"></div>
                 </div>
             </div>
         </div>
@@ -590,10 +575,10 @@
         {{-- Weekly Call Volume --}}
         <div class="bc ac-em">
             <div class="ch">
-                <div class="ci bg-emerald-100"><i class="fa-solid fa-chart-line text-emerald-600"></i></div>
+                <div class="ci bg-emerald-100"><i class="fa-solid fa-chart-simple text-emerald-600"></i></div>
                 <div class="flex-1">
                     <div class="ct">Weekly Call Volume</div>
-                    <div class="cst">Daily Trend</div>
+                    <div class="cst">Daily Call Distribution</div>
                 </div>
                 <div class="fp shrink-0">
                     <button class="on" onclick="setWeeklyRange('7d',this)">7d</button>
@@ -602,7 +587,7 @@
                 </div>
             </div>
             <div style="height:190px; position:relative;" class="flex-1">
-                <canvas id="weeklyChart" role="img" aria-label="Line chart daily call volumes">Daily call volume trend.</canvas>
+                <canvas id="weeklyChart" role="img" aria-label="Bar chart daily call volumes">Daily call volume trend.</canvas>
             </div>
         </div>
 
@@ -627,7 +612,7 @@
                 @foreach($carriageTypeSplit as $road)
                 @php $rp = round(($road->count / $roadTotal) * 100); @endphp
                 <div class="flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full shrink-0" style="background:{{ $roadColors[$loop->index % count($roadColors)] }}"></span>
+                    <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: '{{ $roadColors[$loop->index % count($roadColors)] }}' }"></span>
                     <span class="text-xs font-semibold text-slate-600 flex-1 truncate">{{ $road->type }}</span>
                     <span class="text-[10px] font-black text-slate-500 shrink-0">{{ $rp }}%</span>
                 </div>
@@ -644,8 +629,8 @@
                     <div class="cst">Zone → Sector → Category</div>
                 </div>
                 <div class="fp shrink-0">
-                    <button class="on">Today</button>
-                    <button>Week</button>
+                    <button class="on" onclick="setSunburstRange('today',this)">Today</button>
+                    <button onclick="setSunburstRange('week',this)">Week</button>
                 </div>
             </div>
             <div style="height:280px; position:relative;" class="flex-1">
@@ -765,19 +750,19 @@
                 <div data-count="{{ $beat->count }}">
                     <div class="flex justify-between items-center mb-1">
                         <div class="flex items-center gap-2" title="{{ $beat->name }} / {{ $beat->sector_name }} / {{ $beat->zone_name }}">
-                            <span class="w-2 h-2 rounded-full shrink-0" style="background:{{ $beatPalette[$loop->index % count($beatPalette)] }}"></span>
+                            <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: '{{ $beatPalette[$loop->index % count($beatPalette)] }}' }"></span>
                             <span class="text-[10px] font-black text-slate-700 hover:text-slate-900 cursor-help" style="border-bottom: 1px dotted #cbd5e1; padding-bottom: 1px;">{{ $beat->zone_name }} &rarr; {{ $beat->sector_name }} &rarr; {{ $beat->name }}</span>
                         </div>
                         <div class="flex items-center gap-2">
                             <span class="text-[10px] font-bold text-slate-400">{{ $beat->count }} incidents</span>
                             <span class="text-[9px] font-black px-1.5 py-0.5 rounded-md"
-                                  style="background:{{ $beatPalette[$loop->index % count($beatPalette)] }}22; color:{{ $beatPalette[$loop->index % count($beatPalette)] }}">
+                                  :style="{ backgroundColor: '{{ $beatPalette[$loop->index % count($beatPalette)] }}22', color: '{{ $beatPalette[$loop->index % count($beatPalette)] }}' }">
                                 {{ $pct }}%
                             </span>
                         </div>
                     </div>
                     <div class="pbar-wrap">
-                        <div class="pbar-fill" style="width:{{ $pct }}%; background:{{ $beatPalette[$loop->index % count($beatPalette)] }};"></div>
+                        <div class="pbar-fill" :style="{ width: '{{ $pct }}%', backgroundColor: '{{ $beatPalette[$loop->index % count($beatPalette)] }}' }"></div>
                     </div>
                 </div>
                 @endforeach
@@ -795,17 +780,97 @@
 {{-- Chart.js is already loaded in layouts.app --}}
 <script>
 /* ─── Global chart refs for filter updates ─── */
-window._dashboardCharts = window._dashboardCharts || { prio: null, weekly: null, agent: null };
+window._dashboardCharts = window._dashboardCharts || { prio: null, weekly: null, agent: null, sunburst: null };
+window._dashboardAlpineApp = null;
 
 /* ─── Filter helpers ──────────────────────────*/
 function setFilterActive(btn) {
+    if (!btn) return;
     btn.closest('.fp').querySelectorAll('button').forEach(b => b.classList.remove('on'));
     btn.classList.add('on');
 }
-function setPrioRange(r, btn)    { setFilterActive(btn); /* extend: re-fetch / re-render */ }
-function setWeeklyRange(r, btn)  { setFilterActive(btn); }
-function setAgentRange(r, btn)   { setFilterActive(btn); }
-function setHmRange(r, btn)      { setFilterActive(btn); }
+
+async function setPrioRange(r, btn) {
+    setFilterActive(btn);
+    const canvas = document.getElementById('priorityChart');
+    if (!canvas) return;
+    canvas.style.opacity = '0.4';
+    try {
+        const res = await fetch(`/dashboard/chart-data?chart=priority&range=${r}`);
+        const data = await res.json();
+        if (window._dashboardCharts.prio && data.labels) {
+            window._dashboardCharts.prio.data.labels = data.labels;
+            window._dashboardCharts.prio.data.datasets[0].data = data.p1;
+            window._dashboardCharts.prio.data.datasets[1].data = data.p2;
+            window._dashboardCharts.prio.data.datasets[2].data = data.p3;
+            window._dashboardCharts.prio.update();
+        }
+    } catch (e) {
+        console.error('Failed to update priority chart:', e);
+    } finally {
+        canvas.style.opacity = '1';
+    }
+}
+
+async function setWeeklyRange(r, btn) {
+    setFilterActive(btn);
+    const canvas = document.getElementById('weeklyChart');
+    if (!canvas) return;
+    canvas.style.opacity = '0.4';
+    try {
+        const res = await fetch(`/dashboard/chart-data?chart=weekly&range=${r}`);
+        const data = await res.json();
+        if (window._dashboardCharts.weekly && data.labels) {
+            window._dashboardCharts.weekly.data.labels = data.labels;
+            window._dashboardCharts.weekly.data.datasets[0].data = data.values;
+            window._dashboardCharts.weekly.update();
+        }
+    } catch (e) {
+        console.error('Failed to update weekly chart:', e);
+    } finally {
+        canvas.style.opacity = '1';
+    }
+}
+
+async function setSunburstRange(r, btn) {
+    setFilterActive(btn);
+    const canvas = document.getElementById('sunburstChart');
+    if (!canvas) return;
+    canvas.style.opacity = '0.4';
+    try {
+        const res = await fetch(`/dashboard/chart-data?chart=sunburst&range=${r}`);
+        const data = await res.json();
+        if (window._dashboardAlpineApp && typeof window._dashboardAlpineApp.buildSunburstChart === 'function') {
+            window._dashboardAlpineApp.buildSunburstChart(data);
+        }
+    } catch (e) {
+        console.error('Failed to update sunburst chart:', e);
+    } finally {
+        canvas.style.opacity = '1';
+    }
+}
+
+async function setAgentRange(r, btn) {
+    setFilterActive(btn);
+    const canvas = document.getElementById('agentChart');
+    if (!canvas) return;
+    canvas.style.opacity = '0.4';
+    try {
+        const res = await fetch(`/dashboard/chart-data?chart=agent&range=${r}`);
+        const data = await res.json();
+        if (window._dashboardCharts.agent && data.labels) {
+            window._dashboardCharts.agent.data.labels = data.labels;
+            window._dashboardCharts.agent.data.datasets[0].data = data.values;
+            window._dashboardCharts.agent.update();
+        }
+    } catch (e) {
+        console.error('Failed to update agent chart:', e);
+    } finally {
+        canvas.style.opacity = '1';
+    }
+}
+
+function setHmRange(r, btn) { setFilterActive(btn); }
 
 function filterInterventions(prio, btn) {
     setFilterActive(btn);
@@ -831,6 +896,7 @@ function dashboardApp(data) {
     return {
         ...data,
         init() {
+            window._dashboardAlpineApp = this;
             this.$nextTick(() => {
                 // Destroy existing charts to prevent SPA "messy UI" or duplicate renders
                 if (window._dashboardCharts) {
@@ -1000,7 +1066,7 @@ function dashboardApp(data) {
         buildGaugeChart() {
             const ctx = document.getElementById('gaugeChart');
             if (!ctx) return;
-            const slaVal = {{ $slaValue }};
+            const slaVal = Number(this.slaValue || 0);
             new Chart(ctx, {
                 type: 'doughnut',
                 data: {
@@ -1056,28 +1122,53 @@ function dashboardApp(data) {
             });
         },
 
-        /* ── Weekly Line ─────────────────────── */
+        /* ── Weekly Call Volume Bar Chart ────────────────── */
         buildWeeklyChart(labels, values) {
             const ctx = document.getElementById('weeklyChart');
             if (!ctx) return;
+            if (window._dashboardCharts.weekly) {
+                window._dashboardCharts.weekly.destroy();
+            }
             window._dashboardCharts.weekly = new Chart(ctx, {
-                type: 'line',
+                type: 'bar',
                 data: {
-                    labels,
-                    datasets:[{
-                        label:'Calls', data:values,
-                        borderColor:'#10b981', backgroundColor:'rgba(16,185,129,.08)',
-                        fill:true, tension:.4, borderWidth:2.5,
-                        pointRadius:4, pointBackgroundColor:'#10b981', pointBorderColor:'#fff', pointBorderWidth:2
+                    labels: labels,
+                    datasets: [{
+                        label: 'Calls',
+                        data: values,
+                        backgroundColor: '#10b981',
+                        hoverBackgroundColor: '#059669',
+                        borderRadius: 8,
+                        borderSkipped: false,
+                        barPercentage: 0.65,
+                        categoryPercentage: 0.8
                     }]
                 },
                 options: {
-                    responsive:true, maintainAspectRatio:false,
+                    responsive: true,
+                    maintainAspectRatio: false,
                     scales: {
-                        x:{ grid:{ display:false }, ticks:{ font:{ size:9 }, maxRotation:0 } },
-                        y:{ grid:{ color:'#f8fafc' }, border:{ display:false }, ticks:{ font:{ size:9 } } }
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { size: 9, weight: 'bold' }, color: '#64748b', maxRotation: 0 }
+                        },
+                        y: {
+                            grid: { color: '#f8fafc' },
+                            border: { display: false },
+                            ticks: { font: { size: 9 }, color: '#94a3b8' }
+                        }
                     },
-                    plugins:{ legend:{ display:false } }
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            padding: 10,
+                            titleFont: { size: 11, weight: 'bold' },
+                            bodyFont: { size: 11 },
+                            cornerRadius: 8,
+                            displayColors: false
+                        }
+                    }
                 }
             });
         },

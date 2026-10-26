@@ -83,6 +83,7 @@ Route::get('/up', function () {
 
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('can:dashboard.view');
+    Route::get('/dashboard/chart-data', [DashboardController::class, 'chartData'])->name('dashboard.chart-data')->middleware('can:dashboard.view');
     Route::get('/auth/heartbeat', function() { return response()->noContent(); })->name('auth.heartbeat');
     
     Route::get('/calls/pending', [CallController::class, 'pending'])->name('calls.pending');

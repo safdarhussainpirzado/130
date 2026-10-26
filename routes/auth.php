@@ -23,7 +23,7 @@ Route::middleware('guest')->group(function () {
         ->name('login');
 
     Route::post('login', [AuthenticatedSessionController::class, 'store'])
-        ->middleware('throttle:5,1')
+        ->middleware('throttle:30,1')
         ->name('login.store');
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
@@ -46,30 +46,30 @@ Route::prefix('2fa')->group(function () {
     // State 2: MFA Challenge routes
     Route::get('challenge', [TwoFactorAuthenticatedController::class, 'showChallenge'])->name('2fa.challenge');
     Route::post('challenge', [TwoFactorAuthenticatedController::class, 'verifyTotp'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:30,1')
         ->name('2fa.challenge.totp');
 
     // WebAuthn Assertion challenge
     Route::get('challenge/webauthn/options', [TwoFactorAuthenticatedController::class, 'getWebAuthnOptions'])->name('2fa.challenge.webauthn.options');
     Route::post('challenge/webauthn', [TwoFactorAuthenticatedController::class, 'verifyWebAuthn'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:30,1')
         ->name('2fa.challenge.webauthn.verify');
 
     // Emergency Recovery Code Verification
     Route::get('recovery', [TwoFactorAuthenticatedController::class, 'showRecovery'])->name('2fa.recovery.show');
     Route::post('recovery', [TwoFactorAuthenticatedController::class, 'verifyRecovery'])
-        ->middleware('throttle:5,1')
+        ->middleware('throttle:30,1')
         ->name('2fa.recovery.verify');
 
     // State 3: Controlled First-Time Enrollment
     Route::get('enroll-required', [TwoFactorEnrollmentController::class, 'showEnrollmentRequired'])->name('2fa.enroll.required');
     Route::get('enroll', [TwoFactorEnrollmentController::class, 'showEnroll'])->name('2fa.enroll.show');
     Route::post('enroll/confirm', [TwoFactorEnrollmentController::class, 'confirmTotp'])
-        ->middleware('throttle:5,1')
+        ->middleware('throttle:30,1')
         ->name('2fa.enroll.confirm');
     Route::get('enroll/webauthn/options', [TwoFactorEnrollmentController::class, 'getWebAuthnEnrollmentOptions'])->name('2fa.enroll.webauthn.options');
     Route::post('enroll/webauthn', [TwoFactorEnrollmentController::class, 'confirmWebAuthn'])
-        ->middleware('throttle:5,1')
+        ->middleware('throttle:30,1')
         ->name('2fa.enroll.webauthn.register');
     Route::get('enroll/success', [TwoFactorEnrollmentController::class, 'showSuccess'])->name('2fa.enroll.success');
     Route::post('enroll/acknowledge', [TwoFactorEnrollmentController::class, 'acknowledgeSuccess'])->name('2fa.enroll.acknowledge');

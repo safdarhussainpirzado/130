@@ -44,72 +44,12 @@ class MfaPolicyResolver
      */
     public function isMfaRequiredForUser(User $user): bool
     {
-        // 1. Privileged users (Super Admin, Operation Admin) MUST ALWAYS require MFA (WebAuthn)
-        if ($user->isPrivileged()) {
+        // 1. Privileged roles (Super Admin, Operation Admin / Manager) ALWAYS require MFA
+        if ($user->isPrivileged() || in_array((int)$user->role_id, [1, 2], true)) {
             return true;
         }
 
-        // Check global system setting if configured
-        try {
-            $globalLevel = SystemSetting::get('2fa_level');
-            if ($globalLevel === 'all') {
-                return true;
-            }
-            if ($globalLevel === 'off') {
-                return false;
-            }
-        } catch (\Throwable $e) {
-            // Ignore if system_settings table does not exist
-        }
-
-        // Check individual user override: if explicitly set to false/0 by an admin, user is exempt
-        if ($user->mfa_required === false || $user->mfa_required === 0 || $user->mfa_required === '0') {
-            return false;
-        }
-
-        // If explicitly set to true/1, individual user is enforced regardless of role exemption
-        if ($user->mfa_required === true || $user->mfa_required === 1 || $user->mfa_required === '1') {
-            // Check if user has enrolled or needs enrollment
-            $rolePolicy = $this->getPolicyForRole($user->role_id);
-            if ($rolePolicy && !$rolePolicy->isEnforcedNow() && !$user->hasMfaEnrolled()) {
-                // If role is exempt and user has not enrolled yet, check if individual was specifically forced
-                return true;
-            }
-            return true;
-        }
-
-        // 3. Resolve role policies for primary role and any assigned scopes/roles
-        $roleId = (int) $user->role_id;
-        if ($roleId <= 0) {
-            return (bool) $user->mfa_required;
-        }
-
-        $policy = $this->getPolicyForRole($roleId);
-
-        // Fallback to user-level mfa_required setting if role policy record not present
-        if (! $policy) {
-            return (bool) $user->mfa_required;
-        }
-
-        // 4. If policy says required or scheduled re-enablement has passed
-        if ($policy->isEnforcedNow()) {
-            return true;
-        }
-
-        // 5. Multiple roles check: If user has secondary roles (e.g. scopes),
-        // any role requiring MFA takes precedence!
-        $allRoleIds = $this->getUserAllRoleIds($user);
-        foreach ($allRoleIds as $extraRoleId) {
-            if ($extraRoleId === $roleId) {
-                continue;
-            }
-            $extraPolicy = $this->getPolicyForRole($extraRoleId);
-            if (! $extraPolicy || $extraPolicy->isEnforcedNow()) {
-                return true; // Stronger requirement wins
-            }
-        }
-
-        // 6. Role is currently exempt
+        // 2. Disabled for all other non-privileged operational roles (agents, operators, supervisors)
         return false;
     }
 
