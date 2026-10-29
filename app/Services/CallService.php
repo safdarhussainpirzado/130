@@ -50,27 +50,28 @@ class CallService
                 $data['priority'] = $this->resolvePriority($data);
             }
 
-            // Atomic sequential call number — prevents race-condition duplicates
-            // lockForUpdate holds a row lock within this transaction so concurrent
-            // agents always get unique sequential numbers.
+            // Atomic sequential call number allocation via call_sequences table
+            // Uses MySQL LAST_INSERT_ID() atomic row-level increment to guarantee
+            // uniqueness and eliminate expensive table scans and 1062 duplicate crashes.
             if (!isset($data['call_number'])) {
-                $year = (int) date('Y');
-                // Query the true maximum numeric sequence across all records for the current year
-                $maxSeq = (int) DB::table('calls')
-                    ->where('call_number', 'like', "CRM-{$year}-%")
-                    ->selectRaw("MAX(CAST(SUBSTRING_INDEX(call_number, '-', -1) AS UNSIGNED)) as max_seq")
-                    ->value('max_seq');
-
-                $nextSeq = max($maxSeq + 1, 1);
-                do {
-                    $callNumber = sprintf('CRM-%d-%05d', $year, $nextSeq);
-                    $nextSeq++;
-                } while (DB::table('calls')->where('call_number', $callNumber)->exists());
-
-                $data['call_number'] = $callNumber;
+                $data['call_number'] = $this->generateCallNumber();
             }
 
-            $call = Call::create($data);
+            // Safe call creation with bounded duplicate-key retry safeguard
+            $maxAttempts = 3;
+            $call = null;
+            for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+                try {
+                    $call = Call::create($data);
+                    break;
+                } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+                    if ($attempt === $maxAttempts) {
+                        throw $e;
+                    }
+                    // In the rare event of an external insert race, advance sequence and retry
+                    $data['call_number'] = $this->generateCallNumber();
+                }
+            }
 
             // Record initial status
             CallStatusHistory::create([
@@ -216,6 +217,49 @@ class CallService
 
             return $call->fresh();
         });
+    }
+
+    /**
+     * Atomically generates a unique, sequential call number (CRM-YYYY-NNNNN)
+     * using the dedicated call_sequences table with MySQL LAST_INSERT_ID()
+     * row-level atomic locking. Eliminates table-scanning and race conditions.
+     */
+    public function generateCallNumber(): string
+    {
+        $year = (int) date('Y');
+
+        // Ensure row exists for the current year
+        DB::statement("
+            INSERT INTO call_sequences (year, current_seq)
+            VALUES (?, 1)
+            ON DUPLICATE KEY UPDATE current_seq = current_seq
+        ", [$year]);
+
+        // Atomic increment using LAST_INSERT_ID(current_seq + 1)
+        DB::statement("
+            UPDATE call_sequences 
+            SET current_seq = LAST_INSERT_ID(current_seq + 1) 
+            WHERE year = ?
+        ", [$year]);
+
+        $res = DB::selectOne("SELECT LAST_INSERT_ID() AS seq");
+        $nextSeq = (int) ($res->seq ?? 1);
+
+        $callNumber = sprintf('CRM-%d-%05d', $year, $nextSeq);
+
+        // Fallback safeguard in case of manual insert or sequence disparity
+        while (DB::table('calls')->where('call_number', $callNumber)->exists()) {
+            DB::statement("
+                UPDATE call_sequences 
+                SET current_seq = LAST_INSERT_ID(current_seq + 1) 
+                WHERE year = ?
+            ", [$year]);
+            $res = DB::selectOne("SELECT LAST_INSERT_ID() AS seq");
+            $nextSeq = (int) ($res->seq ?? 1);
+            $callNumber = sprintf('CRM-%d-%05d', $year, $nextSeq);
+        }
+
+        return $callNumber;
     }
 
     private function resolvePriority(array $data): int

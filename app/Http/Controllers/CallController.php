@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Exception;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 use App\Models\User;
 
 class CallController extends Controller
@@ -55,24 +56,32 @@ class CallController extends Controller
     private function applyFiltersAndSearch($query, Request $request)
     {
         if ($request->search) {
-            $s = strtolower($request->search);
-            $query->where(function($q) use ($s) {
+            $s = trim($request->search);
+            // Pre-fetch matching IDs from small auxiliary tables in-memory
+            // to eliminate 4 correlated subqueries on the 718,000+ rows calls table
+            $vehicleTypeIds = \App\Models\VehicleType::where('name', 'like', "%$s%")->pluck('id');
+            $callTypeIds = \App\Models\CallType::where('name', 'like', "%$s%")->pluck('id');
+            $callSubTypeIds = \App\Models\CallSubType::where('name', 'like', "%$s%")->pluck('id');
+            $officeIds = \App\Models\Office::where('name', 'like', "%$s%")->pluck('id');
+
+            $query->where(function($q) use ($s, $vehicleTypeIds, $callTypeIds, $callSubTypeIds, $officeIds) {
                 $q->where('call_number', 'like', "%$s%")
                   ->orWhere('caller_number', 'like', "%$s%")
                   ->orWhere('caller_name', 'like', "%$s%")
-                  ->orWhere('vehicle_no', 'like', "%$s%")
-                  ->orWhereHas('vehicleType', function($q2) use ($s) {
-                      $q2->whereRaw('LOWER(name) like ?', ["%$s%"]);
-                  })
-                  ->orWhereHas('callType', function($q2) use ($s) {
-                      $q2->whereRaw('LOWER(name) like ?', ["%$s%"]);
-                  })
-                  ->orWhereHas('callSubType', function($q2) use ($s) {
-                      $q2->whereRaw('LOWER(name) like ?', ["%$s%"]);
-                  })
-                  ->orWhereHas('office', function($q2) use ($s) {
-                      $q2->whereRaw('LOWER(name) like ?', ["%$s%"]);
-                  });
+                  ->orWhere('vehicle_no', 'like', "%$s%");
+
+                if ($vehicleTypeIds->isNotEmpty()) {
+                    $q->orWhereIn('vehicle_type_id', $vehicleTypeIds);
+                }
+                if ($callTypeIds->isNotEmpty()) {
+                    $q->orWhereIn('call_type_id', $callTypeIds);
+                }
+                if ($callSubTypeIds->isNotEmpty()) {
+                    $q->orWhereIn('call_sub_type_id', $callSubTypeIds);
+                }
+                if ($officeIds->isNotEmpty()) {
+                    $q->orWhereIn('office_id', $officeIds);
+                }
             });
         }
 
@@ -83,7 +92,7 @@ class CallController extends Controller
                     $dateTime .= ' ' . $request->time_from;
                     $query->where('created_at', '>=', Carbon::parse($dateTime));
                 } else {
-                    $query->whereDate('created_at', '>=', Carbon::parse($dateTime));
+                    $query->where('created_at', '>=', Carbon::parse($dateTime)->startOfDay());
                 }
             } catch (\Exception $e) {}
         }
@@ -95,7 +104,7 @@ class CallController extends Controller
                     $dateTime .= ' ' . $request->time_to;
                     $query->where('created_at', '<=', Carbon::parse($dateTime));
                 } else {
-                    $query->whereDate('created_at', '<=', Carbon::parse($dateTime));
+                    $query->where('created_at', '<=', Carbon::parse($dateTime)->endOfDay());
                 }
             } catch (\Exception $e) {}
         }
@@ -157,45 +166,112 @@ class CallController extends Controller
         $query = $this->applyScopeVisibility($query);
         $query = $this->applyFiltersAndSearch($query, $request);
 
-        // Calculate stats BEFORE filtering by the currently active status/category tab
-        $statsBaseQuery = clone $query;
-        $totalCount = (clone $statsBaseQuery)->count();
-        
-        $statusStats = [
-            'total'         => $totalCount,
-            'pending'       => (clone $statsBaseQuery)->where('status', 'pending')->count(),
-            'in_progress'   => (clone $statsBaseQuery)->whereIn('status', ['in_progress', 'tiger_reached'])->count(),
-            'tiger_reached' => (clone $statsBaseQuery)->where('status', 'tiger_reached')->count(),
-            'completed'     => (clone $statsBaseQuery)->where('status', 'completed')->count(),
-        ];
+        // High-Performance Optimization: Calculate all status counts in 1 conditional aggregation
+        // and all category counts in 1 group-by aggregation (reduces 25 queries to 2).
+        $user = auth()->user();
+        $isPrivileged = in_array($user->role?->name, ['super_admin', 'operation_admin', 'agent_supervisor']);
+        $hasFilters = $request->filled('search') || $request->filled('date_from') || $request->filled('date_to')
+            || $request->filled('office_id') || $request->filled('beat_id') || $request->filled('sector_id')
+            || $request->filled('zone_id') || $request->filled('call_type_id') || $request->filled('call_sub_type_id')
+            || $request->filled('agent_id');
 
-        // Add percentages for status stats
-        foreach ($statusStats as $key => $count) {
-            $statusStats[$key . '_percent'] = $totalCount > 0 ? round(($count / $totalCount) * 100, 1) : 0;
-        }
+        if ($isPrivileged && !$hasFilters) {
+            $stats = Cache::remember('calls_index_global_stats', 60, function () {
+                $statsRow = DB::table('calls')->selectRaw("
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+                    SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
+                    SUM(CASE WHEN status = 'tiger_reached' THEN 1 ELSE 0 END) as tiger_reached,
+                    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
+                ")->first();
 
-        // Calculate Category Stats
-        $callTypes = CallType::where('is_active', true)->get();
-        $categoryStats = [];
-        foreach ($callTypes as $type) {
-            $c = (clone $statsBaseQuery)->where('call_type_id', $type->id)->count();
-            $categoryStats[] = [
-                'id' => $type->id,
-                'name' => $type->name,
-                'count' => $c,
-                'percent' => $totalCount > 0 ? round(($c / $totalCount) * 100, 1) : 0,
-                'icon' => $type->icon ?? 'fa-tag'
+                $totalCount = (int) ($statsRow->total ?? 0);
+                $statusStats = [
+                    'total'         => $totalCount,
+                    'pending'       => (int) ($statsRow->pending ?? 0),
+                    'in_progress'   => (int) ($statsRow->in_progress ?? 0),
+                    'tiger_reached' => (int) ($statsRow->tiger_reached ?? 0),
+                    'completed'     => (int) ($statsRow->completed ?? 0),
+                ];
+
+                $activeTotal = $statusStats['pending'] + $statusStats['in_progress'] + $statusStats['tiger_reached'];
+                $statusStats['pending_percent']       = $activeTotal > 0 ? round(($statusStats['pending'] / $activeTotal) * 100, 1) : 0;
+                $statusStats['in_progress_percent']   = $activeTotal > 0 ? round(($statusStats['in_progress'] / $activeTotal) * 100, 1) : 0;
+                $statusStats['tiger_reached_percent'] = $activeTotal > 0 ? round(($statusStats['tiger_reached'] / $activeTotal) * 100, 1) : 0;
+                $statusStats['completed_percent']     = $totalCount > 0 ? round(($statusStats['completed'] / $totalCount) * 100, 1) : 0;
+                $statusStats['total_percent']         = 100;
+
+                $typeCounts = DB::table('calls')
+                    ->select('call_type_id', DB::raw('COUNT(*) as count'))
+                    ->groupBy('call_type_id')
+                    ->pluck('count', 'call_type_id')
+                    ->all();
+
+                $callTypes = CallType::where('is_active', true)->get();
+                $categoryStats = [];
+                foreach ($callTypes as $type) {
+                    $c = (int) ($typeCounts[$type->id] ?? 0);
+                    $categoryStats[] = [
+                        'id' => $type->id,
+                        'name' => $type->name,
+                        'count' => $c,
+                        'percent' => $totalCount > 0 ? round(($c / $totalCount) * 100, 1) : 0,
+                        'icon' => $type->icon ?? 'fa-tag'
+                    ];
+                }
+
+                return array_merge($statusStats, ['categories' => $categoryStats]);
+            });
+        } else {
+            $statsRow = (clone $query)->selectRaw("
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
+                SUM(CASE WHEN status = 'tiger_reached' THEN 1 ELSE 0 END) as tiger_reached,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
+            ")->first();
+
+            $totalCount = (int) ($statsRow->total ?? 0);
+            $statusStats = [
+                'total'         => $totalCount,
+                'pending'       => (int) ($statsRow->pending ?? 0),
+                'in_progress'   => (int) ($statsRow->in_progress ?? 0),
+                'tiger_reached' => (int) ($statsRow->tiger_reached ?? 0),
+                'completed'     => (int) ($statsRow->completed ?? 0),
             ];
-        }
 
-        $stats = array_merge($statusStats, ['categories' => $categoryStats]);
+            $activeTotal = $statusStats['pending'] + $statusStats['in_progress'] + $statusStats['tiger_reached'];
+            $statusStats['pending_percent']       = $activeTotal > 0 ? round(($statusStats['pending'] / $activeTotal) * 100, 1) : 0;
+            $statusStats['in_progress_percent']   = $activeTotal > 0 ? round(($statusStats['in_progress'] / $activeTotal) * 100, 1) : 0;
+            $statusStats['tiger_reached_percent'] = $activeTotal > 0 ? round(($statusStats['tiger_reached'] / $activeTotal) * 100, 1) : 0;
+            $statusStats['completed_percent']     = $totalCount > 0 ? round(($statusStats['completed'] / $totalCount) * 100, 1) : 0;
+            $statusStats['total_percent']         = 100;
+
+            // Single GROUP BY query for all categories
+            $typeCounts = (clone $query)
+                ->select('call_type_id', DB::raw('COUNT(*) as count'))
+                ->groupBy('call_type_id')
+                ->pluck('count', 'call_type_id')
+                ->all();
+
+            $callTypes = CallType::where('is_active', true)->get();
+            $categoryStats = [];
+            foreach ($callTypes as $type) {
+                $c = (int) ($typeCounts[$type->id] ?? 0);
+                $categoryStats[] = [
+                    'id' => $type->id,
+                    'name' => $type->name,
+                    'count' => $c,
+                    'percent' => $totalCount > 0 ? round(($c / $totalCount) * 100, 1) : 0,
+                    'icon' => $type->icon ?? 'fa-tag'
+                ];
+            }
+
+            $stats = array_merge($statusStats, ['categories' => $categoryStats]);
+        }
 
         if ($request->status && $request->status !== 'all') {
-            if ($request->status === 'in_progress') {
-                $query->whereIn('status', ['in_progress', 'tiger_reached']);
-            } else {
-                $query->where('status', $request->status);
-            }
+            $query->where('status', $request->status);
         }
         
         if ($request->call_type_id) {
@@ -213,7 +289,7 @@ class CallController extends Controller
         if ($sort && in_array($sort, $allowedSorts)) {
             $calls = $query->orderBy($sort, $dir)->paginate($request->perPage ?? 25);
         } else {
-            $calls = $query->orderByRaw("FIELD(status, 'pending', 'in_progress', 'tiger_reached', 'forwarded', 'completed', 'cancelled', 'junk')")->orderBy('created_at', 'desc')->paginate($request->perPage ?? 25);
+            $calls = $query->orderBy('created_at', 'desc')->paginate($request->perPage ?? 25);
         }
 
         if ($request->wantsJson()) {
@@ -251,6 +327,12 @@ class CallController extends Controller
     public function show(Call $call)
     {
         $this->authorize('view', $call);
+
+        // Security / Anti-Enumeration: If accessed via legacy integer ID, 301 redirect to canonical UUIDv7
+        if (request()->segment(2) === (string) $call->id && $call->uuid) {
+            return redirect()->route('calls.show', $call->uuid, 301);
+        }
+
         $call->load(['callType', 'callSubType', 'office.parent.parent', 'agent', 'carriageway', 'vehicleType']);
         return view('calls.show', compact('call'));
     }
@@ -501,22 +583,27 @@ class CallController extends Controller
         $showAgent = !in_array($user->role?->name, ['zone_admin', 'sector_admin', 'beat_operator']);
 
         $formattedCalls = $calls->map(function ($c) use ($showAgent) {
+            $beat = $c->office;
+            $sector = ($beat && $beat->type === 'beat') ? $beat->parent : ($beat && $beat->type === 'sector' ? $beat : null);
+            $zone = $sector ? $sector->parent : ($beat && $beat->type === 'zone' ? $beat : null);
+
             return [
                 'id' => $c->id,
+                'uuid' => $c->uuid,
                 'call_number' => $c->call_number,
                 'caller_name' => $c->caller_name,
                 'caller_number' => $c->caller_number,
                 'status' => $c->status,
-                'created_at' => $c->created_at,
+                'created_at' => $c->created_at ? $c->created_at->format('Y-m-d H:i:s') : '',
                 'details' => $c->details,
                 'priority' => $c->priority,
                 'call_type_id' => $c->call_type_id,
                 'call_sub_type_id' => $c->call_sub_type_id,
                 'vehicle_type_id' => $c->vehicle_type_id,
                 'office_id' => $c->office_id,
-                'zone_name' => $c->office?->zone()?->name,
-                'sector_name' => $c->office?->sector()?->name,
-                'beat_name' => $c->office?->name,
+                'zone_name' => $zone?->name,
+                'sector_name' => $sector?->name,
+                'beat_name' => ($beat && $beat->type === 'beat') ? $beat->name : ($beat?->name),
                 'agent_name' => $showAgent ? ($c->agent?->full_name ?? 'N/A') : null,
                 'location_details' => $c->location_details,
             ];
@@ -646,11 +733,15 @@ class CallController extends Controller
                 'timestamp' => now()->toIso8601String()
             ]);
         } catch (\Throwable $e) {
-            return response()->json([
+            \Illuminate\Support\Facades\Log::error('Notifications poll failed', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'user_id' => \Illuminate\Support\Facades\Auth::id(),
+            ]);
+
+            return response()->json([
+                'error' => 'Unable to retrieve notification updates at this time.',
                 'new_calls' => [],
-                'timestamp' => now()->toDateTimeString()
+                'timestamp' => now()->toIso8601String()
             ], 500);
         }
     }
@@ -715,54 +806,56 @@ class CallController extends Controller
                 }
                 fputcsv($file, $columns);
 
-                // Stream records in chunks to prevent memory exhaustion
-                $query->chunk(100, function($calls) use ($file, $showAgent) {
-                    foreach ($calls as $call) {
-                        // Efficiently find zone and sector from eager-loaded hierarchy
-                        $beat = $call->office;
-                        $sector = null;
-                        $zone = null;
+                // Stream records via cursor to prevent offset degradation and memory exhaustion
+                $processedCount = 0;
+                foreach ($query->cursor() as $call) {
+                    $processedCount++;
+                    // Efficiently find zone and sector from eager-loaded hierarchy
+                    $beat = $call->office;
+                    $sector = null;
+                    $zone = null;
 
-                        if ($beat) {
-                            if ($beat->type === 'beat') {
-                                $sector = $beat->parent;
-                                $zone = $sector?->parent;
-                            } elseif ($beat->type === 'sector') {
-                                $sector = $beat;
-                                $zone = $sector->parent;
-                            } elseif ($beat->type === 'zone') {
-                                $zone = $beat;
-                            }
+                    if ($beat) {
+                        if ($beat->type === 'beat') {
+                            $sector = $beat->parent;
+                            $zone = $sector?->parent;
+                        } elseif ($beat->type === 'sector') {
+                            $sector = $beat;
+                            $zone = $sector->parent;
+                        } elseif ($beat->type === 'zone') {
+                            $zone = $beat;
                         }
+                    }
 
-                        $row = [
-                            $call->call_number,
-                            $call->created_at ? $call->created_at->format('Y-m-d') : '',
-                            $call->created_at ? $call->created_at->format('H:i:s') : '',
-                            $call->priority,
-                            $call->status,
-                            $call->callType ? $call->callType->name : '',
-                            $call->callSubType ? $call->callSubType->name : '',
-                            $zone ? $zone->name : '',
-                            $sector ? $sector->name : '',
-                            $beat && $beat->type === 'beat' ? $beat->name : '',
-                            $call->caller_name,
-                            $call->caller_number,
-                            $call->vehicle_no,
-                            $call->vehicleType ? $call->vehicleType->name : ''
-                        ];
+                    $row = [
+                        $call->call_number,
+                        $call->created_at ? $call->created_at->format('Y-m-d') : '',
+                        $call->created_at ? $call->created_at->format('H:i:s') : '',
+                        $call->priority,
+                        $call->status,
+                        $call->callType ? $call->callType->name : '',
+                        $call->callSubType ? $call->callSubType->name : '',
+                        $zone ? $zone->name : '',
+                        $sector ? $sector->name : '',
+                        $beat && $beat->type === 'beat' ? $beat->name : '',
+                        $call->caller_name,
+                        $call->caller_number,
+                        $call->vehicle_no,
+                        $call->vehicleType ? $call->vehicleType->name : ''
+                    ];
 
-                        if ($showAgent) {
-                            array_splice($row, 5, 0, [$call->agent?->full_name ?? 'N/A']);
+                    if ($showAgent) {
+                        array_splice($row, 5, 0, [$call->agent?->full_name ?? 'N/A']);
+                    }
+                    fputcsv($file, $row);
+
+                    if ($processedCount % 500 === 0) {
+                        if (ob_get_level() > 0) {
+                            ob_flush();
                         }
-                        fputcsv($file, $row);
+                        flush();
                     }
-                    // Flush the buffer to browser after each chunk
-                    if (ob_get_level() > 0) {
-                        ob_flush();
-                    }
-                    flush();
-                });
+                }
 
                 fclose($file);
             }, 200, $headers);

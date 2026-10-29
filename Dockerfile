@@ -59,20 +59,27 @@ RUN for i in 1 2 3; do \
             unzip \
         && break || { echo "apk attempt $i failed, retrying..."; sleep 15; }; \
     done \
-    && sed -i 's/listen = 127.0.0.1:9000/listen = 9000/g' /usr/local/etc/php-fpm.d/www.conf
+    && sed -i 's/listen = 127.0.0.1:9000/listen = 9000/g' /usr/local/etc/php-fpm.d/www.conf \
+    && sed -i 's/pm.max_children = 5/pm.max_children = 35/g' /usr/local/etc/php-fpm.d/www.conf \
+    && sed -i 's/pm.start_servers = 2/pm.start_servers = 8/g' /usr/local/etc/php-fpm.d/www.conf \
+    && sed -i 's/pm.min_spare_servers = 1/pm.min_spare_servers = 4/g' /usr/local/etc/php-fpm.d/www.conf \
+    && sed -i 's/pm.max_spare_servers = 3/pm.max_spare_servers = 12/g' /usr/local/etc/php-fpm.d/www.conf \
+    && sed -i 's/;pm.max_requests = 500/pm.max_requests = 1000/g' /usr/local/etc/php-fpm.d/www.conf
     
 # Copy compiled extensions from builder stage
 COPY --from=builder /usr/local/lib/php/extensions /usr/local/lib/php/extensions
 COPY --from=builder /usr/local/etc/php/conf.d /usr/local/etc/php/conf.d
 
 # High Performance OPcache & JIT Compiler settings
-RUN echo -e "opcache.enable=1\n\
+RUN echo -e "zend_extension=opcache\n\
+opcache.enable=1\n\
 opcache.enable_cli=1\n\
 opcache.jit_buffer_size=100M\n\
 opcache.jit=tracing\n\
 opcache.memory_consumption=256\n\
 opcache.max_accelerated_files=20000\n\
-opcache.validate_timestamps=0\n\
+opcache.validate_timestamps=1\n\
+opcache.revalidate_freq=2\n\
 opcache.interned_strings_buffer=16\n\
 opcache.fast_shutdown=1" > /usr/local/etc/php/conf.d/docker-php-ext-opcache.ini
 
