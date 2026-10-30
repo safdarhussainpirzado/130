@@ -271,7 +271,6 @@ class CallService
                     ->where('year', $year)
                     ->update([
                         'current_seq' => $nextSeq,
-                        'updated_at' => now(),
                     ]);
 
                 return sprintf('CRM-%d-%05d', $year, $nextSeq);
@@ -288,8 +287,6 @@ class CallService
             $connection->table('call_sequences')->insert([
                 'year' => $year,
                 'current_seq' => $nextSeq,
-                'created_at' => now(),
-                'updated_at' => now(),
             ]);
 
             return sprintf('CRM-%d-%05d', $year, $nextSeq);
