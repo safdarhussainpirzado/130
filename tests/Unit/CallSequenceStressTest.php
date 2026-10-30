@@ -2,9 +2,8 @@
 
 namespace Tests\Unit;
 
-use Tests\TestCase;
 use App\Services\CallService;
-use Illuminate\Support\Facades\DB;
+use Tests\TestCase;
 
 class CallSequenceStressTest extends TestCase
 {
@@ -13,7 +12,7 @@ class CallSequenceStressTest extends TestCase
      */
     public function test_high_frequency_sequential_uniqueness(): void
     {
-        $service = new CallService();
+        $service = new CallService;
         $year = (int) date('Y');
 
         $allocated = [];
@@ -28,7 +27,7 @@ class CallSequenceStressTest extends TestCase
         for ($i = 0; $i < count($allocated) - 1; $i++) {
             $s1 = (int) substr($allocated[$i], strrpos($allocated[$i], '-') + 1);
             $s2 = (int) substr($allocated[$i + 1], strrpos($allocated[$i + 1], '-') + 1);
-            $this->assertEquals($s1 + 1, $s2, "Sequence between {$allocated[$i]} and {$allocated[$i+1]} must increment by 1.");
+            $this->assertEquals($s1 + 1, $s2, "Sequence between {$allocated[$i]} and {$allocated[$i + 1]} must increment by 1.");
         }
     }
 
@@ -37,7 +36,7 @@ class CallSequenceStressTest extends TestCase
      */
     public function test_multi_connection_interleaved_allocation(): void
     {
-        $service = new CallService();
+        $service = new CallService;
         $year = (int) date('Y');
 
         $allocated = [];

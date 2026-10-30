@@ -2,9 +2,9 @@
 
 namespace Tests\Unit;
 
-use Tests\TestCase;
 use App\Models\Call;
 use Illuminate\Support\Str;
+use Tests\TestCase;
 
 class CallUuidTest extends TestCase
 {
@@ -13,7 +13,7 @@ class CallUuidTest extends TestCase
      */
     public function test_call_model_route_key_name_is_uuid(): void
     {
-        $call = new Call();
+        $call = new Call;
         $this->assertEquals('uuid', $call->getRouteKeyName());
     }
 
@@ -30,9 +30,9 @@ class CallUuidTest extends TestCase
 
         // Verify booted hook sets uuid when empty
         $call = new Call([
-            'caller_name'   => 'Test Citizen',
+            'caller_name' => 'Test Citizen',
             'caller_number' => '03001234567',
-            'status'        => 'pending'
+            'status' => 'pending',
         ]);
 
         // Simulating the booted hook
@@ -50,14 +50,14 @@ class CallUuidTest extends TestCase
     public function test_resolve_route_binding_supports_uuid_and_id(): void
     {
         $call = Call::first();
-        if (!$call) {
+        if (! $call) {
             $this->markTestSkipped('No call record found in test database.');
         }
 
-        $model = new Call();
+        $model = new Call;
 
         // 1. Resolve by UUID (if assigned)
-        if (!empty($call->uuid)) {
+        if (! empty($call->uuid)) {
             $resolvedByUuid = $model->resolveRouteBinding($call->uuid);
             $this->assertNotNull($resolvedByUuid);
             $this->assertEquals($call->id, $resolvedByUuid->id);

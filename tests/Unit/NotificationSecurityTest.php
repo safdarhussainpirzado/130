@@ -2,8 +2,8 @@
 
 namespace Tests\Unit;
 
-use Tests\TestCase;
 use App\Models\User;
+use Tests\TestCase;
 
 class NotificationSecurityTest extends TestCase
 {
@@ -13,7 +13,7 @@ class NotificationSecurityTest extends TestCase
     public function test_notifications_poll_does_not_leak_stack_trace(): void
     {
         $user = User::first();
-        if (!$user) {
+        if (! $user) {
             $this->markTestSkipped('No user found');
         }
 

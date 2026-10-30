@@ -2,13 +2,13 @@
 
 namespace Tests\Unit;
 
-use Tests\TestCase;
-use App\Services\CallService;
 use App\Models\Call;
-use App\Models\User;
 use App\Models\Role;
+use App\Models\User;
+use App\Services\CallService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Tests\TestCase;
 
 class CallSequenceTest extends TestCase
 {
@@ -55,7 +55,7 @@ class CallSequenceTest extends TestCase
 
     public function test_generate_call_number_format_and_sequence(): void
     {
-        $service = new CallService();
+        $service = new CallService;
         $year = (int) date('Y');
 
         $num1 = $service->generateCallNumber();
@@ -67,12 +67,12 @@ class CallSequenceTest extends TestCase
         $seq1 = (int) substr($num1, strrpos($num1, '-') + 1);
         $seq2 = (int) substr($num2, strrpos($num2, '-') + 1);
 
-        $this->assertEquals($seq1 + 1, $seq2, "Subsequent call numbers must be strictly sequential.");
+        $this->assertEquals($seq1 + 1, $seq2, 'Subsequent call numbers must be strictly sequential.');
     }
 
     public function test_year_rollover_creates_independent_sequence_for_new_year(): void
     {
-        $service = new CallService();
+        $service = new CallService;
         $testYear = 2027;
 
         // Ensure test year is clean
@@ -94,7 +94,7 @@ class CallSequenceTest extends TestCase
 
     public function test_initialization_from_max_existing_calls_when_sequence_row_is_absent(): void
     {
-        $service = new CallService();
+        $service = new CallService;
         $testYear = 2029;
 
         // Ensure test year sequence is absent
@@ -119,7 +119,7 @@ class CallSequenceTest extends TestCase
 
     public function test_transaction_rollback_preserves_monotonic_sequence_gap(): void
     {
-        $service = new CallService();
+        $service = new CallService;
         $year = (int) date('Y');
 
         $beforeSeq = (int) DB::table('call_sequences')->where('year', $year)->value('current_seq');
@@ -127,7 +127,7 @@ class CallSequenceTest extends TestCase
         try {
             DB::transaction(function () use ($service) {
                 $service->generateCallNumber();
-                throw new \RuntimeException("Simulated transactional failure during call handling");
+                throw new \RuntimeException('Simulated transactional failure during call handling');
             });
         } catch (\RuntimeException $e) {
             // Expected rollback
@@ -136,12 +136,12 @@ class CallSequenceTest extends TestCase
         $afterSeq = (int) DB::table('call_sequences')->where('year', $year)->value('current_seq');
 
         // In MySQL InnoDB, transactional rollback reverts the row update, preventing sequence leakage
-        $this->assertEquals($beforeSeq, $afterSeq, "When transaction rolls back, InnoDB reverts call_sequences update, preventing sequence gaps.");
+        $this->assertEquals($beforeSeq, $afterSeq, 'When transaction rolls back, InnoDB reverts call_sequences update, preventing sequence gaps.');
     }
 
     public function test_connection_affinity_uses_write_pdo(): void
     {
-        $service = new CallService();
+        $service = new CallService;
         $year = (int) date('Y');
 
         $num = $service->generateCallNumber();
@@ -157,7 +157,7 @@ class CallSequenceTest extends TestCase
 
     public function test_first_allocation_in_year_with_no_existing_calls(): void
     {
-        $service = new CallService();
+        $service = new CallService;
         $testYear = 2030;
 
         DB::table('call_sequences')->where('year', $testYear)->delete();
@@ -176,7 +176,7 @@ class CallSequenceTest extends TestCase
 
     public function test_mixed_version_coexistence_with_legacy_allocator(): void
     {
-        $service = new CallService();
+        $service = new CallService;
         $testYear = 2031;
 
         DB::table('call_sequences')->where('year', $testYear)->delete();
@@ -201,9 +201,9 @@ class CallSequenceTest extends TestCase
 
     public function test_bounded_retry_recovers_from_duplicate_key_collision(): void
     {
-        $service = new CallService();
+        $service = new CallService;
         $user = User::where('username', 'test_operator_seq')->first() ?? User::first();
-        if (!$user) {
+        if (! $user) {
             $this->markTestSkipped('No user found for test.');
         }
 

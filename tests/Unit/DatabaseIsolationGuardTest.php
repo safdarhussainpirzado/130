@@ -2,9 +2,9 @@
 
 namespace Tests\Unit;
 
-use Tests\TestCase;
-use RuntimeException;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
+use Tests\TestCase;
 
 class DatabaseIsolationGuardTest extends TestCase
 {
@@ -37,7 +37,7 @@ class DatabaseIsolationGuardTest extends TestCase
     public function test_guard_refuses_active_staging_database(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("CRITICAL SAFETY VIOLATION");
+        $this->expectExceptionMessage('CRITICAL SAFETY VIOLATION');
         $this->assertDatabaseNotProtected('130_crm_db', 'test');
     }
 
@@ -49,7 +49,7 @@ class DatabaseIsolationGuardTest extends TestCase
                 $this->assertDatabaseNotProtected($name, 'test');
                 $this->fail("Guard failed to reject protected database: {$name}");
             } catch (RuntimeException $e) {
-                $this->assertStringContainsString("CRITICAL SAFETY VIOLATION", $e->getMessage());
+                $this->assertStringContainsString('CRITICAL SAFETY VIOLATION', $e->getMessage());
             }
         }
     }
@@ -83,8 +83,10 @@ class DatabaseIsolationGuardTest extends TestCase
         DB::purge('guard_test');
 
         // Create an anonymous connection mock that returns a protected database name
-        $tamperedConnection = new class {
-            public function getDatabaseName() {
+        $tamperedConnection = new class
+        {
+            public function getDatabaseName()
+            {
                 return '130_crm_db';
             }
         };
@@ -106,7 +108,7 @@ class DatabaseIsolationGuardTest extends TestCase
                 $this->assertDatabaseNotProtected($target, 'migrate:fresh / RefreshDatabase');
                 $this->fail("Destructive guard failed to block {$target}");
             } catch (RuntimeException $e) {
-                $this->assertStringContainsString("CRITICAL SAFETY VIOLATION", $e->getMessage());
+                $this->assertStringContainsString('CRITICAL SAFETY VIOLATION', $e->getMessage());
                 $this->assertStringContainsString($target, $e->getMessage());
             }
         }
@@ -133,7 +135,7 @@ class DatabaseIsolationGuardTest extends TestCase
         ]);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Default database connection is not configured");
+        $this->expectExceptionMessage('Default database connection is not configured');
         $this->enforceTestDatabaseIsolation();
     }
 }

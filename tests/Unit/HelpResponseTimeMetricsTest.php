@@ -2,11 +2,12 @@
 
 namespace Tests\Unit;
 
-use Tests\TestCase;
 use App\Models\Call;
+use App\Models\User;
 use App\Services\CallService;
 use App\Services\ReportService;
 use Carbon\Carbon;
+use Tests\TestCase;
 
 class HelpResponseTimeMetricsTest extends TestCase
 {
@@ -27,8 +28,8 @@ class HelpResponseTimeMetricsTest extends TestCase
      */
     public function test_call_model_duration_accessors(): void
     {
-        $call = new Call();
-        
+        $call = new Call;
+
         $now = Carbon::parse('2026-09-04 10:00:00');
         $created = $now->copy();
         $dispatched = $now->copy()->addMinutes(5); // +300s
@@ -56,22 +57,22 @@ class HelpResponseTimeMetricsTest extends TestCase
     public function test_display_tiger_accessor(): void
     {
         // Case 1: Explicit tiger_id
-        $call1 = new Call();
+        $call1 = new Call;
         $call1->tiger_id = 'T-102';
         $this->assertEquals('Tiger-102', $call1->display_tiger);
 
         // Case 2: Extracted from [Allocated Asset: T-105] in remarks
-        $call2 = new Call();
+        $call2 = new Call;
         $call2->inprogress_remarks = 'Tiger dispatched [Allocated Asset: T-105] on patrol route';
         $this->assertEquals('Tiger-105', $call2->display_tiger);
 
         // Case 3: Extracted from [Asset: ST-1] in remarks
-        $call3 = new Call();
+        $call3 = new Call;
         $call3->inprogress_remarks = 'Dispatched [Allocated Asset: ST-1] to commuter';
         $this->assertEquals('Special Tiger-1', $call3->display_tiger);
 
         // Case 4: None
-        $call4 = new Call();
+        $call4 = new Call;
         $this->assertNull($call4->display_tiger);
     }
 
@@ -80,7 +81,7 @@ class HelpResponseTimeMetricsTest extends TestCase
      */
     public function test_format_help_response_time_row(): void
     {
-        $call = new Call();
+        $call = new Call;
         $call->id = 999;
         $call->call_number = 'HELP-2026-9999';
         $call->created_at = Carbon::parse('2026-09-04 08:00:00');
@@ -130,14 +131,14 @@ class HelpResponseTimeMetricsTest extends TestCase
      */
     public function test_invalid_status_transition(): void
     {
-        $call = new Call();
+        $call = new Call;
         $call->status = 'pending';
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Invalid state transition: pending -> completed');
 
         $callService = app(CallService::class);
-        $user = new \App\Models\User();
+        $user = new User;
         $user->id = 1;
         $callService->updateStatus($call, 'completed', $user);
     }
