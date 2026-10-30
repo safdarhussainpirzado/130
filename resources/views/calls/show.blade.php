@@ -25,6 +25,7 @@
 <script>
     window._showData = @js([
         'id' => $call->id,
+        'uuid' => $call->uuid,
         'call_number' => $call->call_number,
         'status' => $call->status,
         'priority' => (int) $call->priority,

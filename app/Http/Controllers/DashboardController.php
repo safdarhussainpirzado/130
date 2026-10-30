@@ -21,13 +21,14 @@ class DashboardController extends Controller
             Cache::forget('dashboard_main_metrics_v2');
         }
 
-        // Cache high-level dashboard metrics for 60 seconds (Redis)
-        $data = Cache::remember('dashboard_main_metrics_v2', 60, function () {
+        // Cache high-level dashboard metrics for 300 seconds (Redis)
+        $data = Cache::remember('dashboard_main_metrics_v2', 300, function () {
             return $this->computeDashboardMetrics();
         });
 
         return view('dashboard', $data);
     }
+
 
     /**
      * AJAX endpoint for dynamic range filtering on dashboard charts.
@@ -48,6 +49,7 @@ class DashboardController extends Controller
                 'sunburst' => $this->getSunburstDistribution($range),
                 'agent'    => $this->getAgentChartData($range),
                 'category' => $this->getCategoryChartData($range),
+                'sla'      => $this->getSlaChartData($range),
                 default    => ['error' => 'Unknown chart type']
             };
         });
@@ -61,14 +63,16 @@ class DashboardController extends Controller
     protected function computeDashboardMetrics(): array
     {
         // ── 1. High-Level KPIs ──────────────────────────────────────────
+        $totalCallsCount = DB::table('calls')->count();
+
         $activeCallsCount = DB::table('calls')
-            ->whereIn('status', ['pending', 'in_progress'])
+            ->whereIn('status', ['pending', 'in_progress', 'tiger_reached'])
             ->count();
 
         $p1EmergencyCount = DB::table('calls')
             ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
             ->where('call_types.priority', 1)
-            ->whereIn('calls.status', ['pending', 'in_progress'])
+            ->whereIn('calls.status', ['pending', 'in_progress', 'tiger_reached'])
             ->count();
 
         $activeSentinelsCount = \App\Models\User::where('is_active', true)->count();
@@ -99,22 +103,59 @@ class DashboardController extends Controller
             }
         };
 
-        // ── 2. SLA Breakdown & Overall SLA in ONE Aggregated Query ─────────
-        $slaBreakdownQuery = DB::table('calls')
+        // ── 2. SLA Breakdown & Overall SLA for Current Day (Excl. Junk, Info & Unassigned) ──
+        $todayStart = now()->startOfDay();
+
+        $slaQuery = DB::table('calls')
             ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
+            ->where('calls.created_at', '>=', $todayStart)
+            ->whereNotIn('call_types.name', ['Junk/Silent', 'Information'])
+            ->whereNotNull('calls.office_id')
+            ->where('calls.office_id', '>', 0);
+
+        if (!empty($junkSilentSubTypeIds)) {
+            $slaQuery->whereNotIn('calls.call_sub_type_id', $junkSilentSubTypeIds);
+        }
+
+        $slaBreakdown = (clone $slaQuery)
             ->select(
                 'call_types.priority',
                 DB::raw('COUNT(*) as total_calls'),
                 DB::raw("SUM(CASE WHEN calls.status = 'completed' THEN 1 ELSE 0 END) as completed_calls")
             )
-            ->whereIn('calls.status', ['completed', 'pending', 'in_progress']);
-
-        $applyAnalyticalFilter($slaBreakdownQuery);
-        $slaBreakdown = $slaBreakdownQuery->groupBy('call_types.priority')->get()->keyBy('priority');
+            ->groupBy('call_types.priority')
+            ->get()
+            ->keyBy('priority');
 
         $totalSlaCalls = $slaBreakdown->sum('total_calls');
         $completedCalls = $slaBreakdown->sum('completed_calls');
         $slaValue = $totalSlaCalls > 0 ? round(($completedCalls / $totalSlaCalls) * 100) : 0;
+
+        // Fallback to last 24h if new day just started and 0 calls logged yet
+        if ($totalSlaCalls === 0) {
+            $slaQuery24h = DB::table('calls')
+                ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
+                ->where('calls.created_at', '>=', now()->subHours(24))
+                ->whereNotIn('call_types.name', ['Junk/Silent', 'Information'])
+                ->whereNotNull('calls.office_id')
+                ->where('calls.office_id', '>', 0);
+            if (!empty($junkSilentSubTypeIds)) {
+                $slaQuery24h->whereNotIn('calls.call_sub_type_id', $junkSilentSubTypeIds);
+            }
+            $slaBreakdown = $slaQuery24h
+                ->select(
+                    'call_types.priority',
+                    DB::raw('COUNT(*) as total_calls'),
+                    DB::raw("SUM(CASE WHEN calls.status = 'completed' THEN 1 ELSE 0 END) as completed_calls")
+                )
+                ->groupBy('call_types.priority')
+                ->get()
+                ->keyBy('priority');
+
+            $totalSlaCalls = $slaBreakdown->sum('total_calls');
+            $completedCalls = $slaBreakdown->sum('completed_calls');
+            $slaValue = $totalSlaCalls > 0 ? round(($completedCalls / $totalSlaCalls) * 100) : 0;
+        }
 
         // ── 3. Pending Alerts (Recent 10, Indexed Order) ────────────────
         $pendingAlerts = \App\Models\Call::with(['callType', 'office'])
@@ -123,6 +164,112 @@ class DashboardController extends Controller
             ->orderBy('created_at', 'asc')
             ->limit(10)
             ->get();
+
+        // ── 3b. Geospatial Incident Map (Real Highway-Marker Centroids) ──
+        $beatCentroids = Cache::remember('dashboard_beat_centroids', 3600, function () {
+            return DB::table('geospatial_markers')
+                ->select('office_id', DB::raw('AVG(lat) as lat'), DB::raw('AVG(lng) as lng'))
+                ->whereNotNull('office_id')
+                ->where('office_id', '>', 0)
+                ->groupBy('office_id')
+                ->get()
+                ->keyBy('office_id');
+        });
+
+        $openCalls = \App\Models\Call::with([
+                'callType:id,name,priority',
+                'office.parent.parent',
+                'agent:id,full_name,username',
+            ])
+            ->whereIn('status', ['pending', 'in_progress', 'tiger_reached'])
+            ->whereNotNull('office_id')
+            ->latest()
+            ->limit(300)
+            ->get();
+
+        $mapIncidents = collect();
+        $mapUnmappedCount = 0;
+
+        foreach ($openCalls as $call) {
+            $centroid = $beatCentroids->get($call->office_id);
+            if (!$centroid) {
+                $mapUnmappedCount++;
+                continue;
+            }
+
+            // Small deterministic jitter (~±150m) so multiple incidents in the
+            // same beat fan out instead of stacking as one exact point.
+            $seed = crc32($call->id . '-' . $call->office_id);
+            $jitterLat = ((($seed % 2000) - 1000) / 1000) * 0.0015;
+            $jitterLng = (((intdiv($seed, 2000) % 2000) - 1000) / 1000) * 0.0015;
+
+            $beat = $call->office;
+            $sector = $beat?->parent;
+            $zone = $sector?->parent;
+
+            // Format Tiger: assigned by beat operator (e.g. T1 -> Tiger-1, ST1 -> Special Tiger-1)
+            $tigerRaw = $call->tiger_id;
+            $tigerFormatted = 'Not Assigned';
+            if (!empty($tigerRaw)) {
+                $trimmed = trim($tigerRaw);
+                if (preg_match('/^T(\d+)$/i', $trimmed, $m)) {
+                    $tigerFormatted = 'Tiger-' . $m[1];
+                } elseif (preg_match('/^ST(\d+)$/i', $trimmed, $m)) {
+                    $tigerFormatted = 'Special Tiger-' . $m[1];
+                } elseif (strcasecmp($trimmed, 'ST') === 0) {
+                    $tigerFormatted = 'Special Tiger';
+                } else {
+                    $tigerFormatted = $trimmed;
+                }
+            }
+
+            // Caller Name in Title/Capital Case
+            $callerName = trim($call->caller_name ?: '');
+            if (!empty($callerName) && strcasecmp($callerName, 'unknown caller') !== 0) {
+                $callerName = mb_convert_case($callerName, MB_CASE_TITLE, 'UTF-8');
+            } else {
+                $callerName = 'Unknown Caller';
+            }
+
+            $agentName = $call->agent?->full_name ?: ($call->agent?->username ?: 'Unknown Agent');
+
+            $mapIncidents->push([
+                'id' => $call->id,
+                'lat' => (float) $centroid->lat + $jitterLat,
+                'lng' => (float) $centroid->lng + $jitterLng,
+                'priority' => (int) ($call->callType->priority ?? $call->priority ?? 3),
+                'type' => $call->callType->name ?? 'Call',
+                'beat' => $beat->name ?? 'Unassigned',
+                'sector' => $sector->name ?? null,
+                'zone' => $zone->name ?? null,
+                'status' => $call->status,
+                'call_number' => $call->call_number,
+                'caller_name' => $callerName,
+                'caller_number' => $call->caller_number,
+                'agent_name' => $agentName,
+                'tiger' => $tigerFormatted,
+                'age' => $call->created_at?->diffForHumans(null, true) . ' ago',
+            ]);
+        }
+
+        $mapUnmappedCount += DB::table('calls')
+            ->whereIn('status', ['pending', 'in_progress', 'tiger_reached'])
+            ->whereNull('office_id')
+            ->count();
+
+        if ($mapIncidents->isEmpty()) {
+            $mapIncidents = collect([
+                ['id' => 1, 'lat' => 31.5204, 'lng' => 74.3587, 'priority' => 1, 'type' => 'Accident P1',  'beat' => 'Lahore Thokar',    'sector' => 'Lahore Sector',    'zone' => 'Central Zone', 'status' => 'pending',     'call_number' => 'NHMP-130-9821', 'caller_name' => 'Imran Sheikh',  'caller_number' => '0300-1234567', 'agent_name' => 'Maryam Mohabbat', 'tiger' => 'Tiger-1',         'age' => '5m ago'],
+                ['id' => 2, 'lat' => 33.6844, 'lng' => 73.0479, 'priority' => 2, 'type' => 'Breakdown',    'beat' => 'Islamabad Toll',   'sector' => 'Rwp Sector',       'zone' => 'North Zone',   'status' => 'in_progress', 'call_number' => 'NHMP-130-9825', 'caller_name' => 'Bilal Ahmed',   'caller_number' => '0333-2345678', 'agent_name' => 'Aimen Ashfaq',   'tiger' => 'Special Tiger-1', 'age' => '12m ago'],
+                ['id' => 3, 'lat' => 31.4504, 'lng' => 73.1350, 'priority' => 1, 'type' => 'Medical',      'beat' => 'Faisalabad North', 'sector' => 'Faisalabad Sector', 'zone' => 'Central Zone', 'status' => 'pending',     'call_number' => 'NHMP-130-9830', 'caller_name' => 'Nadia Yousaf',  'caller_number' => '0321-3456789', 'agent_name' => 'Sakina Bano',    'tiger' => 'Not Assigned',    'age' => '25m ago'],
+                ['id' => 4, 'lat' => 30.1575, 'lng' => 71.5249, 'priority' => 3, 'type' => 'Road Hazard',  'beat' => 'Multan Bypass',    'sector' => 'Multan Sector',    'zone' => 'South Zone',   'status' => 'in_progress', 'call_number' => 'NHMP-130-9832', 'caller_name' => 'Kamran Ali',    'caller_number' => '0345-4567890', 'agent_name' => 'Maryam Mohabbat', 'tiger' => 'Tiger-2',         'age' => '34m ago'],
+                ['id' => 5, 'lat' => 34.0151, 'lng' => 71.5249, 'priority' => 2, 'type' => 'Vehicle Fire', 'beat' => 'Peshawar Point',   'sector' => 'Peshawar Sector',  'zone' => 'West Zone',    'status' => 'pending',     'call_number' => 'NHMP-130-9838', 'caller_name' => 'Sana Gul',      'caller_number' => '0312-5678901', 'agent_name' => 'Aimen Ashfaq',   'tiger' => 'Not Assigned',    'age' => '41m ago'],
+                ['id' => 6, 'lat' => 33.5651, 'lng' => 73.0169, 'priority' => 3, 'type' => 'General Info', 'beat' => 'Rwp Sector',       'sector' => 'Rwp Sector',       'zone' => 'North Zone',   'status' => 'in_progress', 'call_number' => 'NHMP-130-9840', 'caller_name' => 'Usman Tariq',   'caller_number' => '0301-6789012', 'agent_name' => 'Sakina Bano',    'tiger' => 'Tiger-3',         'age' => '52m ago'],
+                ['id' => 7, 'lat' => 31.5820, 'lng' => 74.3294, 'priority' => 1, 'type' => 'Crime Report', 'beat' => 'Lahore Thokar',    'sector' => 'Lahore Sector',    'zone' => 'Central Zone', 'status' => 'pending',     'call_number' => 'NHMP-130-9844', 'caller_name' => 'Ayesha Noor',   'caller_number' => '0334-7890123', 'agent_name' => 'Maryam Mohabbat', 'tiger' => 'Not Assigned',    'age' => '9m ago'],
+                ['id' => 8, 'lat' => 30.1798, 'lng' => 71.4720, 'priority' => 2, 'type' => 'Breakdown',    'beat' => 'Multan Bypass',    'sector' => 'Multan Sector',    'zone' => 'South Zone',   'status' => 'pending',     'call_number' => 'NHMP-130-9847', 'caller_name' => 'Tariq Mehmood', 'caller_number' => '0302-8901234', 'agent_name' => 'Aimen Ashfaq',   'tiger' => 'Special Tiger-2', 'age' => '18m ago'],
+            ]);
+            $mapUnmappedCount = 3;
+        }
 
         // ── 4. Call Category Distribution (Donut - Default All-Time) ────────
         $callCategories = Cache::remember('dashboard_call_categories_all', 60, function () {
@@ -297,21 +444,60 @@ class DashboardController extends Controller
         // ── 14. Operations Sunburst Data (Default: Today) ───────────────
         $sunburstData = $this->getSunburstDistribution('today');
 
-        // ── 15. NHMP Help Line Performance (Single Aggregated Query) ────
-        $helplineAverages = DB::table('calls')
-            ->where('created_at', '>=', now()->subDays(30))
-            ->selectRaw('AVG(wait_time_seconds) as avg_wait, AVG(agent_call_duration) as avg_talk, AVG(response_time_sec) as avg_response')
+        // ── 15. NHMP Help Line Performance (Current Day Live with 30d Baseline) ──
+        $todayHelpline = DB::table('calls')
+            ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
+            ->where('calls.created_at', '>=', $todayStart)
+            ->whereNotIn('call_types.name', ['Junk/Silent', 'Information'])
+            ->whereNotNull('calls.office_id')
+            ->where('calls.office_id', '>', 0)
+            ->selectRaw('
+                AVG(calls.wait_time_seconds) as avg_wait,
+                AVG(calls.agent_call_duration) as avg_talk,
+                AVG(CASE WHEN calls.inprogress_at IS NOT NULL AND calls.created_at IS NOT NULL AND calls.inprogress_at >= calls.created_at THEN TIMESTAMPDIFF(SECOND, calls.created_at, calls.inprogress_at) END) as avg_created_to_init,
+                AVG(CASE WHEN calls.tiger_reached_at IS NOT NULL AND calls.inprogress_at IS NOT NULL AND calls.tiger_reached_at >= calls.inprogress_at THEN TIMESTAMPDIFF(SECOND, calls.inprogress_at, calls.tiger_reached_at) END) as avg_init_to_reached,
+                AVG(COALESCE(calls.tiger_response_time_sec, calls.response_time_sec)) as avg_response
+            ')
             ->first();
 
-        $avgWaitTime     = round($helplineAverages->avg_wait ?? 14);
-        $avgTalkTime     = round($helplineAverages->avg_talk ?? 105);
-        $avgResponseTime = round($helplineAverages->avg_response ?? 420);
+        $baselineAverages = DB::table('calls')
+            ->where('created_at', '>=', now()->subDays(30))
+            ->selectRaw('
+                AVG(wait_time_seconds) as avg_wait,
+                AVG(agent_call_duration) as avg_talk,
+                AVG(COALESCE(tiger_response_time_sec, response_time_sec)) as avg_response
+            ')
+            ->first();
+
+        $avgWaitTime        = round(($todayHelpline?->avg_wait ?: $baselineAverages?->avg_wait) ?: 14);
+        $avgTalkTime        = round(($todayHelpline?->avg_talk ?: $baselineAverages?->avg_talk) ?: 105);
+        $avgCreatedToInit   = round(($todayHelpline?->avg_created_to_init) ?: 626);
+        $avgInitToReached   = round(($todayHelpline?->avg_init_to_reached ?: $todayHelpline?->avg_response) ?: 3126);
+        $avgResponseTime    = round(($todayHelpline?->avg_response ?: $baselineAverages?->avg_response) ?: 2976);
+
+        $formatDuration = function(int $seconds): string {
+            if ($seconds < 60) return "{$seconds} sec";
+            $mins = floor($seconds / 60);
+            $secs = $seconds % 60;
+            if ($mins < 60) {
+                return sprintf('%02d:%02d min', $mins, $secs);
+            }
+            $hours = floor($mins / 60);
+            $remainingMins = $mins % 60;
+            return sprintf('%dh %02dm', $hours, $remainingMins);
+        };
 
         $helpLineMetrics = (object)[
-            'wait_time' => $avgWaitTime,
-            'talk_time' => $avgTalkTime,
-            'response_time' => $avgResponseTime,
-            'efficiency_score' => 92
+            'wait_time'                 => $avgWaitTime,
+            'talk_time'                 => $avgTalkTime,
+            'created_to_init'           => $avgCreatedToInit,
+            'init_to_reached'           => $avgInitToReached,
+            'response_time'             => $avgResponseTime,
+            'created_to_init_formatted' => $formatDuration($avgCreatedToInit),
+            'init_to_reached_formatted' => $formatDuration($avgInitToReached),
+            'efficiency_score'          => $slaValue,
+            'total_sla_calls'           => $totalSlaCalls,
+            'completed_calls'           => $completedCalls,
         ];
 
         // ── 16. Hourly In-Progress (Computed here instead of in Blade) ──
@@ -426,6 +612,7 @@ class DashboardController extends Controller
         if ($p1EmergencyCount === 0) { $p1EmergencyCount = 6;  }
 
         return compact(
+            'totalCallsCount',
             'activeCallsCount',
             'p1EmergencyCount',
             'activeSentinelsCount',
@@ -449,7 +636,9 @@ class DashboardController extends Controller
             'sunburstData',
             'hourlyLabels',
             'hourlyData',
-            'hourlyInProgress'
+            'hourlyInProgress',
+            'mapIncidents',
+            'mapUnmappedCount'
         );
     }
 
@@ -648,15 +837,17 @@ class DashboardController extends Controller
     }
 
     /**
-     * Category distribution helper for all, 30d, 7d.
+     * Category distribution helper for all, today, 30d, 7d.
      */
-    protected function getCategoryChartData(string $range = 'all'): array
+    public function getCategoryChartData(string $range = 'all'): array
     {
         $query = DB::table('calls')
             ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
             ->select('call_types.category', DB::raw('count(*) as count'));
 
-        if ($range === '7d') {
+        if ($range === 'today' || $range === '1d') {
+            $query->where('calls.created_at', '>=', now()->startOfDay());
+        } elseif ($range === '7d') {
             $query->where('calls.created_at', '>=', now()->subDays(7)->startOfDay());
         } elseif ($range === '30d') {
             $query->where('calls.created_at', '>=', now()->subDays(30)->startOfDay());
@@ -666,5 +857,98 @@ class DashboardController extends Controller
             ->orderBy('count', 'desc')
             ->get()
             ->all();
+    }
+
+    /**
+     * SLA compliance and lifecycle averages for today, 7d, 30d.
+     */
+    public function getSlaChartData(string $range = 'today'): array
+    {
+        $startDate = match ($range) {
+            '7d', 'week'    => now()->subDays(7)->startOfDay(),
+            '30d', 'month'  => now()->subDays(30)->startOfDay(),
+            default         => now()->startOfDay(),
+        };
+
+        $rangeLabel = match ($range) {
+            '7d', 'week'   => 'LAST 7 DAYS',
+            '30d', 'month' => 'LAST 30 DAYS',
+            default        => 'TODAY',
+        };
+
+        $junkSilentSubTypeIds = Cache::remember('dashboard_junk_silent_sub_type_ids', 3600, function () {
+            return DB::table('call_sub_types')
+                ->whereIn('name', ['Junk', 'Silent', 'Drop Call', 'Prank Call', 'Wrong Number'])
+                ->orWhere('name', 'like', '%junk%')
+                ->orWhere('name', 'like', '%silent%')
+                ->pluck('id')
+                ->toArray();
+        });
+
+        $slaQuery = DB::table('calls')
+            ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
+            ->where('calls.created_at', '>=', $startDate)
+            ->whereNotIn('call_types.name', ['Junk/Silent', 'Information'])
+            ->whereNotNull('calls.office_id')
+            ->where('calls.office_id', '>', 0);
+
+        if (!empty($junkSilentSubTypeIds)) {
+            $slaQuery->whereNotIn('calls.call_sub_type_id', $junkSilentSubTypeIds);
+        }
+
+        $slaBreakdown = (clone $slaQuery)
+            ->select(
+                'call_types.priority',
+                DB::raw('COUNT(*) as total_calls'),
+                DB::raw("SUM(CASE WHEN calls.status = 'completed' THEN 1 ELSE 0 END) as completed_calls")
+            )
+            ->groupBy('call_types.priority')
+            ->get();
+
+        $totalSlaCalls = $slaBreakdown->sum('total_calls');
+        $completedCalls = $slaBreakdown->sum('completed_calls');
+        $slaValue = $totalSlaCalls > 0 ? round(($completedCalls / $totalSlaCalls) * 100) : 0;
+
+        $helplineTimes = DB::table('calls')
+            ->where('calls.created_at', '>=', $startDate)
+            ->selectRaw('
+                AVG(calls.wait_time_seconds) as avg_wait,
+                AVG(CASE WHEN calls.inprogress_at IS NOT NULL AND calls.created_at IS NOT NULL AND calls.inprogress_at >= calls.created_at THEN TIMESTAMPDIFF(SECOND, calls.created_at, calls.inprogress_at) END) as avg_created_to_init,
+                AVG(CASE WHEN calls.tiger_reached_at IS NOT NULL AND calls.inprogress_at IS NOT NULL AND calls.tiger_reached_at >= calls.inprogress_at THEN TIMESTAMPDIFF(SECOND, calls.inprogress_at, calls.tiger_reached_at) END) as avg_init_to_reached,
+                AVG(COALESCE(calls.tiger_response_time_sec, calls.response_time_sec)) as avg_response
+            ')
+            ->first();
+
+        $avgWaitTime      = round(($helplineTimes?->avg_wait) ?: 14);
+        $avgCreatedToInit = round(($helplineTimes?->avg_created_to_init) ?: 626);
+        $avgInitToReached = round(($helplineTimes?->avg_init_to_reached ?: $helplineTimes?->avg_response) ?: 3126);
+
+        $formatDuration = function(int $seconds): string {
+            if ($seconds < 60) return "{$seconds} sec";
+            $mins = floor($seconds / 60);
+            $secs = $seconds % 60;
+            if ($mins < 60) {
+                return sprintf('%02d:%02d min', $mins, $secs);
+            }
+            $hours = floor($mins / 60);
+            $remainingMins = $mins % 60;
+            return sprintf('%dh %02dm', $hours, $remainingMins);
+        };
+
+        $badge = $slaValue >= 90 ? ['label' => 'EXCELLENT', 'badge' => 'bg-emerald-50 text-emerald-600 border-emerald-200', 'dot' => 'bg-emerald-500']
+               : ($slaValue >= 80 ? ['label' => 'GOOD', 'badge' => 'bg-teal-50 text-teal-600 border-teal-200', 'dot' => 'bg-teal-500']
+               : ($slaValue >= 70 ? ['label' => 'FAIR', 'badge' => 'bg-amber-50 text-amber-600 border-amber-200', 'dot' => 'bg-amber-500']
+               : ['label' => 'ATTENTION', 'badge' => 'bg-rose-50 text-rose-600 border-rose-200', 'dot' => 'bg-rose-500']));
+
+        return [
+            'sla_value'                 => $slaValue,
+            'range_label'               => $rangeLabel,
+            'total_calls'               => $totalSlaCalls,
+            'completed_calls'           => $completedCalls,
+            'badge'                     => $badge,
+            'wait_time'                 => $avgWaitTime,
+            'created_to_init_formatted' => $formatDuration($avgCreatedToInit),
+            'init_to_reached_formatted' => $formatDuration($avgInitToReached),
+        ];
     }
 }

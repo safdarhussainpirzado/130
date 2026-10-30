@@ -28,11 +28,8 @@ class TwoFactorConcurrencyTest extends TestCase
     {
         parent::setUp();
 
-        // Connect directly to the production MySQL database cluster
-        config([
-            'database.default' => 'mysql',
-            'database.connections.mysql.database' => '130_crm_db',
-        ]);
+        // Enforce disposable database isolation; production and active staging databases (130_crm_db)
+        // are strictly prohibited by TestCase::enforceTestDatabaseIsolation()
 
         $this->totpService = app(TotpService::class);
         $this->recoveryService = app(RecoveryService::class);

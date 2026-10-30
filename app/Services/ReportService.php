@@ -838,7 +838,7 @@ class ReportService
                 if ($timeFrom) {
                     $query->where('calls.created_at', '>=', \Carbon\Carbon::parse($dateFrom . ' ' . $timeFrom));
                 } else {
-                    $query->whereDate('calls.created_at', '>=', $dateFrom);
+                    $query->where('calls.created_at', '>=', \Carbon\Carbon::parse($dateFrom)->startOfDay());
                 }
             }
 
@@ -846,7 +846,7 @@ class ReportService
                 if ($timeTo) {
                     $query->where('calls.created_at', '<=', \Carbon\Carbon::parse($dateTo . ' ' . $timeTo));
                 } else {
-                    $query->whereDate('calls.created_at', '<=', $dateTo);
+                    $query->where('calls.created_at', '<=', \Carbon\Carbon::parse($dateTo)->endOfDay());
                 }
             }
         }
@@ -872,9 +872,8 @@ class ReportService
 
         // 5. Call Category (Primary/Secondary)
         if (!empty($filters['call_type'])) {
-            $query->whereHas('callType', function($q) use ($filters) {
-                $q->where('category', $filters['call_type']);
-            });
+            $callTypeIds = \App\Models\CallType::where('category', $filters['call_type'])->pluck('id');
+            $query->whereIn('calls.call_type_id', $callTypeIds);
         }
     }
 }

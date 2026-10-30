@@ -3,6 +3,9 @@
         @csrf
         @method('put')
 
+        <!-- Hidden username field to comply with browser password form accessibility guidelines -->
+        <input type="text" name="username" value="{{ auth()->user()->username ?? '' }}" autocomplete="username" style="display:none;" aria-hidden="true" tabindex="-1">
+
         <div>
             <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Current Password</label>
             <input type="password" name="current_password" required autocomplete="current-password"

@@ -44,7 +44,7 @@
             </div>
             <div class="p-5 text-right pt-4">
                 <p class="text-[8px] font-black tracking-widest text-emerald-500 uppercase">Creations</p>
-                <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="items.filter(i => i.event === 'created').length + '*'"></h4>
+                <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="items.filter(i => (i.event || i.action) === 'created').length + '*'"></h4>
             </div>
         </div>
 
@@ -54,7 +54,7 @@
             </div>
             <div class="p-5 text-right pt-4">
                 <p class="text-[8px] font-black tracking-widest text-amber-500 uppercase">Updates</p>
-                <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="items.filter(i => i.event === 'updated').length + '*'"></h4>
+                <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="items.filter(i => (i.event || i.action) === 'updated').length + '*'"></h4>
             </div>
         </div>
 
@@ -64,7 +64,7 @@
             </div>
             <div class="p-5 text-right pt-4">
                 <p class="text-[8px] font-black tracking-widest text-rose-500 uppercase">Deletions</p>
-                <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="items.filter(i => i.event === 'deleted').length + '*'"></h4>
+                <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="items.filter(i => (i.event || i.action) === 'deleted').length + '*'"></h4>
             </div>
         </div>
     </div>
@@ -162,33 +162,33 @@
                                         <div class="flex items-center gap-3">
                                             <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 font-black text-[10px] uppercase" x-text="(item.causer ? item.causer.username : 'SYS').substring(0, 2)"></div>
                                             <div class="flex flex-col">
-                                                <span class="font-black text-navy-900 text-xs uppercase" x-text="item.causer ? item.causer.username : 'System Process'"></span>
-                                                <span class="text-[8px] font-bold text-slate-400 italic" x-text="'IP: ' + (item.properties.ip || '127.0.0.1')"></span>
+                                                <span class="font-black text-navy-900 text-xs uppercase" x-text="(item.causer && item.causer.username) ? item.causer.username : (item.user && item.user.username ? item.user.username : 'System Process')"></span>
+                                                <span class="text-[8px] font-bold text-slate-400 italic" x-text="'IP: ' + ((item.properties && item.properties.ip) || item.ip_address || '127.0.0.1')"></span>
                                             </div>
                                         </div>
                                     </td>
                                     <td class="px-6" :class="density === 'condensed' ? 'py-3' : 'py-5'">
-                                        <template x-if="item.event === 'created'">
-                                            <span class="px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase tracking-widest border border-emerald-100 flex items-center gap-2 w-fit">
-                                                <i class="fa-solid fa-plus-circle"></i> Created
-                                            </span>
-                                        </template>
-                                        <template x-if="item.event === 'updated'">
-                                            <span class="px-3 py-1 rounded-full bg-amber-50 text-amber-600 text-[9px] font-black uppercase tracking-widest border border-amber-100 flex items-center gap-2 w-fit">
-                                                <i class="fa-solid fa-pen-nib"></i> Updated
-                                            </span>
-                                        </template>
-                                        <template x-if="item.event === 'deleted'">
-                                            <span class="px-3 py-1 rounded-full bg-rose-50 text-rose-600 text-[9px] font-black uppercase tracking-widest border border-rose-100 flex items-center gap-2 w-fit">
-                                                <i class="fa-solid fa-trash-can"></i> Deleted
-                                            </span>
-                                        </template>
-                                    </td>
-                                    <td class="px-6" :class="density === 'condensed' ? 'py-3' : 'py-5'">
-                                        <div class="flex flex-col">
-                                            <span class="text-xs font-black text-blue-900 uppercase" x-text="item.subject_type.split('\\').pop()"></span>
-                                            <span class="text-[9px] font-bold text-slate-400" x-text="'UID: ' + item.subject_id"></span>
-                                        </div>
+                                         <template x-if="(item.event || item.action) === 'created'">
+                                             <span class="px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase tracking-widest border border-emerald-100 flex items-center gap-2 w-fit">
+                                                 <i class="fa-solid fa-plus-circle"></i> Created
+                                             </span>
+                                         </template>
+                                         <template x-if="(item.event || item.action) === 'updated'">
+                                             <span class="px-3 py-1 rounded-full bg-amber-50 text-amber-600 text-[9px] font-black uppercase tracking-widest border border-amber-100 flex items-center gap-2 w-fit">
+                                                 <i class="fa-solid fa-pen-nib"></i> Updated
+                                             </span>
+                                         </template>
+                                         <template x-if="(item.event || item.action) === 'deleted'">
+                                             <span class="px-3 py-1 rounded-full bg-rose-50 text-rose-600 text-[9px] font-black uppercase tracking-widest border border-rose-100 flex items-center gap-2 w-fit">
+                                                 <i class="fa-solid fa-trash-can"></i> Deleted
+                                             </span>
+                                         </template>
+                                     </td>
+                                     <td class="px-6" :class="density === 'condensed' ? 'py-3' : 'py-5'">
+                                         <div class="flex flex-col">
+                                             <span class="text-xs font-black text-blue-900 uppercase" x-text="(item.subject_type ? item.subject_type.split('\\').pop() : (item.table_name || 'System'))"></span>
+                                             <span class="text-[9px] font-bold text-slate-400" x-text="'UID: ' + (item.subject_id || item.record_id || 'N/A')"></span>
+                                         </div>
                                     </td>
                                     <td class="px-6 text-center" :class="density === 'condensed' ? 'py-3' : 'py-5'">
                                         <button @click="viewDetails(item)" title="Inspect Event" class="w-9 h-9 bg-blue-500 border border-blue-600 text-white hover:bg-blue-600 transition-colors flex items-center justify-center rounded-xl shadow-sm active:scale-95 mx-auto">
@@ -360,15 +360,15 @@
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Source IP</label>
-                                    <p class="text-sm font-black text-slate-600" x-text="selectedItem?.properties?.ip || '127.0.0.1'"></p>
+                                    <p class="text-sm font-black text-slate-600" x-text="(selectedItem && selectedItem.properties && selectedItem.properties.ip) || selectedItem?.ip_address || '127.0.0.1'"></p>
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Entity Type</label>
-                                    <p class="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded inline-block" x-text="selectedItem?.subject_type"></p>
+                                    <p class="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded inline-block" x-text="selectedItem?.subject_type || selectedItem?.table_name || 'System'"></p>
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Entity UID</label>
-                                    <p class="text-sm font-black text-navy-900" x-text="selectedItem?.subject_id"></p>
+                                    <p class="text-sm font-black text-navy-900" x-text="selectedItem?.subject_id || selectedItem?.record_id || 'N/A'"></p>
                                 </div>
                             </div>
                         </div>
@@ -377,16 +377,16 @@
                         <div class="col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-5">
                             <h4 class="text-xs font-black text-blue-900 uppercase tracking-widest flex items-center gap-2 mb-2"><i class="fas fa-code-compare text-blue-500"></i> Modification Ledger</h4>
                             
-                            <template x-if="selectedItem?.event === 'updated'">
+                            <template x-if="(selectedItem?.event || selectedItem?.action) === 'updated'">
                                 <div class="space-y-3">
-                                    <template x-for="key in Object.keys(selectedItem.properties.attributes || {})" :key="key">
+                                    <template x-for="key in Object.keys(selectedItem?.properties?.attributes || selectedItem?.new_values || {})" :key="key">
                                         <template x-if="key !== 'updated_at'">
                                             <div class="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
                                                 <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest" x-text="key"></span>
                                                 <div class="flex items-center gap-4">
-                                                    <span class="text-xs font-bold text-rose-500 line-through" x-text="selectedItem.properties.old[key] ?? 'N/A'"></span>
+                                                    <span class="text-xs font-bold text-rose-500 line-through" x-text="(selectedItem?.properties?.old ? selectedItem.properties.old[key] : (selectedItem?.old_values ? selectedItem.old_values[key] : 'N/A')) ?? 'N/A'"></span>
                                                     <i class="fa-solid fa-arrow-right text-[10px] text-slate-300"></i>
-                                                    <span class="text-xs font-black text-emerald-600" x-text="selectedItem.properties.attributes[key] ?? 'N/A'"></span>
+                                                    <span class="text-xs font-black text-emerald-600" x-text="(selectedItem?.properties?.attributes ? selectedItem.properties.attributes[key] : (selectedItem?.new_values ? selectedItem.new_values[key] : 'N/A')) ?? 'N/A'"></span>
                                                 </div>
                                             </div>
                                         </template>
@@ -394,13 +394,13 @@
                                 </div>
                             </template>
 
-                            <template x-if="selectedItem?.event === 'created'">
+                            <template x-if="(selectedItem?.event || selectedItem?.action) === 'created'">
                                 <div class="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 text-emerald-700 font-bold text-xs text-center">
                                     Entity successfully initialized into system registry.
                                 </div>
                             </template>
 
-                            <template x-if="selectedItem?.event === 'deleted'">
+                            <template x-if="(selectedItem?.event || selectedItem?.action) === 'deleted'">
                                 <div class="p-4 bg-rose-50 rounded-2xl border border-rose-100 text-rose-700 font-bold text-xs text-center">
                                     Entity permanently purged from system vault.
                                 </div>
@@ -435,11 +435,15 @@ function auditManager(config) {
         get filteredItems() {
             return this.items.filter(item => {
                 const searchLower = this.search.toLowerCase();
+                const subject = (item.subject_type || item.table_name || '').toLowerCase();
+                const uid = (item.subject_id || item.record_id || '').toString();
+                const causerUsername = (item.causer?.username || item.user?.username || '').toLowerCase();
                 const matchesSearch = !this.search || 
-                                     (item.subject_type || '').toLowerCase().includes(searchLower) ||
-                                     (item.subject_id || '').toString().includes(searchLower) ||
-                                     (item.causer && item.causer.username ? item.causer.username.toLowerCase().includes(searchLower) : false);
-                const matchesStatus = !this.filterStatus || item.event === this.filterStatus;
+                                     subject.includes(searchLower) ||
+                                     uid.includes(searchLower) ||
+                                     causerUsername.includes(searchLower);
+                const itemEvent = item.event || item.action;
+                const matchesStatus = !this.filterStatus || itemEvent === this.filterStatus;
                 
                 let matchesDate = true;
                 if (this.filterFrom) {

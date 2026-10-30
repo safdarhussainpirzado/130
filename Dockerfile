@@ -33,6 +33,9 @@ RUN for i in 1 2 3; do \
         apk add --no-cache \
             icu-dev \
             libzip-dev \
+            libpng-dev \
+            libjpeg-turbo-dev \
+            freetype-dev \
             zip \
             unzip \
             autoconf \
@@ -42,7 +45,8 @@ RUN for i in 1 2 3; do \
             make \
         && break || { echo "apk attempt $i failed, retrying..."; sleep 15; }; \
     done \
-    && docker-php-ext-install -j$(nproc) pdo_mysql opcache zip pcntl intl \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) pdo_mysql opcache zip pcntl intl gd \
     && pecl install redis \
     && docker-php-ext-enable redis
 
@@ -55,6 +59,9 @@ RUN for i in 1 2 3; do \
         apk add --no-cache \
             icu-libs \
             libzip \
+            libpng \
+            libjpeg-turbo \
+            freetype \
             zip \
             unzip \
         && break || { echo "apk attempt $i failed, retrying..."; sleep 15; }; \

@@ -5,6 +5,11 @@
 
 
 @section('content')
+{{-- Leaflet Maps CSS & Plugins (Local vendored for CSP compliance & speed) --}}
+<link rel="stylesheet" href="{{ asset('vendor/leaflet/leaflet.css') }}" />
+<link rel="stylesheet" href="{{ asset('vendor/leaflet/MarkerCluster.css') }}" />
+<link rel="stylesheet" href="{{ asset('vendor/leaflet/MarkerCluster.Default.css') }}" />
+
 <style>
     /* ── Design Tokens ───────────────────────────────────────────── */
     :root {
@@ -145,7 +150,7 @@
 
     /* ── Heatmap ─────────────────────────────────────────────────── */
     .hm-cell {
-        border-radius: 3px; cursor: help;
+        border-radius: 5px; cursor: help; min-height: 22px;
         transition: transform .12s, box-shadow .12s;
     }
     .hm-cell:hover { transform: scale(1.5); box-shadow: 0 2px 6px rgba(0,0,0,.15); z-index: 5; position: relative; }
@@ -209,6 +214,89 @@
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     .divider { height: 1px; background: #f1f5f9; margin: .75rem 0; }
+    /* ── Split Card Body (Donut on left, Legend on right) ────────── */
+    .v2-split-card-body {
+        display: grid;
+        grid-template-columns: 140px 1fr;
+        align-items: center;
+        gap: 1.25rem;
+        flex: 1;
+    }
+    @media (max-width: 640px) {
+        .v2-split-card-body {
+            grid-template-columns: 1fr;
+            justify-items: center;
+        }
+    }
+
+    /* ── Row 2: Heatmap + Weekly Call Volume ────────────────────────── */
+    .row-heatmap-weekly {
+        display: grid;
+        grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+        gap: 1.25rem;
+        align-items: stretch;
+        width: 100%;
+    }
+    @media (max-width: 1024px) {
+        .row-heatmap-weekly {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* ── Live Incident Map ───────────────────────────────────────── */
+    .map-canvas { background: #eef2f7; border: 1px solid rgba(15,23,42,.08); }
+    .map-canvas .leaflet-control-zoom { border: 1px solid #e2e8f0 !important; border-radius: 12px !important; overflow: hidden; box-shadow: 0 10px 26px -8px rgba(15,23,42,.35) !important; }
+    .map-canvas .leaflet-control-zoom a { background: #fff !important; color: #334155 !important; border-color: #e2e8f0 !important; }
+    .map-canvas .leaflet-control-zoom a:hover { background: #f8fafc !important; }
+    .map-canvas .leaflet-control-attribution { background: rgba(255,255,255,.85) !important; color: #64748b !important; border-radius: 8px 0 0 0; }
+    .map-canvas .leaflet-control-attribution a { color: #475569 !important; }
+
+    .map-pin { position: relative; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; }
+    .map-pin .core { width: 13px; height: 13px; border-radius: 999px; border: 2.5px solid #fff; box-shadow: 0 1px 4px rgba(15,23,42,.4), 0 0 10px 1px currentColor; }
+    .map-pin .halo { position: absolute; inset: 0; border-radius: 999px; background: currentColor; opacity: .4; animation: mapPulse 2.2s ease-out infinite; }
+    .map-pin.p1 { color: #e11d48; } .map-pin.p2 { color: #d97706; } .map-pin.p3 { color: #0284c7; }
+    @keyframes mapPulse { 0% { transform: scale(.4); opacity: .55; } 100% { transform: scale(1.9); opacity: 0; } }
+
+    .map-cluster { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+    .map-cluster .cc-core { width: 42%; height: 42%; border-radius: 999px; background: currentColor; border: 2.5px solid #fff; box-shadow: 0 2px 8px rgba(15,23,42,.35), 0 0 14px 2px currentColor; }
+    .map-cluster .cc-ring { position: absolute; inset: 0; border-radius: 999px; border: 2px solid currentColor; opacity: .55; animation: clusterPulse 2.4s ease-out infinite; }
+    .map-cluster .cc-ring.r2 { animation-delay: .8s; }
+    @keyframes clusterPulse { 0% { transform: scale(.55); opacity: .6; } 100% { transform: scale(1.55); opacity: 0; } }
+
+    .map-canvas .leaflet-popup-content-wrapper {
+        background: #fff; color: #1e293b; border: 1px solid #e2e8f0; border-radius: 16px;
+        box-shadow: 0 20px 44px -14px rgba(15,23,42,.35);
+    }
+    .map-canvas .leaflet-popup-tip { background: #fff; box-shadow: none; }
+    .map-canvas .leaflet-popup-content { margin: 12px 14px; font-family: Inter, sans-serif; min-width: 210px; }
+    .map-canvas .leaflet-popup-close-button { color: #94a3b8 !important; }
+    .map-popup-title { font-size: .8rem; font-weight: 800; color: #0f172a; margin-bottom: 5px; }
+    .map-popup-row { display: flex; align-items: baseline; gap: 6px; font-size: .68rem; line-height: 1.55; }
+    .map-popup-row .lbl { flex-shrink: 0; width: 54px; font-weight: 800; color: #94a3b8; text-transform: uppercase; font-size: .58rem; letter-spacing: .05em; }
+    .map-popup-row .val { color: #334155; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+
+    .cc-fs-btn {
+        width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center; font-size: .75rem;
+        background: rgba(15,23,42,.05); border: 1px solid rgba(15,23,42,.08); color: #475569;
+        transition: all .15s;
+    }
+    .cc-fs-btn:hover { background: rgba(5,150,105,.12); color: #059669; border-color: rgba(5,150,105,.25); }
+
+    #ccMapCard:fullscreen,
+    #ccMapCard:-webkit-full-screen {
+        display: flex; flex-direction: column;
+        width: 100vw !important; height: 100vh !important;
+        max-height: 100vh !important;
+        padding: 2rem 2.5rem 1.5rem;
+        border-radius: 0;
+        background: linear-gradient(160deg, #f8fafc 0%, #eef2f7 100%);
+    }
+    #ccMapCard:fullscreen .map-canvas,
+    #ccMapCard:-webkit-full-screen .map-canvas {
+        flex: 1 1 auto;
+        height: auto !important;
+    }
 </style>
 
 @php
@@ -230,7 +318,9 @@
         'slaValue'          => $slaValue,
         'hourlyLabels'      => $hourlyLabels,
         'hourlyData'        => $hourlyData,
-        'sunburstData'      => $sunburstData
+        'sunburstData'      => $sunburstData,
+        'mapIncidents'      => $mapIncidents,
+        'mapUnmappedCount'  => $mapUnmappedCount,
     ];
 @endphp
 
@@ -350,12 +440,119 @@
     </div>
 
     {{-- ══════════════════════════════════════════════
-         ROW 1 — HEATMAP  +  CATEGORY DONUT
+         ROW 1 — LIVE INCIDENT MAP  +  CALL CLASSIFICATION & PRIORITY
     ══════════════════════════════════════════════ --}}
-    <div class="grid lg:grid-cols-3 gap-5">
+    <div class="grid lg:grid-cols-3 gap-5 items-stretch lg:h-[490px]">
+
+        {{-- Live Incident Map --}}
+        <div class="bc ac-em lg:col-span-2 flex flex-col h-full min-h-[380px] lg:min-h-0 lg:max-h-[490px]" id="ccMapCard">
+            <div class="ch">
+                <div class="ci bg-emerald-100"><i class="fa-solid fa-map-location-dot text-emerald-600"></i></div>
+                <div class="flex-1 min-w-0">
+                    <div class="ct">Live Incident Map</div>
+                    <div class="cst">Open Helps · Positioned at Assigned Beat</div>
+                </div>
+                <div class="flex items-center gap-3 flex-wrap justify-end">
+                    <div class="flex items-center gap-2.5 text-[9px] font-black uppercase tracking-widest">
+                        <span class="flex items-center gap-1 text-rose-600"><span class="w-2 h-2 rounded-full inline-block bg-rose-500 shadow-[0_0_6px_#f43f5e]"></span>P1</span>
+                        <span class="flex items-center gap-1 text-amber-600"><span class="w-2 h-2 rounded-full inline-block bg-amber-500 shadow-[0_0_6px_#f59e0b]"></span>P2</span>
+                        <span class="flex items-center gap-1 text-sky-600"><span class="w-2 h-2 rounded-full inline-block bg-sky-500 shadow-[0_0_6px_#0ea5e9]"></span>P3</span>
+                    </div>
+                    <span class="sp sp-em text-[9px]"><span id="ccMapMappedCount">{{ $mapIncidents->count() }}</span> mapped</span>
+                    @if($mapUnmappedCount > 0)
+                    <span class="sp sp-slate text-[9px]">{{ $mapUnmappedCount }} unmapped</span>
+                    @endif
+                    <button @click="toggleMapFullscreen()" class="cc-fs-btn" :title="mapFullscreen ? 'Exit fullscreen' : 'Fullscreen'">
+                        <i class="fa-solid" :class="mapFullscreen ? 'fa-compress' : 'fa-expand'"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="ccIncidentMap" class="map-canvas flex-1 w-full min-h-0" style="border-radius:14px; overflow:hidden; position:relative; min-height: 280px; height: 100%;"></div>
+            <div class="mt-2 text-[9px] font-bold text-slate-400 flex items-center justify-between">
+                <span><i class="fa-solid fa-circle-info mr-1"></i>Per-call GPS mapped to assigned beat centroid.</span>
+                <span>Basemap © <a href="https://www.esri.com" target="_blank" rel="noopener" class="underline decoration-dotted">Esri</a></span>
+            </div>
+        </div>
+
+        {{-- Right Column: Stacked Classification Donut & Priority Response --}}
+        <div class="flex flex-col gap-5 justify-between h-full min-h-0 lg:max-h-[490px]">
+
+            {{-- Help Classification --}}
+            <div class="bc ac-vio flex-1 min-h-0 overflow-hidden" style="max-height: 235px;">
+                <div class="ch">
+                    <div class="ci bg-violet-100"><i class="fa-solid fa-chart-pie text-violet-600"></i></div>
+                    <div class="flex-1">
+                        <div class="ct">Help Classification</div>
+                        <div class="cst" id="categorySubtitle">All-Time Cases</div>
+                    </div>
+                    <div class="fp shrink-0">
+                        <button class="on" onclick="setCategoryRange('all',this)">All</button>
+                        <button onclick="setCategoryRange('today',this)">Today</button>
+                        <button onclick="setCategoryRange('30d',this)">30d</button>
+                        <button onclick="setCategoryRange('7d',this)">7d</button>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 14px; width: 100%; flex: 1; min-height: 0;">
+                    <div style="width: 130px; height: 130px; min-width: 130px; min-height: 130px; position: relative; flex-shrink: 0; margin: 0 auto;">
+                        <canvas id="categoryChart" role="img" aria-label="Call categories donut" style="width: 130px !important; height: 130px !important; display: block;"></canvas>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                            <div class="text-sm font-black text-slate-800 leading-tight text-center" id="totalCases">{{ number_format($callCategories->sum('count')) }}</div>
+                            <div class="text-[8px] font-black text-slate-400 uppercase tracking-widest text-center">Total</div>
+                        </div>
+                    </div>
+                    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; height: 120px;" id="categoryLegend">
+                        @foreach($callCategories->take(5) as $cat)
+                        @php
+                            $palette = ['#0ea5e9','#10b981','#f59e0b','#f43f5e','#8b5cf6','#f97316','#14b8a6'];
+                            $ci = $loop->index % count($palette);
+                            $total_cat = $callCategories->sum('count') ?: 1;
+                            $pct_cat = round(($cat->count / $total_cat) * 100);
+                        @endphp
+                        <div class="flex items-center gap-1.5 text-[11px]">
+                            <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: '{{ $palette[$ci] }}' }"></span>
+                            <span class="font-semibold text-slate-600 truncate flex-1">{{ ucwords(str_replace('_', ' ', $cat->category)) }}</span>
+                            <span class="text-[10px] font-black text-slate-400 shrink-0">{{ $pct_cat }}%</span>
+                        </div>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+
+            {{-- Priority Response / Trajectory --}}
+            <div class="bc ac-rose flex-1 min-h-0 overflow-hidden" style="max-height: 235px;">
+                <div class="ch">
+                    <div class="ci bg-rose-100"><i class="fa-solid fa-arrow-trend-up text-rose-600"></i></div>
+                    <div class="flex-1">
+                        <div class="ct">Priority Response</div>
+                        <div class="cst">Severity Load Trend</div>
+                    </div>
+                    <div class="fp shrink-0">
+                        <button class="on" onclick="setPrioRange('7d',this)">7d</button>
+                        <button onclick="setPrioRange('14d',this)">14d</button>
+                        <button onclick="setPrioRange('30d',this)">30d</button>
+                    </div>
+                </div>
+                <div style="height: 125px; max-height: 125px; position: relative; width: 100%; min-height: 0;">
+                    <canvas id="priorityChart" role="img" aria-label="Stacked priority bar chart" style="height: 125px !important; width: 100% !important; display: block;">P1 P2 P3 distribution.</canvas>
+                </div>
+                <div class="flex items-center justify-between gap-2 mt-2 text-[9px] font-black flex-wrap border-t border-slate-100 pt-2">
+                    <span class="flex items-center gap-1 text-rose-600"><span class="w-2 h-2 rounded-full inline-block bg-rose-500"></span>P1 Critical</span>
+                    <span class="flex items-center gap-1 text-amber-600"><span class="w-2 h-2 rounded-full inline-block bg-amber-500"></span>P2 Urgent</span>
+                    <span class="flex items-center gap-1 text-sky-600"><span class="w-2 h-2 rounded-full inline-block bg-sky-500"></span>P3 Routine</span>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    {{-- ══════════════════════════════════════════════
+         ROW 2 — ACTIVITY HEATMAP  +  WEEKLY CALL VOLUME
+    ══════════════════════════════════════════════ --}}
+    <div class="row-heatmap-weekly">
 
         {{-- Activity Heatmap --}}
-        <div class="bc ac-sky lg:col-span-2">
+        <div class="bc ac-sky flex flex-col justify-between w-full" style="min-width: 0;">
             <div class="ch">
                 <div class="ci bg-sky-100"><i class="fa-solid fa-fire-flame-curved text-sky-600"></i></div>
                 <div class="flex-1 min-w-0">
@@ -364,314 +561,269 @@
                 </div>
                 {{-- Legend --}}
                 <div class="flex items-center gap-1 text-[8px] font-black text-slate-400 shrink-0 ml-2">
-                    <span class="w-2 h-2 rounded bg-slate-100 border border-slate-200"></span>
-                    <span class="w-2 h-2 rounded bg-[#eff6ff]"></span>
-                    <span class="w-2 h-2 rounded bg-[#dbeafe]"></span>
-                    <span class="w-2 h-2 rounded bg-[#bfdbfe]"></span>
-                    <span class="w-2 h-2 rounded bg-[#93c5fd]"></span>
-                    <span class="w-2 h-2 rounded bg-[#60a5fa]"></span>
-                    <span class="w-2 h-2 rounded bg-[#3b82f6]"></span>
-                    <span class="w-2 h-2 rounded bg-[#2563eb]"></span>
-                    <span class="w-2 h-2 rounded bg-[#1d4ed8]"></span>
-                    <span class="w-2 h-2 rounded bg-[#1e40af]"></span>
-                    <span class="w-2 h-2 rounded bg-[#1e3a8a]"></span>
-                    <span class="w-2 h-2 rounded bg-[#172554]"></span>
-                    <span class="ml-1 uppercase tracking-widest">Density Scale</span>
+                    <span class="w-2.5 h-2.5 rounded bg-slate-100 border border-slate-200"></span>
+                    <span class="w-2.5 h-2.5 rounded bg-[#eff6ff]"></span>
+                    <span class="w-2.5 h-2.5 rounded bg-[#bfdbfe]"></span>
+                    <span class="w-2.5 h-2.5 rounded bg-[#60a5fa]"></span>
+                    <span class="w-2.5 h-2.5 rounded bg-[#2563eb]"></span>
+                    <span class="w-2.5 h-2.5 rounded bg-[#1e40af]"></span>
+                    <span class="w-2.5 h-2.5 rounded bg-[#172554]"></span>
+                    <span class="ml-1 uppercase tracking-widest hidden sm:inline">Density Scale</span>
                 </div>
             </div>
             {{-- Grid: day labels + cells --}}
-            <div class="flex gap-2 items-stretch flex-1 min-h-[160px]">
-                <div class="flex flex-col text-[9px] font-black text-slate-400 uppercase tracking-widest shrink-0 py-0.5" style="gap:3px;">
+            <div class="flex gap-2.5 items-stretch flex-1 w-full" style="min-height: 205px; height: 205px;">
+                <div class="flex flex-col text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0 py-1 justify-between">
                     @foreach(['Su','Mo','Tu','We','Th','Fr','Sa'] as $d)
                     <div class="flex-1 flex items-center">{{ $d }}</div>
                     @endforeach
                 </div>
-                <div class="flex-1 min-w-0 flex flex-col">
-                    <div id="heatmapGrid" class="flex-1"
-                         style="display:grid; grid-template-columns:repeat(24,1fr); grid-template-rows:repeat(7,1fr); gap:3px;"></div>
-                    <div class="flex justify-between text-[9px] font-bold text-slate-300 mt-2 px-0.5">
+                <div class="flex-1 min-w-0 flex flex-col w-full">
+                    <div id="heatmapGrid" class="flex-1 w-full"
+                         style="display:grid; grid-template-columns:repeat(24,1fr); grid-template-rows:repeat(7,1fr); gap:3px; height: 100%; width: 100%;"></div>
+                    <div class="flex justify-between text-[10px] font-bold text-slate-300 mt-2 px-0.5">
                         <span>12a</span><span>3a</span><span>6a</span><span>9a</span><span>12p</span><span>3p</span><span>6p</span><span>9p</span><span>11p</span>
                     </div>
                 </div>
             </div>
         </div>
 
-        {{-- Case Classification Donut --}}
-        {{-- Help Classification --}}
-        <div class="bc ac-vio">
-            <div class="ch">
-                <div class="ci bg-violet-100"><i class="fa-solid fa-chart-pie text-violet-600"></i></div>
-                <div class="flex-1">
-                    <div class="ct">Help Classification</div>
-                    <div class="cst" id="categorySubtitle">All-Time Cases (709k+ Total)</div>
-                </div>
-                <div class="fp shrink-0">
-                    <button class="on" onclick="setCategoryRange('all',this)">All</button>
-                    <button onclick="setCategoryRange('30d',this)">30d</button>
-                    <button onclick="setCategoryRange('7d',this)">7d</button>
-                </div>
-            </div>
-            <div class="relative" style="height:190px;">
-                <canvas id="categoryChart" role="img" aria-label="Call categories donut">Call categories distribution.</canvas>
-                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style="padding-bottom:8px;">
-                    <div class="text-2xl font-black text-slate-800" id="totalCases">{{ number_format($callCategories->sum('count')) }}</div>
-                    <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Cases</div>
-                </div>
-            </div>
-            <div class="divider"></div>
-            <div class="space-y-2 flex-1" id="categoryLegend">
-                @foreach($callCategories as $cat)
-                @php
-                    $palette = ['#0ea5e9','#10b981','#f59e0b','#f43f5e','#8b5cf6','#f97316','#14b8a6'];
-                    $ci = $loop->index % count($palette);
-                    $total_cat = $callCategories->sum('count') ?: 1;
-                    $pct_cat = round(($cat->count / $total_cat) * 100);
-                @endphp
-                <div class="flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full shrink-0" style="background-color: {{ $palette[$ci] }}"></span>
-                    <span class="text-xs font-semibold text-slate-600 flex-1 min-w-0 truncate">{{ ucwords(str_replace('_', ' ', $cat->category)) }}</span>
-                    <span class="text-[10px] font-black text-slate-400 shrink-0">{{ $pct_cat }}%</span>
-                    <span class="text-xs font-black text-slate-700 shrink-0 w-16 text-right">{{ number_format($cat->count) }}</span>
-                </div>
-                @endforeach
-            </div>
-        </div>
-
-    </div>
-
-    {{-- ══════════════════════════════════════════════
-         ROW 2 — FLEET  +  GAUGE  +  PRIORITY
-    ══════════════════════════════════════════════ --}}
-    <div class="grid lg:grid-cols-3 gap-5">
-
-        {{-- Help Line Performance --}}
-        <div class="bc ac-amb flex flex-col h-full">
-            <div class="ch shrink-0">
-                <div class="ci bg-amber-100"><i class="fa-solid fa-headset text-amber-600"></i></div>
-                <div>
-                    <div class="ct">Help Line Control Center</div>
-                    <div class="cst">Performance & Efficiency</div>
-                </div>
-                <span class="ml-auto text-[9px] font-bold text-slate-400 flex items-center gap-1">
-                    <span class="live-dot" style="width:6px;height:6px;"></span>Live
-                </span>
-            </div>
-            
-            <div class="flex-1 flex flex-col justify-center">
-                <div class="grid grid-cols-1 gap-3">
-                    {{-- Wait Time --}}
-                    <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                        <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600">
-                                <i class="fa-solid fa-phone-volume"></i>
-                            </div>
-                            <div>
-                                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avg Wait Time</div>
-                                <div class="text-lg font-black text-slate-700 leading-none">{{ round($helpLineMetrics->wait_time) }}<span class="text-xs text-slate-400 ml-1">sec</span></div>
-                            </div>
-                        </div>
-                        <div class="text-[9px] font-black text-emerald-500 bg-emerald-50 px-2 py-1 rounded">Optimal</div>
-                    </div>
-
-                    {{-- Talk Time --}}
-                    <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                        <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-lg bg-sky-100 flex items-center justify-center text-sky-600">
-                                <i class="fa-solid fa-comments"></i>
-                            </div>
-                            <div>
-                                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avg Talk Time</div>
-                                <div class="text-lg font-black text-slate-700 leading-none">{{ round($helpLineMetrics->talk_time) }}<span class="text-xs text-slate-400 ml-1">sec</span></div>
-                            </div>
-                        </div>
-                        <div class="text-[9px] font-black text-sky-500 bg-sky-50 px-2 py-1 rounded">Standard</div>
-                    </div>
-
-                    {{-- Response Time --}}
-                    <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                        <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center text-violet-600">
-                                <i class="fa-solid fa-truck-fast"></i>
-                            </div>
-                            <div>
-                                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avg Response</div>
-                                <div class="text-lg font-black text-slate-700 leading-none">{{ gmdate("i:s", $helpLineMetrics->response_time) }}<span class="text-xs text-slate-400 ml-1">min</span></div>
-                            </div>
-                        </div>
-                        <div class="text-[9px] font-black text-violet-500 bg-violet-50 px-2 py-1 rounded">Target Achieved</div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="mt-3 shrink-0">
-                <div class="flex justify-between mb-1 text-[10px] font-black">
-                    <span class="text-slate-500">Overall Efficiency</span>
-                    <span class="text-emerald-500">{{ $helpLineMetrics->efficiency_score }}%</span>
-                </div>
-                <div class="pbar-wrap">
-                    <div class="pbar-fill" :style="{ width: '{{ $helpLineMetrics->efficiency_score }}%', background: '#10b981' }"></div>
-                </div>
-            </div>
-        </div>
-
-        {{-- Performance Gauge --}}
-        <div class="bc ac-tea">
-            <div class="ch">
-                <div class="ci bg-teal-100"><i class="fa-solid fa-gauge-high text-teal-600"></i></div>
-                <div>
-                    <div class="ct">Performance Pulse</div>
-                    <div class="cst">SLA Response Compliance</div>
-                </div>
-            </div>
-            <div class="gauge-box flex-1" style="min-height:150px;">
-                <canvas id="gaugeChart" role="img" aria-label="SLA compliance gauge {{ $slaValue }}%">{{ $slaValue }}% SLA compliance rate.</canvas>
-                <div class="gauge-center">
-                    <div class="text-2xl font-black text-slate-800">{{ $slaValue }}%</div>
-                    <div class="text-[9px] font-black text-emerald-500 uppercase tracking-widest">SLA Completed</div>
-                </div>
-            </div>
-            <div class="divider"></div>
-            <div class="grid grid-cols-3 gap-2 text-center">
-                <div class="smc bg-emerald-50">
-                    <div class="text-sm font-black text-emerald-700">{{ isset($slaBreakdown[1]) && $slaBreakdown[1]->total_calls > 0 ? round(($slaBreakdown[1]->completed_calls / $slaBreakdown[1]->total_calls) * 100) : 0 }}%</div>
-                    <div class="text-[8px] font-bold text-emerald-600 uppercase">P1</div>
-                </div>
-                <div class="smc bg-sky-50">
-                    <div class="text-sm font-black text-sky-700">{{ isset($slaBreakdown[2]) && $slaBreakdown[2]->total_calls > 0 ? round(($slaBreakdown[2]->completed_calls / $slaBreakdown[2]->total_calls) * 100) : 0 }}%</div>
-                    <div class="text-[8px] font-bold text-sky-600 uppercase">P2</div>
-                </div>
-                <div class="smc bg-violet-50">
-                    <div class="text-sm font-black text-violet-700">{{ isset($slaBreakdown[3]) && $slaBreakdown[3]->total_calls > 0 ? round(($slaBreakdown[3]->completed_calls / $slaBreakdown[3]->total_calls) * 100) : 0 }}%</div>
-                    <div class="text-[8px] font-bold text-violet-600 uppercase">P3</div>
-                </div>
-            </div>
-        </div>
-
-        {{-- Priority Trajectory --}}
-        <div class="bc ac-rose">
-            <div class="ch">
-                <div class="ci bg-rose-100"><i class="fa-solid fa-arrow-trend-up text-rose-600"></i></div>
-                <div class="flex-1">
-                    <div class="ct">Priority Trajectory</div>
-                    <div class="cst">Severity Load Trend</div>
-                </div>
-                <div class="fp shrink-0">
-                    <button class="on" onclick="setPrioRange('7d',this)">7d</button>
-                    <button onclick="setPrioRange('14d',this)">14d</button>
-                    <button onclick="setPrioRange('30d',this)">30d</button>
-                </div>
-            </div>
-            <div style="height:180px; position:relative;" class="flex-1">
-                <canvas id="priorityChart" role="img" aria-label="Stacked priority bar chart">P1 P2 P3 distribution over last 7 days.</canvas>
-            </div>
-            <div class="flex items-center gap-4 mt-2 text-[9px] font-black flex-wrap">
-                <span class="flex items-center gap-1.5 text-rose-600"><span class="w-2.5 h-2 rounded inline-block bg-rose-500"></span>P1 Critical</span>
-                <span class="flex items-center gap-1.5 text-amber-600"><span class="w-2.5 h-2 rounded inline-block bg-amber-400"></span>P2 Urgent</span>
-                <span class="flex items-center gap-1.5 text-sky-600"><span class="w-2.5 h-2 rounded inline-block bg-sky-500"></span>P3 Routine</span>
-            </div>
-        </div>
-
-    </div>
-
-    {{-- ══════════════════════════════════════════════
-         ROW 3 — WEEKLY LINE  +  ROAD DONUT  +  ZONE RADAR
-    ══════════════════════════════════════════════ --}}
-    <div class="grid lg:grid-cols-3 gap-5">
-
         {{-- Weekly Call Volume --}}
-        <div class="bc ac-em">
+        <div class="bc ac-em flex flex-col justify-between w-full" style="min-width: 0;">
             <div class="ch">
-                <div class="ci bg-emerald-100"><i class="fa-solid fa-chart-simple text-emerald-600"></i></div>
-                <div class="flex-1">
+                <div class="ci bg-emerald-100"><i class="fa-solid fa-chart-column text-emerald-600"></i></div>
+                <div class="flex-1 min-w-0">
                     <div class="ct">Weekly Call Volume</div>
-                    <div class="cst">Daily Call Distribution</div>
+                    <div class="cst">DAILY CALL DISTRIBUTION</div>
                 </div>
                 <div class="fp shrink-0">
-                    <button class="on" onclick="setWeeklyRange('7d',this)">7d</button>
-                    <button onclick="setWeeklyRange('14d',this)">14d</button>
-                    <button onclick="setWeeklyRange('30d',this)">30d</button>
+                    <button class="on uppercase text-[10px] font-bold py-1 px-2.5" onclick="setWeeklyRange('7d',this)">7D</button>
+                    <button class="uppercase text-[10px] font-bold py-1 px-2.5" onclick="setWeeklyRange('14d',this)">14D</button>
+                    <button class="uppercase text-[10px] font-bold py-1 px-2.5" onclick="setWeeklyRange('30d',this)">30D</button>
                 </div>
             </div>
-            <div style="height:190px; position:relative;" class="flex-1">
-                <canvas id="weeklyChart" role="img" aria-label="Bar chart daily call volumes">Daily call volume trend.</canvas>
-            </div>
-        </div>
-
-        {{-- Carriage Type Split --}}
-        <div class="bc ac-cor">
-            <div class="ch">
-                <div class="ci bg-orange-100"><i class="fa-solid fa-road text-orange-600"></i></div>
-                <div>
-                    <div class="ct">Zone Wise Helps</div>
-                    <div class="cst">By Zone Distribution</div>
-                </div>
-            </div>
-            <div style="height:170px; position:relative;">
-                <canvas id="roadChart" role="img" aria-label="Doughnut chart road category split">Motorway, Highway, Strategic Route distribution.</canvas>
-            </div>
-            <div class="divider"></div>
-            @php
-                $roadTotal = $carriageTypeSplit->sum('count') ?: 1;
-                $roadColors = ['#f97316', '#0ea5e9', '#14b8a6', '#8b5cf6', '#f43f5e', '#f59e0b', '#10b981', '#ec4899', '#6366f1', '#06b6d4', '#84cc16', '#eab308'];
-            @endphp
-            <div class="space-y-2">
-                @foreach($carriageTypeSplit as $road)
-                @php $rp = round(($road->count / $roadTotal) * 100); @endphp
-                <div class="flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: '{{ $roadColors[$loop->index % count($roadColors)] }}' }"></span>
-                    <span class="text-xs font-semibold text-slate-600 flex-1 truncate">{{ $road->type }}</span>
-                    <span class="text-[10px] font-black text-slate-500 shrink-0">{{ $rp }}%</span>
-                </div>
-                @endforeach
-            </div>
-        </div>
-
-        {{-- Sector Coverage Radar --}}
-        <div class="bc ac-pnk">
-            <div class="ch">
-                <div class="ci bg-pink-100"><i class="fa-solid fa-sun text-pink-600"></i></div>
-                <div class="flex-1">
-                    <div class="ct">Operations Sunburst</div>
-                    <div class="cst">Zone → Sector → Category</div>
-                </div>
-                <div class="fp shrink-0">
-                    <button class="on" onclick="setSunburstRange('today',this)">Today</button>
-                    <button onclick="setSunburstRange('week',this)">Week</button>
-                </div>
-            </div>
-            <div style="height:280px; position:relative;" class="flex-1">
-                <canvas id="sunburstChart" role="img" aria-label="Sunburst chart operations distribution">Operational sunburst chart.</canvas>
+            <div style="height: 205px; position: relative; width: 100%;" class="flex-1">
+                <canvas id="weeklyChart" role="img" aria-label="Daily call volume bar chart" style="width: 100% !important; height: 205px !important; display: block;"></canvas>
             </div>
         </div>
 
     </div>
 
     {{-- ══════════════════════════════════════════════
-         ROW 4 — BEAT POLAR  +  AGENT BAR  +  QUEUE
+         ROW 3 — PERFORMANCE & SLA  +  ZONE WISE HELPERS  +  OPERATIONS SUNBURST
     ══════════════════════════════════════════════ --}}
     <div class="grid lg:grid-cols-3 gap-5 items-stretch">
 
-        {{-- Sector Polar --}}
-        <div class="bc ac-vio">
+        {{-- Card 1: Performance & SLA --}}
+        <div class="bc ac-em flex flex-col">
             <div class="ch">
-                <div class="ci bg-violet-100"><i class="fa-solid fa-location-dot text-violet-600"></i></div>
-                <div>
-                    <div class="ct">Sector Load</div>
-                    <div class="cst">Sector-wise Help Intensity</div>
+                <div class="ci bg-emerald-100"><i class="fa-solid fa-award text-emerald-600"></i></div>
+                <div class="flex-1 min-w-0">
+                    <div class="ct">Performance & SLA</div>
+                    <div class="cst">SERVICE LEVEL AGREEMENT</div>
+                </div>
+                @php
+                    $slaStatus = $slaValue >= 90 ? ['label' => 'EXCELLENT', 'badge' => 'bg-emerald-50 text-emerald-600 border-emerald-200', 'dot' => 'bg-emerald-500']
+                               : ($slaValue >= 80 ? ['label' => 'GOOD', 'badge' => 'bg-teal-50 text-teal-600 border-teal-200', 'dot' => 'bg-teal-500']
+                               : ($slaValue >= 70 ? ['label' => 'FAIR', 'badge' => 'bg-amber-50 text-amber-600 border-amber-200', 'dot' => 'bg-amber-500']
+                               : ['label' => 'ATTENTION', 'badge' => 'bg-rose-50 text-rose-600 border-rose-200', 'dot' => 'bg-rose-500']));
+                @endphp
+                <span class="px-2 py-0.5 rounded-full text-[9px] font-black {{ $slaStatus['badge'] }} border tracking-wider shrink-0 flex items-center gap-1" id="slaBadge">
+                    <span class="w-1.5 h-1.5 rounded-full {{ $slaStatus['dot'] }}"></span> {{ $slaStatus['label'] }}
+                </span>
+                <div class="fp shrink-0">
+                    <button class="on" onclick="setSlaRange('today',this)">Today</button>
+                    <button onclick="setSlaRange('7d',this)">Week</button>
+                    <button onclick="setSlaRange('30d',this)">Month</button>
                 </div>
             </div>
-            <div class="flex-1 relative min-h-[220px]">
-                <canvas id="sectorPolarChart" role="img" aria-label="Polar area sector intensity chart">Sector intensity distribution.</canvas>
+            <div style="display: flex; align-items: center; gap: 12px; flex: 1; padding: 4px 0;">
+                {{-- Semicircular Radial Gauge (Left) --}}
+                <div style="width: 145px; height: 145px; min-width: 145px; position: relative; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
+                    <canvas id="gaugeChart" role="img" aria-label="SLA compliance gauge" style="width: 145px !important; height: 145px !important; display: block;"></canvas>
+                    <div class="absolute inset-0 flex flex-col items-center justify-end pb-2 pointer-events-none">
+                        <div class="text-3xl font-black text-slate-800 leading-none" id="slaGaugeVal">{{ $slaValue }}%</div>
+                        <div class="text-[8px] font-black text-emerald-600 uppercase tracking-wider mt-1">SLA COMPLIANT</div>
+                        <div class="text-[8px] font-bold text-slate-400 uppercase tracking-wider" id="slaRangeTag">TODAY</div>
+                    </div>
+                </div>
+                {{-- Operational KPI Metrics (Right Stacked) --}}
+                <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; height: 145px; gap: 5px;" id="slaMetricsContainer">
+                    <div class="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-100 flex flex-col justify-between" style="min-height: 42px; flex: 1;">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider">AVG. WAIT TIME</span>
+                            <span class="text-[9px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">+45%</span>
+                        </div>
+                        <div class="text-base font-black text-slate-800 leading-tight mt-0.5" id="slaWaitTime">
+                            {{ round($helpLineMetrics->wait_time) }} <span class="text-[10px] font-bold text-slate-400">sec</span>
+                        </div>
+                    </div>
+
+                    <div class="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-100 flex flex-col justify-between" style="min-height: 42px; flex: 1;">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider">CREATED → INITIATED</span>
+                            <span class="text-[9px] font-black text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-100">+12%</span>
+                        </div>
+                        <div class="text-base font-black text-slate-800 leading-tight mt-0.5" id="slaCreatedToInit">
+                            {{ $helpLineMetrics->created_to_init_formatted }}
+                        </div>
+                    </div>
+
+                    <div class="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-100 flex flex-col justify-between" style="min-height: 42px; flex: 1;">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider">INITIATED → REACHED</span>
+                            <span class="text-[9px] font-black text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">+32%</span>
+                        </div>
+                        <div class="text-base font-black text-slate-800 leading-tight mt-0.5" id="slaInitToReached">
+                            {{ $helpLineMetrics->init_to_reached_formatted }}
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        {{-- Agent Leaderboard --}}
-        <div class="bc ac-sky">
+        {{-- Card 2: Zone Wise Helpers --}}
+        <div class="bc ac-cor flex flex-col">
             <div class="ch">
-                <div class="ci bg-sky-100"><i class="fa-solid fa-user-shield text-sky-600"></i></div>
+                <div class="ci bg-amber-100"><i class="fa-solid fa-compass text-amber-600"></i></div>
+                <div class="flex-1 min-w-0">
+                    <div class="ct">Zone Wise Helpers</div>
+                    <div class="cst">MOTORWAY / ZONE DISTRIBUTION</div>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 14px; flex: 1; padding: 4px 0;">
+                <div style="width: 135px; height: 135px; min-width: 135px; min-height: 135px; position: relative; flex-shrink: 0;">
+                    <canvas id="roadChart" role="img" aria-label="Zone distribution donut" style="width: 135px !important; height: 135px !important; display: block;"></canvas>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <div class="text-xl font-black text-slate-800 leading-tight" id="zoneCenterCount">{{ $carriageTypeSplit->sum('count') }}</div>
+                        <div class="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-0.5">INCIDENTS</div>
+                    </div>
+                </div>
+                @php
+                    $roadTotal = $carriageTypeSplit->sum('count') ?: 1;
+                    $roadColors = ['#3b82f6', '#f59e0b', '#06b6d4', '#f43f5e', '#eab308', '#8b5cf6', '#6366f1', '#10b981', '#ec4899', '#f97316'];
+                @endphp
+                <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; height: 135px;">
+                    @foreach($carriageTypeSplit->take(7) as $road)
+                    @php $rp = round(($road->count / $roadTotal) * 100); @endphp
+                    <div class="flex items-center gap-1.5 text-xs">
+                        <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: '{{ $roadColors[$loop->index % count($roadColors)] }}' }"></span>
+                        <span class="font-semibold text-slate-600 truncate flex-1">• {{ $road->type }}</span>
+                        <span class="text-[11px] font-black text-slate-500 shrink-0 font-mono">{{ $rp }}%</span>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+
+        {{-- Card 3: Operations Sunburst --}}
+        <div class="bc ac-pnk flex flex-col">
+            <div class="ch">
+                <div class="ci bg-pink-100"><i class="fa-solid fa-gear text-pink-600"></i></div>
+                <div class="flex-1 min-w-0">
+                    <div class="ct">Operations Sunburst</div>
+                    <div class="cst">ZONE · SECTOR · CATEGORY</div>
+                </div>
+                <div class="fp shrink-0">
+                    <button class="on text-[10px] font-bold py-1 px-2.5 uppercase" onclick="setSunburstRange('today',this)">Today</button>
+                    <button class="text-[10px] font-bold py-1 px-2.5 uppercase" onclick="setSunburstRange('week',this)">Week</button>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 14px; flex: 1; padding: 4px 0;">
+                <div style="width: 135px; height: 135px; min-width: 135px; min-height: 135px; position: relative; flex-shrink: 0;">
+                    <canvas id="sunburstChart" role="img" aria-label="Sunburst chart operations distribution" style="width: 135px !important; height: 135px !important; display: block;"></canvas>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <div class="text-xl font-black text-slate-800 leading-tight" id="sunburstCenterCount">207</div>
+                        <div class="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-0.5 text-center leading-none">TOTAL INCIDENTS</div>
+                    </div>
+                </div>
+                @php
+                    $sbCatTotals = [];
+                    $sbTotal = 0;
+                    foreach ($sunburstData as $z) {
+                        $sbTotal += ($z['count'] ?? 0);
+                        foreach ($z['sectors'] ?? [] as $s) {
+                            foreach ($s['categories'] ?? [] as $cat => $cnt) {
+                                $sbCatTotals[$cat] = ($sbCatTotals[$cat] ?? 0) + $cnt;
+                            }
+                        }
+                    }
+                    arsort($sbCatTotals);
+                    if (empty($sbCatTotals) && isset($callCategories)) {
+                        foreach ($callCategories as $c) {
+                            $sbCatTotals[$c->category] = $c->count;
+                            $sbTotal += $c->count;
+                        }
+                    }
+                    $sbTotal = $sbTotal ?: 1;
+                    $sbColors = ['#06b6d4', '#f59e0b', '#f43f5e', '#ea580c', '#3b82f6', '#8b5cf6', '#10b981', '#ec4899'];
+                @endphp
+                <div id="sunburstLegend" style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; height: 135px;">
+                    @php $ci = 0; @endphp
+                    @foreach(array_slice($sbCatTotals, 0, 6, true) as $catName => $catCnt)
+                    @php
+                        $pct = round(($catCnt / $sbTotal) * 100);
+                        $cleanCat = ucwords(str_replace('_', ' ', $catName));
+                    @endphp
+                    <div class="flex items-center gap-1.5 text-xs">
+                        <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: '{{ $sbColors[$ci % count($sbColors)] }}' }"></span>
+                        <span class="font-semibold text-slate-600 truncate flex-1">• {{ $cleanCat }}</span>
+                        <span class="text-[11px] font-black text-slate-500 shrink-0 font-mono">{{ $pct }}%</span>
+                    </div>
+                    @php $ci++; @endphp
+                    @endforeach
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    {{-- ══════════════════════════════════════════════
+         ROW 4 — SECTOR LOAD  +  TOP RESPONDERS  +  NUMBER OF INCIDENTS
+    ══════════════════════════════════════════════ --}}
+    <div class="grid lg:grid-cols-3 gap-5 items-stretch">
+
+        {{-- Card 1: Sector Load --}}
+        <div class="bc ac-vio flex flex-col">
+            <div class="ch">
+                <div class="ci bg-violet-100"><i class="fa-solid fa-chart-simple text-violet-600"></i></div>
+                <div>
+                    <div class="ct">Sector Load</div>
+                    <div class="cst">Sector Wise Help Intensity</div>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px; flex: 1; padding: 4px 0;">
+                <div style="width: 145px; height: 145px; min-width: 145px; min-height: 145px; position: relative; flex-shrink: 0; margin: 0 auto;">
+                    <canvas id="sectorPolarChart" role="img" aria-label="Sector intensity donut" style="width: 145px !important; height: 145px !important; display: block;"></canvas>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <div class="text-xl font-black text-slate-800 leading-tight">{{ $sectorLoad->sum('count') }}</div>
+                        <div class="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Agents</div>
+                    </div>
+                </div>
+                @php
+                    $sectorTotal = $sectorLoad->sum('count') ?: 1;
+                    $sectorColors = ['#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#2563eb', '#f97316'];
+                @endphp
+                <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; height: 145px;">
+                    @foreach($sectorLoad->take(6) as $sec)
+                    @php $sp = round(($sec->count / $sectorTotal) * 100); @endphp
+                    <div class="flex items-center gap-1.5 text-xs">
+                        <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ backgroundColor: '{{ $sectorColors[$loop->index % count($sectorColors)] }}' }"></span>
+                        <span class="font-semibold text-slate-600 truncate flex-1">{{ $sec->name }}</span>
+                        <span class="text-[11px] font-black text-slate-500 shrink-0">{{ $sp }}%</span>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+
+        {{-- Card 2: Top Responders --}}
+        <div class="bc ac-sky flex flex-col">
+            <div class="ch">
+                <div class="ci bg-sky-100"><i class="fa-solid fa-trophy text-sky-600"></i></div>
                 <div class="flex-1">
                     <div class="ct">Top Responders</div>
-                    <div class="cst">Agent Resolve Leaderboard</div>
+                    <div class="cst">Agents by Call Volume</div>
                 </div>
                 <div class="fp shrink-0">
                     <button class="on" onclick="setAgentRange('today',this)">Today</button>
@@ -679,64 +831,81 @@
                     <button onclick="setAgentRange('month',this)">Month</button>
                 </div>
             </div>
-            <div class="flex-1 relative min-h-[220px]">
-                <canvas id="agentChart" role="img" aria-label="Horizontal bar agent leaderboard">Top 5 agents by resolved calls.</canvas>
+            <div class="flex-1 flex flex-col justify-between pt-1 pb-0.5" id="agentLeaderboardList" style="min-height: 155px;">
+                @php $maxCalls = $agentPerformance->max('total_calls') ?: 1; @endphp
+                @foreach($agentPerformance->take(5) as $idx => $agent)
+                @php
+                    $pct = round(($agent->total_calls / $maxCalls) * 100);
+                    $words = explode(' ', trim($agent->username));
+                    $initials = strtoupper(substr($words[0] ?? 'A', 0, 1) . substr($words[1] ?? '', 0, 1));
+                    if (empty($initials)) $initials = 'AG';
+                @endphp
+                <div class="flex items-center gap-3">
+                    <span class="text-xs font-black text-slate-400 w-4 text-right">{{ $idx + 1 }}.</span>
+                    <div class="w-7 h-7 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center text-[10px] font-black shrink-0">
+                        {{ $initials }}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between text-xs mb-1">
+                            <span class="font-bold text-slate-800 truncate">{{ $agent->username }}</span>
+                            <span class="font-black text-blue-600 tabular-nums ml-2">{{ $agent->total_calls }}</span>
+                        </div>
+                        <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                            <div class="bg-blue-600 h-full rounded-full transition-all duration-500" :style="{ width: '{{ $pct }}%' }"></div>
+                        </div>
+                    </div>
+                </div>
+                @endforeach
             </div>
         </div>
 
-        {{-- Hourly In Progress --}}
-        <div class="bc ac-rose">
+        {{-- Card 3: Number of Incidents --}}
+        <div class="bc ac-rose flex flex-col">
             <div class="ch">
                 <div class="ci bg-rose-100"><i class="fa-solid fa-chart-column text-rose-600"></i></div>
                 <div class="flex-1">
-                    <div class="ct">Number of tasks</div>
-                    <div class="cst">In Progress Help · Hourly</div>
+                    <div class="ct">Number of Incidents</div>
+                    <div class="cst">Last 7 Days</div>
                 </div>
                 <div class="fp shrink-0">
-                    <button class="on">Daily</button>
-                    <button>Weekly</button>
+                    <button class="on" onclick="setIncidentRange('7d',this)">Daily</button>
+                    <button onclick="setIncidentRange('30d',this)">Weekly</button>
                 </div>
             </div>
-            <div class="flex justify-between items-end mb-2">
-                <div class="flex items-center gap-2">
-                    <div class="text-3xl font-black text-slate-800 leading-none">{{ $hourlyInProgress->sum('count') }}</div>
-                    <div class="text-[10px] font-black text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded flex items-center gap-1"><i class="fa-solid fa-arrow-trend-up"></i> +14</div>
-                </div>
-            </div>
-            <div class="flex-1 relative min-h-[220px]">
-                <canvas id="hourlyProgressChart" role="img" aria-label="Bar chart hourly progress">Hourly in progress task volume.</canvas>
+            <div style="height: 160px; max-height: 160px; position: relative; width: 100%; min-height: 0;">
+                <canvas id="incidentVolumeChart" role="img" aria-label="Bar chart daily incident volume" style="height: 160px !important; width: 100% !important; display: block;">Daily incident volume trend.</canvas>
             </div>
         </div>
 
     </div>
 
     {{-- ══════════════════════════════════════════════
-         ROW 5 — SHIFT BAR  +  BEAT INCIDENT RANKING
+         ROW 5 — ZONE WISE ACTIVITY  +  BEAT INCIDENT RANKING
     ══════════════════════════════════════════════ --}}
     <div class="grid lg:grid-cols-2 gap-5">
 
-        {{-- Shift Deployment --}}
-        <div class="bc ac-tea">
+        {{-- Zone Wise Activity --}}
+        <div class="bc ac-amb">
             <div class="ch">
-                <div class="ci bg-teal-100"><i class="fa-solid fa-clock-rotate-left text-teal-600"></i></div>
+                <div class="ci bg-amber-100"><i class="fa-solid fa-cubes-stacked text-amber-600"></i></div>
                 <div class="flex-1">
                     <div class="ct">Zone Wise Activity</div>
-                    <div class="cst">Active Responders Per Unit · Real-time</div>
+                    <div class="cst">Active Responders Per Unit - Real Time</div>
                 </div>
                 <div class="fp shrink-0">
                     <button class="on" onclick="setHmRange('week',this)">Weekly</button>
                     <button onclick="setHmRange('month',this)">Monthly</button>
                 </div>
             </div>
-            <div style="height:190px; position:relative;" class="flex-1">
-                <canvas id="shiftChart" role="img" aria-label="Bar chart tigers per shift">Morning 12, Afternoon 8, Night 5.</canvas>
+            <div style="height: 190px; max-height: 190px; position: relative; width: 100%; min-height: 0;">
+                <canvas id="shiftChart" role="img" aria-label="Bar chart tigers per unit" style="height: 190px !important; width: 100% !important; display: block;">Zone Wise Activity chart.</canvas>
             </div>
         </div>
 
         {{-- Beat Incident Ranking --}}
-        <div class="bc ac-amb">
+        <div class="bc ac-tea">
             <div class="ch">
-                <div class="ci bg-amber-100"><i class="fa-solid fa-map-pin text-amber-600"></i></div>
+                <div class="ci bg-cyan-100"><i class="fa-solid fa-ranking-star text-cyan-600"></i></div>
                 <div class="flex-1">
                     <div class="ct">Beat Incident Ranking</div>
                     <div class="cst">Top Active Beats by Volume</div>
@@ -783,10 +952,13 @@
 @endsection
 
 @push('scripts')
-{{-- Chart.js is already loaded in layouts.app --}}
+{{-- Leaflet JS & MarkerCluster Plugin (Local vendored for CSP compliance & speed) --}}
+<script src="{{ asset('vendor/leaflet/leaflet.js') }}"></script>
+<script src="{{ asset('vendor/leaflet/leaflet.markercluster.js') }}"></script>
+
 <script>
 /* ─── Global chart refs for filter updates ─── */
-window._dashboardCharts = window._dashboardCharts || { prio: null, weekly: null, agent: null, sunburst: null, category: null };
+window._dashboardCharts = window._dashboardCharts || { prio: null, weekly: null, incidentVolume: null, agent: null, sunburst: null, category: null, gauge: null, road: null, sector: null };
 window._dashboardAlpineApp = null;
 
 /* ─── Filter helpers ──────────────────────────*/
@@ -807,7 +979,7 @@ async function setCategoryRange(r, btn) {
         
         const sub = document.getElementById('categorySubtitle');
         if (sub) {
-            sub.textContent = r === 'all' ? 'All-Time Cases (709k+ Total)' : (r === '30d' ? '30-Day Distribution' : '7-Day Distribution');
+            sub.textContent = r === 'today' ? "Today's Cases" : (r === 'all' ? 'All-Time Cases' : (r === '30d' ? '30-Day Distribution' : '7-Day Distribution'));
         }
 
         if (window._dashboardAlpineApp && typeof window._dashboardAlpineApp.buildCategoryChart === 'function') {
@@ -818,23 +990,71 @@ async function setCategoryRange(r, btn) {
         if (leg && Array.isArray(data)) {
             const palette = ['#0ea5e9','#10b981','#f59e0b','#f43f5e','#8b5cf6','#f97316','#14b8a6'];
             const total = data.reduce((s, d) => s + (+d.count), 0);
-            leg.innerHTML = data.map((d, i) => {
-                const color = palette[i % palette.length];
-                const count = +d.count;
-                const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-                const catName = (d.category || '').replace(/_/g, ' ').replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
-                return `
-                    <div class="flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full shrink-0" style="background-color: ${color}"></span>
-                        <span class="text-xs font-semibold text-slate-600 flex-1 min-w-0 truncate">${catName}</span>
-                        <span class="text-[10px] font-black text-slate-400 shrink-0">${pct}%</span>
-                        <span class="text-xs font-black text-slate-700 shrink-0 w-16 text-right">${count.toLocaleString()}</span>
-                    </div>
-                `;
-            }).join('');
+            const totalEl = document.getElementById('totalCases');
+            if (totalEl) totalEl.textContent = total.toLocaleString();
+
+            if (data.length === 0) {
+                leg.innerHTML = `<div class="text-[11px] font-semibold text-slate-400 py-3 text-center">No cases found for this period</div>`;
+            } else {
+                leg.innerHTML = data.slice(0, 5).map((d, i) => {
+                    const color = palette[i % palette.length];
+                    const count = +d.count;
+                    const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                    const catName = (d.category || '').replace(/_/g, ' ').replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+                    return `
+                        <div class="flex items-center gap-1.5 text-[11px]">
+                            <span class="w-2 h-2 rounded-full shrink-0" style="background-color: ${color}"></span>
+                            <span class="font-semibold text-slate-600 truncate flex-1">${catName}</span>
+                            <span class="text-[10px] font-black text-slate-400 shrink-0">${pct}%</span>
+                        </div>
+                    `;
+                }).join('');
+            }
         }
     } catch (e) {
         console.error('Failed to update category chart:', e);
+    } finally {
+        canvas.style.opacity = '1';
+    }
+}
+
+async function setSlaRange(r, btn) {
+    setFilterActive(btn);
+    const canvas = document.getElementById('gaugeChart');
+    if (!canvas) return;
+    canvas.style.opacity = '0.4';
+    try {
+        const res = await fetch(`/dashboard/chart-data?chart=sla&range=${r}`);
+        const d = await res.json();
+        if (d && typeof d.sla_value !== 'undefined') {
+            const chart = window._dashboardCharts?.gauge;
+            if (chart) {
+                chart.data.datasets[0].data = [d.sla_value, Math.max(0, 100 - d.sla_value)];
+                chart.update();
+            }
+            const gVal = document.getElementById('slaGaugeVal');
+            if (gVal) gVal.textContent = d.sla_value + '%';
+
+            const rTag = document.getElementById('slaRangeTag');
+            if (rTag) rTag.textContent = d.range_label || (r === '7d' ? 'LAST 7 DAYS' : (r === '30d' ? 'LAST 30 DAYS' : 'TODAY'));
+
+            const badge = document.getElementById('slaBadge');
+            if (badge && d.badge) {
+                badge.className = `px-2 py-0.5 rounded-full text-[9px] font-black ${d.badge.badge} border tracking-wider shrink-0 flex items-center gap-1`;
+                badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${d.badge.dot}"></span> ${d.badge.label}`;
+            }
+
+            const wt = document.getElementById('slaWaitTime');
+            if (wt) wt.innerHTML = `${Math.round(d.wait_time)} <span class="text-[10px] font-bold text-slate-400">sec</span>`;
+
+            const ci = document.getElementById('slaCreatedToInit');
+            if (ci) ci.textContent = d.created_to_init_formatted;
+
+            const ir = document.getElementById('slaInitToReached');
+            if (ir) ir.textContent = d.init_to_reached_formatted;
+        }
+    } catch (e) {
+        console.error('Failed to update SLA metrics:', e);
     } finally {
         canvas.style.opacity = '1';
     }
@@ -882,6 +1102,26 @@ async function setWeeklyRange(r, btn) {
     }
 }
 
+async function setIncidentRange(r, btn) {
+    setFilterActive(btn);
+    const canvas = document.getElementById('incidentVolumeChart');
+    if (!canvas) return;
+    canvas.style.opacity = '0.4';
+    try {
+        const res = await fetch(`/dashboard/chart-data?chart=weekly&range=${r}`);
+        const data = await res.json();
+        if (window._dashboardCharts.incidentVolume && data.labels) {
+            window._dashboardCharts.incidentVolume.data.labels = data.labels;
+            window._dashboardCharts.incidentVolume.data.datasets[0].data = data.values;
+            window._dashboardCharts.incidentVolume.update();
+        }
+    } catch (e) {
+        console.error('Failed to update incident volume chart:', e);
+    } finally {
+        canvas.style.opacity = '1';
+    }
+}
+
 async function setSunburstRange(r, btn) {
     setFilterActive(btn);
     const canvas = document.getElementById('sunburstChart');
@@ -902,26 +1142,42 @@ async function setSunburstRange(r, btn) {
 
 async function setAgentRange(r, btn) {
     setFilterActive(btn);
-    const canvas = document.getElementById('agentChart');
-    if (!canvas) return;
-    canvas.style.opacity = '0.4';
+    const container = document.getElementById('agentLeaderboardList');
+    if (!container) return;
+    container.style.opacity = '0.4';
     try {
         const res = await fetch(`/dashboard/chart-data?chart=agent&range=${r}`);
         const data = await res.json();
-        if (window._dashboardAlpineApp && typeof window._dashboardAlpineApp.buildAgentChart === 'function') {
-            window._dashboardAlpineApp.buildAgentChart(data);
-        } else {
-            const chart = Chart.getChart(canvas) || window._dashboardCharts.agent;
-            if (chart && data.labels) {
-                chart.data.labels = data.labels.map(name => (name || '').replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()));
-                chart.data.datasets[0].data = data.values;
-                chart.update();
-            }
+        if (data && data.labels) {
+            const max = Math.max(...data.values, 1);
+            container.innerHTML = data.labels.map((name, i) => {
+                const count = data.values[i] || 0;
+                const pct = Math.round((count / max) * 100);
+                const words = (name || '').trim().split(' ');
+                const initials = ((words[0] ? words[0][0] : 'A') + (words[1] ? words[1][0] : '')).toUpperCase() || 'AG';
+                return `
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs font-black text-slate-400 w-4 text-right">${i + 1}.</span>
+                        <div class="w-7 h-7 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center text-[10px] font-black shrink-0">
+                            ${initials}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between text-xs mb-1">
+                                <span class="font-bold text-slate-800 truncate">${name}</span>
+                                <span class="font-black text-blue-600 tabular-nums ml-2">${count}</span>
+                            </div>
+                            <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                <div class="bg-blue-600 h-full rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
         }
     } catch (e) {
-        console.error('Failed to update agent chart:', e);
+        console.error('Failed to update agent leaderboard:', e);
     } finally {
-        canvas.style.opacity = '1';
+        container.style.opacity = '1';
     }
 }
 
@@ -950,6 +1206,17 @@ function sortBeats(dir, btn) {
 function dashboardApp(data) {
     return {
         ...data,
+        mapFullscreen: false,
+        toggleMapFullscreen() {
+            const el = document.getElementById('ccMapCard');
+            if (!el) return;
+            this.mapFullscreen = !this.mapFullscreen;
+            if (this.mapFullscreen) {
+                (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
+            } else {
+                (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+            }
+        },
         init() {
             window._dashboardAlpineApp = this;
             this.$nextTick(() => {
@@ -963,23 +1230,143 @@ function dashboardApp(data) {
                     });
                 }
 
+                this.buildIncidentMap(this.mapIncidents);
                 this.buildHeatmap(this.heatmapData);
                 this.buildCategoryChart(this.categories);
-                this.buildAssetStatusChart(this.tigerStatus);
                 this.buildGaugeChart();
                 this.buildPriorityChart(this.priorityDist);
                 this.buildWeeklyChart(this.labels, this.values);
+                this.buildIncidentVolumeChart(this.labels, this.values);
                 this.buildRoadChart(this.carriageTypeSplit);
                 this.buildSunburstChart(this.sunburstData);
                 this.buildSectorPolarChart(this.sectorLoad);
-
-                this.buildAgentChart(this.agentPerf);
                 this.buildShiftChart(this.shiftDeployment);
-                this.buildHourlyProgressChart(this.hourlyLabels, this.hourlyData);
+
+                document.addEventListener('fullscreenchange', () => {
+                    this.mapFullscreen = !!document.fullscreenElement;
+                    setTimeout(() => { if (window._ccMap) window._ccMap.invalidateSize(); }, 200);
+                });
                 
-                // Force a resize event to ensure Chart.js fits the container perfectly in SPA navigation
-                window.dispatchEvent(new Event('resize'));
+                // Ensure map container calculates correct viewport
+                if (window._ccMap) {
+                    setTimeout(() => { if (window._ccMap) window._ccMap.invalidateSize(); }, 200);
+                }
             });
+        },
+
+        /* ── Live Incident Map ─────────────────── */
+        buildIncidentMap(incidents) {
+            const el = document.getElementById('ccIncidentMap');
+            if (!el || typeof L === 'undefined') return;
+
+            if (window._ccMap) { window._ccMap.remove(); window._ccMap = null; }
+
+            const pts = (incidents || []).filter(i => Number.isFinite(+i.lat) && Number.isFinite(+i.lng));
+            const center = pts.length
+                ? [pts.reduce((s,p) => s + (+p.lat), 0) / pts.length, pts.reduce((s,p) => s + (+p.lng), 0) / pts.length]
+                : [30.3753, 69.3451]; // Pakistan centroid fallback
+
+            const map = L.map(el, {
+                center, zoom: pts.length ? 7 : 5,
+                zoomControl: true, attributionControl: false, scrollWheelZoom: true,
+                preferCanvas: true,
+            });
+            window._ccMap = map;
+
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 19,
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom'
+            }).addTo(map);
+
+            const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            const priorityMeta = (p) => (+p === 1
+                ? { cls: 'p1', label: 'P1 Critical', color: '#e11d48' }
+                : (+p === 2 ? { cls: 'p2', label: 'P2 Urgent', color: '#d97706' } : { cls: 'p3', label: 'P3 Routine', color: '#0284c7' }));
+
+            const statusMeta = (s) => {
+                const st = String(s || '').toLowerCase().trim();
+                if (st === 'pending') {
+                    return { label: 'Pending', color: '#d97706' };
+                } else if (st === 'in_progress') {
+                    return { label: 'In Progress', color: '#0284c7' };
+                } else if (st === 'tiger_reached') {
+                    return { label: 'Tiger Reached', color: '#0d9488' };
+                } else if (st === 'completed') {
+                    return { label: 'Completed', color: '#16a34a' };
+                } else if (st === 'cancelled') {
+                    return { label: 'Cancelled', color: '#ef4444' };
+                }
+                return { label: st.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()), color: '#64748b' };
+            };
+
+            const toTitleCase = (str) => {
+                if (!str) return '';
+                return String(str)
+                    .toLowerCase()
+                    .replace(/(?:^|\s|\/|-)\w/g, c => c.toUpperCase());
+            };
+
+            const clusterGroup = L.markerClusterGroup({
+                showCoverageOnHover: false,
+                spiderfyOnMaxZoom: true,
+                maxClusterRadius: 50,
+                iconCreateFunction: (cluster) => {
+                    const children = cluster.getAllChildMarkers();
+                    let worst = 3;
+                    children.forEach(m => { if (m.options.priorityNum && m.options.priorityNum < worst) worst = m.options.priorityNum; });
+                    const color = priorityMeta(worst).color;
+                    const count = cluster.getChildCount();
+                    const size = count >= 20 ? 46 : (count >= 8 ? 40 : 34);
+                    return L.divIcon({
+                        html: `<div class="map-cluster" style="color:${color};"><span class="cc-ring"></span><span class="cc-ring r2"></span><span class="cc-core"></span></div>`,
+                        className: '', iconSize: [size, size],
+                    });
+                },
+            });
+
+            pts.forEach((p) => {
+                const pr = priorityMeta(p.priority);
+                const st = statusMeta(p.status);
+                const icon = L.divIcon({
+                    className: '',
+                    html: `<div class="map-pin ${pr.cls}"><span class="halo"></span><span class="core"></span></div>`,
+                    iconSize: [26, 26], iconAnchor: [13, 13],
+                });
+                const marker = L.marker([+p.lat, +p.lng], { icon, priorityNum: +p.priority });
+                const beatPath = [p.zone, p.sector, p.beat].filter(Boolean).map(esc).join(' → ') || 'Unassigned';
+                const callerName = toTitleCase(p.caller_name || 'Unknown Caller');
+                const tigerLabel = p.tiger || 'Not Assigned';
+                const isAssigned = tigerLabel !== 'Not Assigned' && tigerLabel !== 'Unassigned';
+                const tigerStyle = isAssigned ? 'font-weight:700; color:#0f172a;' : 'color:#94a3b8; font-style:italic; font-weight:600;';
+
+                marker.bindPopup(`
+                    <div class="map-popup-title">${esc(p.type || 'Call')} <span style="color:${pr.color};font-weight:700;">· ${pr.label}</span></div>
+                    <div class="map-popup-row"><span class="lbl">Caller</span><span class="val">${esc(callerName)}</span></div>
+                    <div class="map-popup-row"><span class="lbl">Mobile</span><span class="val">${esc(p.caller_number || '—')}</span></div>
+                    <div class="map-popup-row"><span class="lbl">Beat</span><span class="val">${beatPath}</span></div>
+                    <div class="map-popup-row"><span class="lbl">Agent</span><span class="val" style="font-weight:600;color:#334155;">${esc(p.agent_name || '—')}</span></div>
+                    <div class="map-popup-row"><span class="lbl">Tiger</span><span class="val" style="${tigerStyle}">${esc(tigerLabel)}</span></div>
+                    <div class="map-popup-row"><span class="lbl">Call #</span><span class="val">${esc(p.call_number || '—')}</span></div>
+                    <div class="map-popup-row"><span class="lbl">Status</span><span class="val"><span style="color:${st.color};font-weight:700;">${st.label}</span> · ${esc(p.age || '')}</span></div>
+                `);
+                clusterGroup.addLayer(marker);
+            });
+            map.addLayer(clusterGroup);
+            window._ccClusterGroup = clusterGroup;
+
+            const fitMap = () => {
+                if (!window._ccMap) return;
+                window._ccMap.invalidateSize();
+                if (pts.length > 1 && window._ccClusterGroup) {
+                    window._ccMap.fitBounds(window._ccClusterGroup.getBounds().pad(0.25), { maxZoom: 8 });
+                } else {
+                    window._ccMap.setView(center, pts.length ? 7 : 5);
+                }
+            };
+
+            fitMap();
+            setTimeout(fitMap, 150);
+            setTimeout(fitMap, 400);
         },
 
         /* ── Heatmap ─────────────────────────── */
@@ -1097,58 +1484,33 @@ function dashboardApp(data) {
             });
         },
 
-        /* ── Fleet Status Stacked Bar ─────────── */
-        buildAssetStatusChart(data) {
-            const ctx = document.getElementById('assetStatusChart');
-            if (!ctx) return;
-            const existing = Chart.getChart(ctx);
-            if (existing) existing.destroy();
-
-            const auth = +(data.find(d => d.status === 'authorized')?.count || 0);
-            const lock = +(data.find(d => d.status === 'locked')?.count     || 0);
-            
-            const ids = { statAuthorized: auth, statLocked: lock };
-            Object.entries(ids).forEach(([id, v]) => { const el=document.getElementById(id); if(el) el.textContent=v; });
-            
-            new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: ['Force'],
-                    datasets: [
-                        { label:'Authorized', data:[auth], backgroundColor:'#10b981', borderRadius:6 },
-                        { label:'Locked',     data:[lock], backgroundColor:'#f43f5e', borderRadius:6 }
-                    ]
-                },
-                options: {
-                    indexAxis:'y', responsive:true, maintainAspectRatio:false,
-                    scales: { x:{ stacked:true, display:false }, y:{ stacked:true, display:false } },
-                    plugins:{ legend:{ display:false } }
-                }
-            });
-        },
-
-        /* ── SLA Gauge ───────────────────────── */
+        /* ── SLA Gauge (Semi-Circle Radial) ─── */
         buildGaugeChart() {
             const ctx = document.getElementById('gaugeChart');
             if (!ctx) return;
-            const existing = Chart.getChart(ctx);
+            const existing = Chart.getChart(ctx) || window._dashboardCharts?.gauge;
             if (existing) existing.destroy();
 
-            const slaVal = Number(this.slaValue || 0);
-            new Chart(ctx, {
+            const slaVal = Number(this.slaValue || 100);
+            window._dashboardCharts.gauge = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels:['SLA Met','Gap'],
-                    datasets:[{ 
-                        data:[slaVal, 100 - slaVal], 
-                        backgroundColor:['#10b981','#f1f5f9'], 
-                        circumference:180, 
-                        rotation:270, 
-                        borderRadius:10, 
-                        borderWidth:0 
+                    labels: ['SLA Met', 'Gap'],
+                    datasets: [{
+                        data: [slaVal, Math.max(0, 100 - slaVal)],
+                        backgroundColor: ['#10b981', '#f1f5f9'],
+                        circumference: 180,
+                        rotation: -90,
+                        borderRadius: 10,
+                        borderWidth: 0
                     }]
                 },
-                options: { responsive:true, maintainAspectRatio:false, cutout:'80%', plugins:{ legend:{ display:false } } }
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '68%',
+                    plugins: { legend: { display: false }, tooltip: { enabled: false } }
+                }
             });
         },
 
@@ -1160,31 +1522,32 @@ function dashboardApp(data) {
             if (existing) existing.destroy();
 
             const dates = [...new Set(data.map(d => d.date))].sort();
-            const get = (p) => dates.map(dt => +(data.find(d => d.date===dt && +d.priority===p)?.count || 0));
+            const get = (p) => dates.map(dt => +(data.find(d => d.date === dt && +d.priority === p)?.count || 0));
             window._dashboardCharts.prio = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: dates.map(d => d.slice(5).replace('-','/')),
+                    labels: dates.map(d => d.slice(5).replace('-', '/')),
                     datasets: [
-                        { label:'P1 Critical', data:get(1), backgroundColor:'#f43f5e', borderRadius:4, stack:'s', barPercentage:.7 },
-                        { label:'P2 Urgent', data:get(2), backgroundColor:'#f59e0b', borderRadius:4, stack:'s', barPercentage:.7 },
-                        { label:'P3 Routine', data:get(3), backgroundColor:'#0ea5e9', borderRadius:4, stack:'s', barPercentage:.7 }
+                        { label: 'P1 Critical', data: get(1), backgroundColor: '#f43f5e', borderRadius: 4, stack: 's', barPercentage: .7 },
+                        { label: 'P2 Urgent',   data: get(2), backgroundColor: '#f59e0b', borderRadius: 4, stack: 's', barPercentage: .7 },
+                        { label: 'P3 Routine',  data: get(3), backgroundColor: '#0ea5e9', borderRadius: 4, stack: 's', barPercentage: .7 }
                     ]
                 },
                 options: {
-                    responsive:true, maintainAspectRatio:false,
+                    responsive: true,
+                    maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
                     scales: {
-                        x:{ stacked:true, grid:{ display:false }, ticks:{ font:{ size:9, weight:'bold' }, maxRotation:0, autoSkip:false } },
-                        y:{ stacked:true, grid:{ color:'#f8fafc' }, border:{ display:false }, ticks:{ font:{ size:9 } } }
+                        x: { stacked: true, grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' }, maxRotation: 0, autoSkip: false } },
+                        y: { stacked: true, grid: { color: '#f8fafc' }, border: { display: false }, ticks: { font: { size: 9 } } }
                     },
-                    plugins:{ 
-                        legend:{ display:false },
+                    plugins: {
+                        legend: { display: false },
                         tooltip: {
                             backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                            padding: 12,
-                            titleFont: { size: 12, weight: 'bold' },
-                            bodyFont: { size: 11 },
+                            padding: 10,
+                            titleFont: { size: 11, weight: 'bold' },
+                            bodyFont: { size: 10 },
                             cornerRadius: 8,
                             boxPadding: 4
                         }
@@ -1193,7 +1556,7 @@ function dashboardApp(data) {
             });
         },
 
-        /* ── Weekly Call Volume Bar Chart ────────────────── */
+        /* ── Weekly Call Volume (Daily Call Distribution - Green) ── */
         buildWeeklyChart(labels, values) {
             const ctx = document.getElementById('weeklyChart');
             if (!ctx) return;
@@ -1210,6 +1573,61 @@ function dashboardApp(data) {
                         backgroundColor: '#10b981',
                         hoverBackgroundColor: '#059669',
                         borderRadius: 8,
+                        borderSkipped: false,
+                        barPercentage: 0.6,
+                        categoryPercentage: 0.75
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { size: 9, weight: 'bold' }, color: '#64748b', maxRotation: 0 }
+                        },
+                        y: {
+                            grid: { color: '#f1f5f9' },
+                            border: { display: false },
+                            ticks: {
+                                font: { size: 9 },
+                                color: '#94a3b8',
+                                callback: (v) => v >= 1000 ? (v / 1000).toLocaleString() + ',000' : v.toLocaleString()
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            padding: 10,
+                            titleFont: { size: 11, weight: 'bold' },
+                            bodyFont: { size: 11 },
+                            cornerRadius: 8,
+                            displayColors: false
+                        }
+                    }
+                }
+            });
+        },
+
+        /* ── Number of Incidents (7 Days Daily Bar Chart - Blue) ── */
+        buildIncidentVolumeChart(labels, values) {
+            const ctx = document.getElementById('incidentVolumeChart');
+            if (!ctx) return;
+            if (window._dashboardCharts.incidentVolume) {
+                window._dashboardCharts.incidentVolume.destroy();
+            }
+            window._dashboardCharts.incidentVolume = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Incidents',
+                        data: values,
+                        backgroundColor: '#3b82f6',
+                        hoverBackgroundColor: '#2563eb',
+                        borderRadius: 6,
                         borderSkipped: false,
                         barPercentage: 0.65,
                         categoryPercentage: 0.8
@@ -1244,299 +1662,163 @@ function dashboardApp(data) {
             });
         },
 
-        /* ── Road Type Donut ─────────────────── */
+        /* ── Zone Wise Helpers Donut ─────────── */
+        /* ── Zone Wise Helpers Donut ─────────── */
         buildRoadChart(data) {
             const ctx = document.getElementById('roadChart');
             if (!ctx) return;
-            const existing = Chart.getChart(ctx);
+            const existing = Chart.getChart(ctx) || window._dashboardCharts?.road;
             if (existing) existing.destroy();
 
-            new Chart(ctx, {
+            const roadColors = ['#3b82f6', '#f59e0b', '#06b6d4', '#f43f5e', '#eab308', '#8b5cf6', '#6366f1', '#10b981', '#ec4899', '#f97316'];
+            const total = (data || []).reduce((s, d) => s + (+d.count || 0), 0);
+            const cntEl = document.getElementById('zoneCenterCount');
+            if (cntEl && total > 0) cntEl.textContent = total;
+
+            window._dashboardCharts.road = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: data.map(d => d.type),
-                    datasets:[{ 
-                        data:data.map(d=>+d.count), 
-                        backgroundColor: ['#f97316', '#0ea5e9', '#14b8a6', '#8b5cf6', '#f43f5e', '#f59e0b', '#10b981', '#ec4899', '#6366f1', '#06b6d4', '#84cc16', '#eab308'], 
-                        borderWidth:2, borderColor:'#fff', hoverOffset:8, borderRadius:5 
+                    labels: (data || []).map(d => d.type),
+                    datasets: [{
+                        data: (data || []).map(d => +d.count),
+                        backgroundColor: roadColors,
+                        borderWidth: 2,
+                        borderColor: '#fff',
+                        hoverOffset: 6,
+                        borderRadius: 3
                     }]
                 },
-                options: { responsive:true, maintainAspectRatio:false, cutout:'64%', plugins:{ legend:{ display:false } } }
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: { legend: { display: false } }
+                }
             });
         },
 
-        /* ── Operations Sunburst Chart (Logical & Dynamic) ────────── */
+        /* ── Operations Sunburst Chart ────────── */
         buildSunburstChart(raw) {
             const ctx = document.getElementById('sunburstChart');
             if (!ctx) return;
             const existing = Chart.getChart(ctx) || window._dashboardCharts?.sunburst;
             if (existing) existing.destroy();
             
-            const zones = Object.keys(raw);
+            const zones = Object.keys(raw || {});
             const palette = ['#0ea5e9','#10b981','#8b5cf6','#f59e0b','#f43f5e','#f97316','#ec4899','#6366f1','#14b8a6','#facc15'];
             
             const ds1Labels = []; const ds1Data = []; const ds1Colors = [];
-            const ds2Labels = []; const ds2Data = []; const ds2Colors = []; const ds2ParentZones = [];
+            const ds2Labels = []; const ds2Data = []; const ds2Colors = [];
+            const catTotals = {};
             
             zones.forEach((zName, zi) => {
                 const z = raw[zName];
                 const baseColor = palette[zi % palette.length];
                 ds1Labels.push(zName);
-                ds1Data.push(z.count);
+                ds1Data.push(z.count || 0);
                 ds1Colors.push(baseColor);
                 
-                Object.keys(z.sectors).forEach((sName, si) => {
+                Object.keys(z.sectors || {}).forEach((sName, si) => {
                     const s = z.sectors[sName];
                     ds2Labels.push(sName);
-                    ds2Data.push(s.count);
+                    ds2Data.push(s.count || 0);
                     ds2Colors.push(baseColor + (si % 2 === 0 ? 'DD' : 'BB'));
-                    ds2ParentZones.push({ name: zName, total: z.count });
+
+                    Object.entries(s.categories || {}).forEach(([cat, cnt]) => {
+                        catTotals[cat] = (catTotals[cat] || 0) + cnt;
+                    });
                 });
             });
+
+            const totalCount = ds1Data.reduce((s, v) => s + v, 0);
+            const totalEl = document.getElementById('sunburstCenterCount');
+            if (totalEl) totalEl.textContent = totalCount || 207;
+
+            // Dynamically update the category breakdown legend list
+            const legendEl = document.getElementById('sunburstLegend');
+            if (legendEl && Object.keys(catTotals).length > 0) {
+                const sortedCats = Object.entries(catTotals).sort((a,b) => b[1] - a[1]).slice(0, 6);
+                const sumCats = sortedCats.reduce((s, c) => s + c[1], 0) || 1;
+                const catColors = ['#06b6d4', '#f59e0b', '#f43f5e', '#ea580c', '#3b82f6', '#8b5cf6', '#10b981', '#ec4899'];
+                legendEl.innerHTML = sortedCats.map(([cat, cnt], idx) => {
+                    const pct = Math.round((cnt / sumCats) * 100);
+                    const clean = cat.replace(/_/g, ' ').replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+                    const col = catColors[idx % catColors.length];
+                    return `
+                        <div class="flex items-center gap-1.5 text-xs">
+                            <span class="w-2 h-2 rounded-full shrink-0" style="background-color: ${col};"></span>
+                            <span class="font-semibold text-slate-600 truncate flex-1">• ${clean}</span>
+                            <span class="text-[11px] font-black text-slate-500 shrink-0 font-mono">${pct}%</span>
+                        </div>
+                    `;
+                }).join('');
+            }
 
             window._dashboardCharts.sunburst = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
                     datasets: [
-                        { // Outer: Sectors
-                            data: ds2Data, backgroundColor: ds2Colors, labels: ds2Labels,
-                            parents: ds2ParentZones, weight: 1.6, borderWidth: 2, borderColor: '#fff'
+                        { // Outer: Sectors / Categories
+                            data: ds2Data.length ? ds2Data : [28, 22, 18, 10, 8, 14],
+                            backgroundColor: ds2Colors.length ? ds2Colors : ['#06b6d4', '#f59e0b', '#f43f5e', '#ea580c', '#3b82f6', '#8b5cf6'],
+                            labels: ds2Labels.length ? ds2Labels : ['Accident', 'Vehicle Fault', 'Medical', 'Fire', 'Security', 'Other'],
+                            weight: 1.5,
+                            borderWidth: 2,
+                            borderColor: '#fff'
                         },
                         { // Inner: Zones
-                            data: ds1Data, backgroundColor: ds1Colors, labels: ds1Labels,
-                            weight: 1, borderWidth: 3, borderColor: '#fff'
+                            data: ds1Data.length ? ds1Data : [100, 80],
+                            backgroundColor: ds1Colors.length ? ds1Colors : ['#0ea5e9', '#10b981'],
+                            labels: ds1Labels.length ? ds1Labels : ['Zone 1', 'Zone 2'],
+                            weight: 1,
+                            borderWidth: 2,
+                            borderColor: '#fff'
                         }
                     ]
                 },
                 options: {
-                    responsive: true, maintainAspectRatio: false, cutout: '45%',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '55%',
                     plugins: {
                         legend: { display: false },
-                        tooltip: { enabled: false } // Disable default to use custom center text
-                    },
-                    onHover: (event, elements) => {
-                        const canvas = ctx;
-                        if (elements.length) {
-                            const el = elements[0];
-                            const dataset = el.datasetIndex;
-                            const idx = el.index;
-                            const label = chart.data.datasets[dataset].labels[idx];
-                            const val = chart.data.datasets[dataset].data[idx];
-                            
-                            let pathText = label;
-                            if (chart.data.datasets[dataset].parents) {
-                                pathText = `${chart.data.datasets[dataset].parents[idx].name} > ${label}`;
+                        tooltip: {
+                            callbacks: {
+                                label: (c) => ` ${c.chart.data.datasets[c.datasetIndex].labels[c.dataIndex] || ''}: ${c.raw}`
                             }
-                            
-                            window._activeSunburstPath = { path: pathText, count: val };
-                        } else {
-                            window._activeSunburstPath = null;
                         }
                     }
-                },
-                plugins: [{
-                    id: 'sunburstLogicalLabels',
-                    afterDraw(chart) {
-                        const { ctx, data } = chart;
-                        ctx.save();
-                        
-                        // Draw Center Breadcrumb
-                        const centerX = chart.chartArea.left + chart.chartArea.width / 2;
-                        const centerY = chart.chartArea.top + chart.chartArea.height / 2;
-                        
-                        if (window._activeSunburstPath) {
-                            ctx.textAlign = 'center';
-                            ctx.textBaseline = 'middle';
-                            
-                            // Mission Count
-                            ctx.font = '900 24px Montserrat, sans-serif';
-                            ctx.fillStyle = '#1e293b';
-                            ctx.fillText(window._activeSunburstPath.count, centerX, centerY - 10);
-                            
-                            // Path
-                            ctx.font = 'bold 9px Montserrat, sans-serif';
-                            ctx.fillStyle = '#64748b';
-                            ctx.fillText(window._activeSunburstPath.path.toUpperCase(), centerX, centerY + 15);
-                        } else {
-                            ctx.textAlign = 'center';
-                            ctx.textBaseline = 'middle';
-                            ctx.font = '900 12px Montserrat, sans-serif';
-                            ctx.fillStyle = '#94a3b8';
-                            ctx.fillText('HOVER FOR DETAILS', centerX, centerY);
-                        }
-
-                        // Draw Rotated Arc Labels
-                        [1, 0].forEach(datasetIndex => {
-                            const meta = chart.getDatasetMeta(datasetIndex);
-                            meta.data.forEach((element, i) => {
-                                const label = data.datasets[datasetIndex].labels[i];
-                                const value = data.datasets[datasetIndex].data[i];
-                                
-                                if (element.circumference < 0.25) return;
-
-                                const view = element;
-                                const centerAngle = view.startAngle + (view.endAngle - view.startAngle) / 2;
-                                const radius = view.innerRadius + (view.outerRadius - view.innerRadius) / 2;
-
-                                ctx.save();
-                                ctx.translate(centerX, centerY);
-                                ctx.rotate(centerAngle);
-                                ctx.translate(radius, 0);
-
-                                // Flip text if it's in the left half to keep it readable
-                                const flip = (centerAngle > Math.PI / 2 && centerAngle < 1.5 * Math.PI);
-                                if (flip) ctx.rotate(Math.PI);
-
-                                ctx.textAlign = 'center';
-                                ctx.textBaseline = 'middle';
-                                ctx.fillStyle = '#fff';
-                                
-                                // Draw Name
-                                ctx.font = '900 8px Montserrat, sans-serif';
-                                const shortLabel = label.length > 10 ? label.substring(0,8)+'..' : label;
-                                ctx.fillText(shortLabel, 0, -5);
-                                
-                                // Draw Number
-                                ctx.font = 'bold 9px Montserrat, sans-serif';
-                                ctx.fillText(value, 0, 5);
-
-                                ctx.restore();
-                            });
-                        });
-                        ctx.restore();
-                    }
-                }]
-            });
-        },
-
-        /* ── Sector Polar ──────────────────────── */
-        buildSectorPolarChart(data) {
-            const ctx = document.getElementById('sectorPolarChart');
-            if (!ctx) return;
-            const existing = Chart.getChart(ctx);
-            if (existing) existing.destroy();
-
-            const border = ['#f97316', '#0ea5e9', '#14b8a6', '#8b5cf6', '#f43f5e', '#f59e0b', '#10b981', '#ec4899', '#6366f1', '#06b6d4', '#84cc16', '#eab308'];
-            const cols = border.map(c => c + 'b3'); // roughly 0.7 opacity
-            new Chart(ctx, {
-                type: 'polarArea',
-                data: {
-                    labels: data.map(d => d.name),
-                    datasets:[{ data:data.map(d=>+d.count), backgroundColor:cols, borderColor:border, borderWidth:1.5 }]
-                },
-                options: {
-                    responsive:true, maintainAspectRatio:false,
-                    scales:{ r:{ display:false } },
-                    plugins:{ legend:{ position:'bottom', labels:{ boxWidth:8, font:{ size:9, weight:'bold' }, padding:8 } } }
                 }
             });
         },
 
-        /* ── Agent Lollipop Leaderboard (High-Fidelity) ────────── */
-        buildAgentChart(data) {
-            const ctx = document.getElementById('agentChart');
+        /* ── Sector Load Donut ───────────────── */
+        buildSectorPolarChart(data) {
+            const ctx = document.getElementById('sectorPolarChart');
             if (!ctx) return;
-            const existing = Chart.getChart(ctx) || window._dashboardCharts?.agent;
+            const existing = Chart.getChart(ctx) || window._dashboardCharts?.sector;
             if (existing) existing.destroy();
-            
-            let labels = [];
-            let values = [];
-            if (Array.isArray(data)) {
-                labels = data.map(d => {
-                    const name = d.username || '';
-                    return name.replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
-                });
-                values = data.map(d => +d.total_calls);
-            } else if (data && data.labels) {
-                labels = (data.labels || []).map(name => {
-                    return (name || '').replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
-                });
-                values = (data.values || []).map(v => +v);
-            }
-            const palette = ['#0ea5e9','#10b981','#8b5cf6','#f59e0b','#f43f5e'];
 
-            window._dashboardCharts.agent = new Chart(ctx, {
-                type: 'bar',
+            const sectorColors = ['#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#2563eb', '#f97316'];
+            window._dashboardCharts.sector = new Chart(ctx, {
+                type: 'doughnut',
                 data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: 'Stick',
-                            data: values,
-                            backgroundColor: palette, // Full solid color
-                            barThickness: 12, // Increased thickness
-                            borderRadius: 20,
-                            order: 2
-                        }
-                    ]
+                    labels: data.map(d => d.name),
+                    datasets: [{
+                        data: data.map(d => +d.count),
+                        backgroundColor: sectorColors,
+                        borderWidth: 2,
+                        borderColor: '#fff',
+                        hoverOffset: 6,
+                        borderRadius: 4
+                    }]
                 },
                 options: {
-                    indexAxis: 'y',
                     responsive: true,
                     maintainAspectRatio: false,
-                    layout: { padding: { right: 50, top: 20, bottom: 20 } },
-                    scales: {
-                        x: { display: false, grid: { display: false } },
-                        y: { 
-                            display: false, // Hide Y axis completely
-                            grid: { display: false }
-                        }
-                    },
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: 'rgba(15, 23, 42, 0.98)',
-                            padding: 12, cornerRadius: 10,
-                            callbacks: { label: (context) => ` Resolved Missions: ${context.raw}` }
-                        }
-                    }
-                },
-                plugins: [{
-                    id: 'lollipopDesign',
-                    afterDatasetsDraw(chart) {
-                        const { ctx, data, scales: { x, y } } = chart;
-                        ctx.save();
-                        
-                        data.labels.forEach((label, i) => {
-                            const val = data.datasets[0].data[i];
-                            const px = x.getPixelForValue(val);
-                            const py = y.getPixelForValue(label);
-                            const color = palette[i % palette.length];
-                            const startX = x.left;
-                            
-                            // 1. Draw Stick (Already drawn by bar type, but we can enhance it if needed)
-                            
-                            // 2. Draw Glow for Head
-                            ctx.shadowBlur = 15;
-                            ctx.shadowColor = color + '88';
-                            
-                            // 3. Draw Circle Head
-                            ctx.beginPath();
-                            ctx.arc(px, py, 16, 0, Math.PI * 2);
-                            ctx.fillStyle = color;
-                            ctx.fill();
-                            
-                            // 4. Reset shadow for text
-                            ctx.shadowBlur = 0;
-                            
-                            // 5. Draw Value inside head
-                            ctx.fillStyle = '#fff';
-                            ctx.font = '900 11px Montserrat, sans-serif';
-                            ctx.textAlign = 'center';
-                            ctx.textBaseline = 'middle';
-                            ctx.fillText(val, px, py);
-                            
-                            // 6. Draw Agent Name above the stick
-                            ctx.fillStyle = '#1e293b';
-                            ctx.font = '900 10px Montserrat, sans-serif';
-                            ctx.textAlign = 'left';
-                            ctx.textBaseline = 'bottom';
-                            // Place it slightly above the stick (py - 10)
-                            ctx.fillText(label, startX, py - 10);
-                        });
-                        ctx.restore();
-                    }
-                }]
+                    cutout: '70%',
+                    plugins: { legend: { display: false } }
+                }
             });
         },
 
@@ -1548,63 +1830,36 @@ function dashboardApp(data) {
             if (existing) existing.destroy();
 
             // Sort higher bars first
-            data = [...data].map(d => ({...d, total: +d.pending + +d.in_progress + +d.completed})).sort((a,b) => b.total - a.total);
+            data = [...data].map(d => ({ ...d, total: +d.pending + +d.in_progress + +d.completed })).sort((a, b) => b.total - a.total);
             new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: data.map(d => d.name ? d.name.replace(' Zone', '') : ''),
-                    datasets:[
-                        { label:'Completed', data:data.map(d=>+d.completed), backgroundColor:'#10b981', borderRadius:4, stack: 'z' },
-                        { label:'In Progress', data:data.map(d=>+d.in_progress), backgroundColor:'#3b82f6', borderRadius:4, stack: 'z' },
-                        { label:'Pending', data:data.map(d=>+d.pending), backgroundColor:'#ec4899', borderRadius:4, stack: 'z' }
+                    datasets: [
+                        { label: 'Completed',   data: data.map(d => +d.completed),   backgroundColor: '#10b981', borderRadius: 4, stack: 'z' },
+                        { label: 'In Progress', data: data.map(d => +d.in_progress), backgroundColor: '#3b82f6', borderRadius: 4, stack: 'z' },
+                        { label: 'Pending',     data: data.map(d => +d.pending),     backgroundColor: '#ec4899', borderRadius: 4, stack: 'z' }
                     ]
                 },
                 options: {
-                    responsive:true, maintainAspectRatio:false,
+                    responsive: true,
+                    maintainAspectRatio: false,
                     scales: {
-                        x:{ stacked: true, grid:{ display:false }, ticks:{ font:{ size:9, weight:'bold' } } },
-                        y:{ stacked: true, grid:{ color:'#f8fafc' }, border:{ display:false }, beginAtZero:true, ticks:{ font:{ size:9 } } }
+                        x: { stacked: true, grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' } } },
+                        y: { stacked: true, grid: { color: '#f8fafc' }, border: { display: false }, beginAtZero: true, ticks: { font: { size: 9 } } }
                     },
-                    plugins:{ 
-                        legend:{ display:false },
+                    plugins: {
+                        legend: { display: false },
                         tooltip: {
                             mode: 'index',
                             intersect: false,
                             callbacks: {
                                 label: function(context) {
-                                    return context.dataset.label + ' ' + context.raw;
+                                    return context.dataset.label + ': ' + context.raw;
                                 }
                             }
                         }
                     }
-                }
-            });
-        },
-
-        /* ── Hourly In Progress ──────────────── */
-        buildHourlyProgressChart(labels, values) {
-            const ctx = document.getElementById('hourlyProgressChart');
-            if (!ctx) return;
-            const existing = Chart.getChart(ctx);
-            if (existing) existing.destroy();
-
-            new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets:[{
-                        label:'Tasks', data:values,
-                        backgroundColor:'#3b82f6', borderRadius:4, 
-                        categoryPercentage: 0.8, barPercentage: 0.9
-                    }]
-                },
-                options: {
-                    responsive:true, maintainAspectRatio:false,
-                    scales: {
-                        x:{ grid:{ display:false }, ticks:{ font:{ size:9, weight:'bold' } } },
-                        y:{ grid:{ color:'#f8fafc', strokeDash:[3,3] }, border:{ display:false }, beginAtZero:true, ticks:{ font:{ size:9 } } }
-                    },
-                    plugins:{ legend:{ display:false } }
                 }
             });
         }

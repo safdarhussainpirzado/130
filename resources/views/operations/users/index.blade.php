@@ -638,19 +638,19 @@
                                 <h4 class="text-xs font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2 mb-2"><i class="fas fa-id-card text-indigo-500"></i> Personnel Data</h4>
                                 <div>
                                     <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Full Name</label>
-                                    <input type="text" x-model="form.full_name" required placeholder="John Doe" class="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
+                                    <input type="text" x-model="form.full_name" required autocomplete="name" placeholder="John Doe" class="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">CNIC (00000-0000000-0)</label>
-                                    <input type="text" x-model="form.cnic" required pattern="[0-9]{5}-[0-9]{7}-[0-9]{1}" placeholder="35202-1234567-1" class="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
+                                    <input type="text" x-model="form.cnic" required pattern="[0-9]{5}-[0-9]{7}-[0-9]{1}" autocomplete="off" placeholder="35202-1234567-1" class="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Email Address</label>
-                                    <input type="email" x-model="form.email" required placeholder="admin@nhmp.gov.pk" class="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
+                                    <input type="email" x-model="form.email" required autocomplete="email" placeholder="admin@nhmp.gov.pk" class="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Mobile (03xxxxxxxxx)</label>
-                                    <input type="text" x-model="form.mobile_no" required pattern="^03[0-9]{9}$" placeholder="03001234567" class="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors" title="Mobile number must start with 03 and be 11 digits long.">
+                                    <input type="text" x-model="form.mobile_no" required pattern="^03[0-9]{9}$" autocomplete="tel" placeholder="03001234567" class="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors" title="Mobile number must start with 03 and be 11 digits long.">
                                 </div>
                             </div>
 

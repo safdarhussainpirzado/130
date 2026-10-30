@@ -8,22 +8,33 @@ use App\Models\CallSubType;
 use App\Models\VehicleType;
 use App\Models\Office;
 use App\Models\Carriageway;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Exception;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
+use App\Models\GeospatialLandmark;
 use App\Models\User;
+use App\Services\CallService;
+use Carbon\Carbon;
+use Exception;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class CallController extends Controller
 {
-    public function __construct(private readonly \App\Services\CallService $callService) {}
+    public function __construct(private readonly CallService $callService) {}
 
+    /**
+     * @param Builder|\Illuminate\Database\Query\Builder|Call|User|mixed $query
+     * @return Builder|\Illuminate\Database\Query\Builder|mixed
+     */
     private function applyScopeVisibility($query)
     {
-        /** @var \App\Models\User $user */
-        $user = auth()->user();
+        /** @var User|null $user */
+        $user = Auth::user();
 
         if (in_array($user->role?->name, ['super_admin', 'operation_admin', 'agent_supervisor'])) {
             return $query;
@@ -53,16 +64,21 @@ class CallController extends Controller
     }
 
 
+    /**
+     * @param Builder|\Illuminate\Database\Query\Builder|Call|mixed $query
+     * @param Request $request
+     * @return Builder|\Illuminate\Database\Query\Builder|mixed
+     */
     private function applyFiltersAndSearch($query, Request $request)
     {
         if ($request->search) {
             $s = trim($request->search);
             // Pre-fetch matching IDs from small auxiliary tables in-memory
             // to eliminate 4 correlated subqueries on the 718,000+ rows calls table
-            $vehicleTypeIds = \App\Models\VehicleType::where('name', 'like', "%$s%")->pluck('id');
-            $callTypeIds = \App\Models\CallType::where('name', 'like', "%$s%")->pluck('id');
-            $callSubTypeIds = \App\Models\CallSubType::where('name', 'like', "%$s%")->pluck('id');
-            $officeIds = \App\Models\Office::where('name', 'like', "%$s%")->pluck('id');
+            $vehicleTypeIds = VehicleType::where('name', 'like', "%$s%")->pluck('id');
+            $callTypeIds = CallType::where('name', 'like', "%$s%")->pluck('id');
+            $callSubTypeIds = CallSubType::where('name', 'like', "%$s%")->pluck('id');
+            $officeIds = Office::where('name', 'like', "%$s%")->pluck('id');
 
             $query->where(function($q) use ($s, $vehicleTypeIds, $callTypeIds, $callSubTypeIds, $officeIds) {
                 $q->where('call_number', 'like', "%$s%")
@@ -94,7 +110,7 @@ class CallController extends Controller
                 } else {
                     $query->where('created_at', '>=', Carbon::parse($dateTime)->startOfDay());
                 }
-            } catch (\Exception $e) {}
+            } catch (Exception $e) {}
         }
 
         if ($request->date_to) {
@@ -106,7 +122,7 @@ class CallController extends Controller
                 } else {
                     $query->where('created_at', '<=', Carbon::parse($dateTime)->endOfDay());
                 }
-            } catch (\Exception $e) {}
+            } catch (Exception $e) {}
         }
 
         if ($request->office_id) {
@@ -128,7 +144,12 @@ class CallController extends Controller
         return $query;
     }
 
-    private function getAjaxResponse($calls, $stats)
+    /**
+     * @param LengthAwarePaginator $calls
+     * @param array $stats
+     * @return JsonResponse
+     */
+    private function getAjaxResponse(LengthAwarePaginator $calls, array $stats): JsonResponse
     {
         return response()->json([
             'items' => $calls->items(),
@@ -141,18 +162,18 @@ class CallController extends Controller
 
     private function getFilterData()
     {
-        /** @var \App\Models\User $user */
-        $user = auth()->user();
+        /** @var User|null $user */
+        $user = Auth::user();
         $isPrivileged = in_array($user->role?->name, ['super_admin', 'operation_admin', 'agent_supervisor']);
 
         return [
             'zones' => Office::zones()->where('is_active', true)->select('id', 'name')->orderBy('name')->get(),
             'sectors' => Office::sectors()->where('is_active', true)->select('id', 'name', 'parent_id')->orderBy('name')->get(),
             'beats' => Office::beats()->where('is_active', true)->select('id', 'name', 'parent_id')->orderBy('name')->get(),
-            'callTypes' => \App\Models\CallType::where('is_active', true)->select('id', 'name')->orderBy('name')->get(),
-            'callSubTypes' => \App\Models\CallSubType::where('is_active', true)->select('id', 'name', 'call_type_id')->orderBy('name')->get(),
+            'callTypes' => CallType::where('is_active', true)->select('id', 'name')->orderBy('name')->get(),
+            'callSubTypes' => CallSubType::where('is_active', true)->select('id', 'name', 'call_type_id')->orderBy('name')->get(),
             'agents' => $isPrivileged
-                ? \App\Models\User::whereHas('role', function($q) {
+                ? User::whereHas('role', function($q) {
                     $q->where('name', 'agent');
                 })->select('id', 'username')->orderBy('username')->get()
                 : collect([]),
@@ -168,7 +189,8 @@ class CallController extends Controller
 
         // High-Performance Optimization: Calculate all status counts in 1 conditional aggregation
         // and all category counts in 1 group-by aggregation (reduces 25 queries to 2).
-        $user = auth()->user();
+        /** @var User|null $user */
+        $user = Auth::user();
         $isPrivileged = in_array($user->role?->name, ['super_admin', 'operation_admin', 'agent_supervisor']);
         $hasFilters = $request->filled('search') || $request->filled('date_from') || $request->filled('date_to')
             || $request->filled('office_id') || $request->filled('beat_id') || $request->filled('sector_id')
@@ -176,7 +198,8 @@ class CallController extends Controller
             || $request->filled('agent_id');
 
         if ($isPrivileged && !$hasFilters) {
-            $stats = Cache::remember('calls_index_global_stats', 60, function () {
+            $stats = cache()->get('calls_index_global_stats');
+            if (!is_array($stats)) {
                 $statsRow = DB::table('calls')->selectRaw("
                     COUNT(*) as total,
                     SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
@@ -220,8 +243,9 @@ class CallController extends Controller
                     ];
                 }
 
-                return array_merge($statusStats, ['categories' => $categoryStats]);
-            });
+                $stats = array_merge($statusStats, ['categories' => $categoryStats]);
+                cache()->put('calls_index_global_stats', $stats, 60);
+            }
         } else {
             $statsRow = (clone $query)->selectRaw("
                 COUNT(*) as total,
@@ -280,8 +304,8 @@ class CallController extends Controller
 
         $filterData = $this->getFilterData();
 
-        $sort = $request->get('sort');
-        $dir = $request->get('direction', 'desc') === 'asc' ? 'asc' : 'desc';
+        $sort = $request->input('sort');
+        $dir = $request->input('direction', 'desc') === 'asc' ? 'asc' : 'desc';
         $allowedSorts = ['call_number', 'created_at', 'priority', 'status', 'caller_name', 'caller_number', 'vehicle_no', 'call_type_id', 'office_id'];
         
         if ($sort === 'beat_id') $sort = 'office_id';
@@ -461,7 +485,7 @@ class CallController extends Controller
             }
         }
 
-        $callType = \App\Models\CallType::find($request->call_type_id);
+        $callType = CallType::find($request->call_type_id);
         $isExempt = $callType && in_array($callType->category, ['junk_silent', 'information']);
 
         $validated = $request->validate([
@@ -506,7 +530,9 @@ class CallController extends Controller
                 $data['priority'] = $priorities[strtolower($data['priority'])] ?? 3;
             }
 
-            $call = $this->callService->createCall($data, auth()->user());
+            /** @var User $currentUser */
+            $currentUser = Auth::user();
+            $call = $this->callService->createCall($data, $currentUser);
             
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json([
@@ -544,7 +570,9 @@ class CallController extends Controller
     {
         $this->authorize('calls.manage_status');
         try {
-            $this->callService->updateStatus($call, $request->status, auth()->user(), $request->all());
+            /** @var User $currentUser */
+            $currentUser = Auth::user();
+            $this->callService->updateStatus($call, $request->status, $currentUser, $request->all());
             
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json([
@@ -571,15 +599,18 @@ class CallController extends Controller
     public function searchCallerHistory(Request $request)
     {
         $this->authorize('calls.api_lookup');
-        $num = $request->get('number', $request->get('caller_number'));
+        $num = $request->input('number', $request->input('caller_number'));
         if (!$num || strlen($num) < 7) return response()->json(['calls' => []]);
 
-        $calls = Call::with(['office.parent.parent', 'agent'])->where('caller_number', $num)
+        $calls = Call::from(DB::raw('calls USE INDEX (idx_calls_caller_created)'))
+            ->with(['office.parent.parent', 'agent'])
+            ->where('caller_number', $num)
             ->orderBy('created_at', 'desc')
             ->limit(5)
             ->get();
 
-        $user = auth()->user();
+        /** @var User|null $user */
+        $user = Auth::user();
         $showAgent = !in_array($user->role?->name, ['zone_admin', 'sector_admin', 'beat_operator']);
 
         $formattedCalls = $calls->map(function ($c) use ($showAgent) {
@@ -627,7 +658,9 @@ class CallController extends Controller
             $call = Call::findOrFail($id);
         }
         try {
-            $call = $this->callService->sendReminder($call, auth()->user());
+            /** @var User $currentUser */
+            $currentUser = Auth::user();
+            $call = $this->callService->sendReminder($call, $currentUser);
             return response()->json([
                 'success' => true,
                 'message' => "Reminder sent successfully for call {$call->call_number}.",
@@ -637,7 +670,7 @@ class CallController extends Controller
                     'last_reminder_at' => $call->last_reminder_at ? $call->last_reminder_at->toDateTimeString() : null,
                 ]
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => "Failed to send reminder: " . $e->getMessage()
@@ -649,10 +682,10 @@ class CallController extends Controller
     public function getBeatResources(Request $request)
     {
         $this->authorize('calls.api_lookup');
-        $beatId = $request->get('beat_id');
+        $beatId = $request->input('beat_id');
         if (!$beatId) return response()->json(['officers' => []]);
 
-        $query = \App\Models\User::whereHas('activeScopes', function($q) use ($beatId) {
+        $query = User::query()->whereHas('activeScopes', function($q) use ($beatId) {
             $q->where('office_id', $beatId);
         });
 
@@ -680,7 +713,8 @@ class CallController extends Controller
      */
     public function getNotificationsPoll(Request $request)
     {
-        $user = auth()->user();
+        /** @var User|null $user */
+        $user = Auth::user();
         $this->authorize('calls.api_lookup');
 
         try {
@@ -696,7 +730,7 @@ class CallController extends Controller
 
             $since = $request->query('since');
             
-            $query = Call::where('status', 'pending');
+            $query = Call::query()->where('status', 'pending');
             
             if ($since) {
                 try {
@@ -705,14 +739,14 @@ class CallController extends Controller
                         $q->where('created_at', '>', $dtSince)
                           ->orWhere('last_reminder_at', '>', $dtSince);
                     });
-                } catch (\Throwable $e) {}
+                } catch (Throwable $e) {}
             }
 
             $query = $this->applyScopeVisibility($query);
             $newCalls = $query->with(['callType', 'callSubType', 'office'])->orderBy('created_at', 'desc')->get();
 
             // Calculate current total pending helps count for navigation badge
-            $pendingQuery = Call::where('status', 'pending');
+            $pendingQuery = Call::query()->where('status', 'pending');
             $pendingCount = $this->applyScopeVisibility($pendingQuery)->count();
 
             $results = $newCalls->map(function($call) {
@@ -732,10 +766,10 @@ class CallController extends Controller
                 'pending_count' => $pendingCount,
                 'timestamp' => now()->toIso8601String()
             ]);
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Notifications poll failed', [
+        } catch (Throwable $e) {
+            Log::error('Notifications poll failed', [
                 'error' => $e->getMessage(),
-                'user_id' => \Illuminate\Support\Facades\Auth::id(),
+                'user_id' => Auth::id(),
             ]);
 
             return response()->json([
@@ -752,15 +786,16 @@ class CallController extends Controller
         $this->authorize('export', Call::class);
 
         try {
-            $user = auth()->user();
+            /** @var User|null $user */
+            $user = Auth::user();
             $showAgent = !in_array($user->role?->name, ['zone_admin', 'sector_admin', 'beat_operator']);
 
             $baseQuery = $this->applyScopeVisibility(Call::query());
             $query = $this->applyFiltersAndSearch($baseQuery, $request);
 
             // Sorting logic
-            $sort = $request->get('sort', 'created_at');
-            $direction = $request->get('direction', 'desc');
+            $sort = $request->input('sort', 'created_at');
+            $direction = $request->input('direction', 'desc');
             $allowedSorts = ['call_number', 'created_at', 'priority', 'status', 'caller_name', 'caller_number', 'vehicle_no'];
             
             if ($sort === 'beat_id') $sort = 'office_id';
@@ -860,7 +895,7 @@ class CallController extends Controller
                 fclose($file);
             }, 200, $headers);
 
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('Export failed: ' . $e->getMessage(), [
                 'request' => $request->all(),
                 'trace' => $e->getTraceAsString()
@@ -886,7 +921,7 @@ class CallController extends Controller
         $kmMarker = $request->input('km_marker');
         $direction = $request->input('direction');
 
-        $landmarkQuery = \App\Models\GeospatialLandmark::with('office.parent.parent');
+        $landmarkQuery = GeospatialLandmark::with('office.parent.parent');
 
         if ($road) {
             $landmarkQuery->where('road_name', 'like', "%{$road}%");
@@ -904,7 +939,7 @@ class CallController extends Controller
 
         // Also search offices (Beats) by KM range if kmMarker is numeric
         if ($kmMarker && is_numeric($kmMarker)) {
-            $offices = \App\Models\Office::with('parent.parent')
+            $offices = Office::with('parent.parent')
                 ->where('type', 'beat')
                 ->where('is_active', true)
                 ->where('km_start', '<=', $kmMarker)
@@ -936,9 +971,9 @@ class CallController extends Controller
     public function spatialContacts(Request $request)
     {
         $this->authorize('calls.api_lookup');
-        $zoneId = $request->get('zone_id');
-        $sectorId = $request->get('sector_id');
-        $beatId = $request->get('beat_id');
+        $zoneId = $request->input('zone_id');
+        $sectorId = $request->input('sector_id');
+        $beatId = $request->input('beat_id');
 
         $contacts = [
             'zone' => null,
@@ -947,17 +982,17 @@ class CallController extends Controller
         ];
 
         if ($beatId) {
-            $contacts['beat'] = \App\Models\GeospatialLandmark::where('office_id', $beatId)
+            $contacts['beat'] = GeospatialLandmark::where('office_id', $beatId)
                 ->whereNotNull('contact_numbers')
                 ->where('contact_numbers', '!=', '')
                 ->value('contact_numbers');
         }
 
         if ($sectorId) {
-            $sector = \App\Models\Office::find($sectorId);
+            $sector = Office::find($sectorId);
             if ($sector) {
                 $beatIds = $sector->getDescendantIds(true);
-                $contacts['sector'] = \App\Models\GeospatialLandmark::whereIn('office_id', $beatIds)
+                $contacts['sector'] = GeospatialLandmark::whereIn('office_id', $beatIds)
                     ->whereNotNull('contact_numbers')
                     ->where('contact_numbers', '!=', '')
                     ->value('contact_numbers');
@@ -965,10 +1000,10 @@ class CallController extends Controller
         }
 
         if ($zoneId) {
-            $zone = \App\Models\Office::find($zoneId);
+            $zone = Office::find($zoneId);
             if ($zone) {
                 $beatIds = $zone->getDescendantIds(true);
-                $contacts['zone'] = \App\Models\GeospatialLandmark::whereIn('office_id', $beatIds)
+                $contacts['zone'] = GeospatialLandmark::whereIn('office_id', $beatIds)
                     ->whereNotNull('contact_numbers')
                     ->where('contact_numbers', '!=', '')
                     ->value('contact_numbers');

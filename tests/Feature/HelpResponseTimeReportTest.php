@@ -2,20 +2,26 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
 use App\Models\User;
 use Database\Seeders\HelpResponseTimeDemoSeeder;
 
 class HelpResponseTimeReportTest extends TestCase
 {
-    public function test_user_can_view_help_response_time_report_with_seeded_data()
+    use DatabaseTransactions;
+
+    public function test_user_can_view_help_response_time_report_with_seeded_data(): void
     {
         $user = User::whereHas('role.permissions', function($q) {
             $q->where('name', 'reports.view');
         })->first() ?? User::first();
 
-        // Run Demo Seeder
-        $this->seed(HelpResponseTimeDemoSeeder::class);
+        // Run Demo Seeder with force flag for testing environment
+        $this->artisan('db:seed', [
+            '--class' => HelpResponseTimeDemoSeeder::class,
+            '--force' => true,
+        ]);
 
         $response = $this->actingAs($user)->get(route('reports.help-response-time', [
             'date_from' => now()->toDateString(),
@@ -39,7 +45,7 @@ class HelpResponseTimeReportTest extends TestCase
         $response->assertSee('Tiger Reached');
     }
 
-    public function test_user_can_export_help_response_time_report_to_excel()
+    public function test_user_can_export_help_response_time_report_to_excel(): void
     {
         $user = User::whereHas('role.permissions', function($q) {
             $q->where('name', 'reports.view');

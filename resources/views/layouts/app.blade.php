@@ -20,26 +20,33 @@
     <!-- Compiled Assets (Tailwind, Alpine, etc.) -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
-    {{-- Chart.js now bundled via Vite in resources/js/app.js --}}
-
+    <!-- Leaflet Maps CSS & Vendor Assets (Global for Command Center & SPA Navigation) -->
+    <link rel="stylesheet" href="{{ asset('vendor/leaflet/leaflet.css') }}" />
+    <link rel="stylesheet" href="{{ asset('vendor/leaflet/MarkerCluster.css') }}" />
+    <link rel="stylesheet" href="{{ asset('vendor/leaflet/MarkerCluster.Default.css') }}" />
+    <script src="{{ asset('vendor/leaflet/leaflet.js') }}"></script>
+    <script src="{{ asset('vendor/leaflet/leaflet.markercluster.js') }}"></script>
 
     <!-- Notification & Routing JS -->
     <script defer src="{{ asset('js/notification.js') }}"></script>
     <script defer src="{{ asset('js/bento-bridge.js') }}?v={{ time() }}"></script>
     
-    {{-- Hardened Session Security --}}
+    {{-- Hardened Session Security with Cross-Tab Activity Synchronization --}}
     <script>
         (function() {
             "use strict";
             const LOGOUT_KEY = 'nhmp_session_logout';
-            const CHECK_INT = 15000; // Increased frequency (15s)
-            
-            // 1. Cross-Tab Sync: Trigger a reload if another tab logs out
+            const ACTIVITY_KEY = 'nhmp_last_user_activity';
+            const IDLE_LIMIT = 30 * 60 * 1000; // 30 mins
+
+            // 1. Cross-Tab Sync: If another tab logs out, reload. If another tab is active, reset timer.
             window.addEventListener('storage', (e) => {
                 if (e.key === LOGOUT_KEY && e.newValue) {
                     localStorage.removeItem(LOGOUT_KEY);
-                    // Slight delay to allow server-side logout to finalize
                     setTimeout(() => { window.location.reload(); }, 500);
+                } else if (e.key === ACTIVITY_KEY && e.newValue) {
+                    // Another tab recorded user activity! Reset local idle timer
+                    scheduleIdleCheck();
                 }
             });
 
@@ -48,11 +55,25 @@
                 if (e.persisted) window.location.reload();
             });
 
-            // 3. Heartbeat Polling: Safety net for silent session expiry
+            // 3. Heartbeat Polling with Active Presence Indicator
             let isSyncing = false;
             function heartbeat() {
                 if (isSyncing) return;
-                fetch('/auth/heartbeat', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                let lastActive = 0;
+                try {
+                    lastActive = parseInt(localStorage.getItem(ACTIVITY_KEY) || '0', 10);
+                } catch (e) {}
+
+                // If user was active within last 2 minutes, signal active presence
+                const isActive = (Date.now() - lastActive) < 120000;
+                const url = isActive ? '/auth/heartbeat?active=1' : '/auth/heartbeat';
+
+                fetch(url, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    }
+                })
                 .then(r => { 
                     if (r.status === 401 || r.status === 419) {
                         isSyncing = true;
@@ -61,32 +82,73 @@
                 })
                 .catch(() => {});
             }
-            setInterval(heartbeat, 60000); // Optimized to 60s check
+            setInterval(heartbeat, 60000); // 60s check
             heartbeat(); // Initial check
 
-            // 4. Inactivity Auto-Logout (15 Minutes)
-            const IDLE_LIMIT = 30 * 60 * 1000; // 30 mins
-            let idleTimer;
+            // 4. Inactivity Auto-Logout with Multi-Tab Coordination
+            let idleTimer = null;
+            let lastThrottledRecord = 0;
 
-            const resetIdleTimer = () => {
-                clearTimeout(idleTimer);
-                idleTimer = setTimeout(() => {
-                    console.log('SessionGuard: Inactivity limit reached.');
-                    window.SessionGuard.triggerGlobalLogout();
-                    window.location.href = '/logout';
-                }, IDLE_LIMIT);
-            };
+            function recordActivity() {
+                const now = Date.now();
+                // Throttle writing to localStorage to once every 3 seconds
+                if (now - lastThrottledRecord > 3000) {
+                    lastThrottledRecord = now;
+                    try {
+                        localStorage.setItem(ACTIVITY_KEY, now.toString());
+                    } catch (e) {}
+                }
+                scheduleIdleCheck();
+            }
 
-            ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'].forEach(name => {
-                document.addEventListener(name, resetIdleTimer, true);
+            function scheduleIdleCheck() {
+                if (idleTimer) clearTimeout(idleTimer);
+                idleTimer = setTimeout(checkIdleTimeout, IDLE_LIMIT);
+            }
+
+            function checkIdleTimeout() {
+                // Verify if ANY open tab was active recently
+                let lastActive = 0;
+                try {
+                    lastActive = parseInt(localStorage.getItem(ACTIVITY_KEY) || '0', 10);
+                } catch (e) {}
+
+                const elapsed = Date.now() - lastActive;
+                if (lastActive > 0 && elapsed < IDLE_LIMIT) {
+                    // Another tab was active! Reschedule timer for the remaining duration
+                    const remaining = IDLE_LIMIT - elapsed;
+                    idleTimer = setTimeout(checkIdleTimeout, Math.max(remaining, 5000));
+                    return;
+                }
+
+                // If document is visible and has focus, do NOT abruptly terminate session
+                if (document.visibilityState === 'visible' && document.hasFocus()) {
+                    recordActivity();
+                    return;
+                }
+
+                console.warn('SessionGuard: Multi-tab inactivity limit reached (30m). Logging out.');
+                window.SessionGuard.triggerGlobalLogout();
+                window.location.href = '/logout';
+            }
+
+            // Listen to all interaction events including keydown, input, and focus
+            const activityEvents = ['mousedown', 'mousemove', 'keydown', 'input', 'scroll', 'touchstart', 'wheel', 'focus'];
+            activityEvents.forEach(evt => {
+                document.addEventListener(evt, recordActivity, { passive: true, capture: true });
             });
-            resetIdleTimer();
+
+            // Initial activity record
+            recordActivity();
 
             // Global trigger
             window.SessionGuard = {
                 triggerGlobalLogout: function() {
-                    localStorage.setItem(LOGOUT_KEY, Date.now().toString());
-                }
+                    try {
+                        localStorage.setItem(LOGOUT_KEY, Date.now().toString());
+                    } catch (e) {}
+                },
+                recordActivity: recordActivity
             };
         })();
     </script>

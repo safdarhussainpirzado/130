@@ -2,33 +2,34 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
 use App\Models\User;
 use App\Models\Call;
 use App\Models\CallType;
 use App\Models\CallSubType;
-use App\Models\Beat;
-use Illuminate\Support\Facades\DB;
+use App\Models\Office;
 use Illuminate\Support\Facades\Event;
 use App\Events\CallLogged;
+use App\Services\CallService;
 
 class CallReminderTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->artisan('db:seed');
+        $this->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class]);
     }
 
-    public function test_can_save_call_with_location_details()
+    public function test_can_save_call_with_location_details(): void
     {
-        $user = User::first();
+        // Use an active agent who has calls.create permission
+        $user = User::whereHas('role', fn($q) => $q->where('name', 'agent'))->first() ?: User::first();
         $callType = CallType::first();
         $subType = CallSubType::where('call_type_id', $callType->id)->first();
-        $beat = Beat::first();
+        $beat = Office::where('type', 'beat')->first() ?: Office::first();
 
         $response = $this->actingAs($user)->post('/calls', [
             'caller_number' => '03001234567',
@@ -40,6 +41,10 @@ class CallReminderTest extends TestCase
             'priority' => 3,
         ]);
 
+        if ($response->exception) {
+            $this->fail("Call creation threw exception: " . $response->exception->getMessage());
+        }
+
         $response->assertSessionHas('success');
         $this->assertDatabaseHas('calls', [
             'location_details' => 'Near Rehman Masjid',
@@ -47,22 +52,25 @@ class CallReminderTest extends TestCase
         ]);
     }
 
-    public function test_can_send_reminder_via_api()
+    public function test_can_send_reminder_via_api(): void
     {
         Event::fake();
 
-        $user = User::first();
+        $user = User::whereHas('role', fn($q) => $q->where('name', 'agent'))->first() ?: User::first();
         $callType = CallType::first();
         $subType = CallSubType::where('call_type_id', $callType->id)->first();
-        $beat = Beat::first();
+        $beat = Office::where('type', 'beat')->first() ?: Office::first();
+
+        $callService = app(CallService::class);
+        $callNumber = $callService->generateCallNumber();
 
         $call = Call::create([
-            'call_number' => 'CRM-2026-99999',
+            'call_number' => $callNumber,
             'agent_id' => $user->id,
             'caller_number' => '03001234567',
             'call_type_id' => $callType->id,
             'call_sub_type_id' => $subType->id,
-            'beat_id' => $beat->id,
+            'office_id' => $beat->id,
             'status' => 'pending',
             'priority' => 3,
         ]);

@@ -393,7 +393,7 @@
                             </thead>
                             <tbody class="divide-y divide-slate-50">
                                 <template x-for="item in pagedItems" :key="item.id">
-                                    <tr class="hover:bg-blue-50/40 transition-colors group cursor-pointer border-l-4 border-transparent hover:border-blue-600" @click="window.location='/calls/' + item.id">
+                                    <tr class="hover:bg-blue-50/40 transition-colors group cursor-pointer border-l-4 border-transparent hover:border-blue-600" @click="window.location='/calls/' + (item.uuid || item.id)">
                                         <td class="px-2 py-3">
                                             <div class="flex flex-col gap-1">
                                                 <div class="flex items-center gap-1.5">
@@ -892,7 +892,7 @@
                         </div>
                     </div>
                     <div class="flex gap-3">
-                        <a :href="'/calls/' + selectedItem?.id" class="px-6 py-3 bg-white border border-slate-200 text-blue-900 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">View Full Details</a>
+                        <a :href="'/calls/' + (selectedItem?.uuid || selectedItem?.id)" class="px-6 py-3 bg-white border border-slate-200 text-blue-900 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">View Full Details</a>
                         <button @click="showDetailModal = false" class="px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-600/20 active:scale-95 transition-all">Dismiss</button>
                     </div>
                 </div>

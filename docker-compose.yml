@@ -8,12 +8,15 @@ services:
   haproxy:
     image: haproxy:alpine
     logging: *default-logging
+    environment:
+      - HAPROXY_STATS_USER=${HAPROXY_STATS_USER:?HAPROXY_STATS_USER is required}
+      - HAPROXY_STATS_PASSWORD=${HAPROXY_STATS_PASSWORD:?HAPROXY_STATS_PASSWORD is required}
     ports:
       - "80:80"
       - "443:443"
       - "7085:7085"
       - "8085:8085"
-      - "8404:8404" # Stats page
+      - "127.0.0.1:8404:8404" # Stats page restricted to loopback
     volumes:
       - ./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
       - ./haproxy/certs:/usr/local/etc/haproxy/certs:ro

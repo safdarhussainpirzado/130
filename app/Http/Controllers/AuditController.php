@@ -33,10 +33,10 @@ class AuditController extends Controller
 
         // Filter by date range
         if ($request->filled('from')) {
-            $query->whereDate('created_at', '>=', $request->input('from'));
+            $query->where('created_at', '>=', \Carbon\Carbon::parse($request->input('from'))->startOfDay());
         }
         if ($request->filled('to')) {
-            $query->whereDate('created_at', '<=', $request->input('to'));
+            $query->where('created_at', '<=', \Carbon\Carbon::parse($request->input('to'))->endOfDay());
         }
 
         $logs = $query->paginate(20)->withQueryString();
