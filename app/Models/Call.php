@@ -12,7 +12,6 @@ class Call extends Model
     use HasFactory;
 
     protected $fillable = [
-        'uuid',
         'call_number',
         'agent_id',
         'caller_number',
@@ -79,34 +78,10 @@ class Call extends Model
     ];
 
     /**
-     * Auto-generate UUIDv7 upon model creation.
-     */
-    protected static function booted(): void
-    {
-        static::creating(function (Call $call) {
-            if (empty($call->uuid)) {
-                $call->uuid = (string) \Illuminate\Support\Str::uuid7();
-            }
-        });
-    }
-
-    /**
-     * Use UUID as the route key name instead of auto-incrementing ID for security/IDOR prevention.
-     */
-    public function getRouteKeyName(): string
-    {
-        return 'uuid';
-    }
-
-    /**
-     * Flexible route model binding: Resolves UUIDv7, numeric ID (backward-compat), or Call Number.
+     * Flexible route model binding: Resolves numeric ID (primary key) or Call Number.
      */
     public function resolveRouteBinding($value, $field = null): ?Model
     {
-        if (\Illuminate\Support\Str::isUuid($value)) {
-            return $this->where('uuid', $value)->firstOrFail();
-        }
-
         if (is_numeric($value)) {
             return $this->where('id', $value)->firstOrFail();
         }
