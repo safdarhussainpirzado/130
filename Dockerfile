@@ -33,6 +33,9 @@ RUN for i in 1 2 3; do \
         apk add --no-cache \
             icu-dev \
             libzip-dev \
+            libpng-dev \
+            libjpeg-turbo-dev \
+            freetype-dev \
             zip \
             unzip \
             autoconf \
@@ -42,7 +45,8 @@ RUN for i in 1 2 3; do \
             make \
         && break || { echo "apk attempt $i failed, retrying..."; sleep 15; }; \
     done \
-    && docker-php-ext-install -j$(nproc) pdo_mysql opcache zip pcntl intl \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) pdo_mysql opcache zip pcntl intl gd \
     && pecl install redis \
     && docker-php-ext-enable redis
 
@@ -55,6 +59,9 @@ RUN for i in 1 2 3; do \
         apk add --no-cache \
             icu-libs \
             libzip \
+            libpng \
+            libjpeg-turbo \
+            freetype \
             zip \
             unzip \
         && break || { echo "apk attempt $i failed, retrying..."; sleep 15; }; \
@@ -71,13 +78,15 @@ COPY --from=builder /usr/local/lib/php/extensions /usr/local/lib/php/extensions
 COPY --from=builder /usr/local/etc/php/conf.d /usr/local/etc/php/conf.d
 
 # High Performance OPcache & JIT Compiler settings
-RUN echo -e "opcache.enable=1\n\
+RUN echo -e "zend_extension=opcache\n\
+opcache.enable=1\n\
 opcache.enable_cli=1\n\
 opcache.jit_buffer_size=100M\n\
 opcache.jit=tracing\n\
 opcache.memory_consumption=256\n\
 opcache.max_accelerated_files=20000\n\
-opcache.validate_timestamps=0\n\
+opcache.validate_timestamps=1\n\
+opcache.revalidate_freq=2\n\
 opcache.interned_strings_buffer=16\n\
 opcache.fast_shutdown=1" > /usr/local/etc/php/conf.d/docker-php-ext-opcache.ini
 

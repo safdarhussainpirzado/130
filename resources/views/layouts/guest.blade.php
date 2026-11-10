@@ -7,6 +7,13 @@
 
         <title>{{ request()->routeIs('login') ? 'Sign in · 130 NHMP Helpline' : (request()->is('2fa*') ? 'Security Verification · 130 NHMP Helpline' : (request()->routeIs('password.*') ? 'Reset Password · 130 NHMP Helpline' : config('app.name', '130 NHMP Helpline'))) }}</title>
 
+        <!-- Favicon & App Icons -->
+        <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">
+        <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16x16.png') }}">
+        <link rel="icon" type="image/png" href="{{ asset('images/login/shield-logo.png') }}">
+        <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
+        <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('apple-touch-icon.png') }}">
+
         <!-- Fonts & Icons -->
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

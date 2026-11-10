@@ -22,44 +22,45 @@
     }
 </style>
 
-<script>
-    window._showData = @js([
-        'id' => $call->id,
-        'call_number' => $call->call_number,
-        'status' => $call->status,
-        'priority' => (int) $call->priority,
-        'details' => $call->details,
-        'tiger_id' => $call->tiger_id,
-        'beat_id' => $call->beat_id,
-        'tiger' => $call->tiger ? [
-            'tiger_code' => $call->tiger->tiger_code,
-        ] : null,
-        'inprogress_remarks' => $call->inprogress_remarks,
-        'location_details' => $call->location_details,
-        'history' => $call->statusHistory()->with('changedBy.role')->orderBy('created_at', 'asc')->get()
-            ->unique(function ($h) {
-                return $h->new_status . $h->remarks . $h->created_at->format('Y-m-d H:i:s');
-            })
-            ->map(function($h) {
-                $role = $h->changedBy->role?->name;
-                $isCallCenter = in_array($role, ['agent', 'agent_supervisor', 'super_admin']);
-                $operatorName = $h->changedBy?->full_name ?: ($h->changedBy?->username ?: 'Operator');
-                return [
-                    'new_status' => $h->new_status,
-                    'remarks' => $h->remarks,
-                    'changed_by' => $operatorName,
-                    'time' => $h->created_at->format('H:i:s'),
-                    'date' => $h->created_at->format('d M Y')
-                ];
-            }),
-        'permissions' => [
-            'transition_to_inprogress' => auth()->user()->can('calls.manage_status'),
-            'transition_to_completed' => auth()->user()->can('calls.manage_status'),
-        ]
-    ]);
-</script>
+@php
+$showJson = json_encode([
+    'id' => $call->id,
+    'uuid' => $call->uuid,
+    'call_number' => $call->call_number,
+    'status' => $call->status,
+    'priority' => (int) $call->priority,
+    'details' => $call->details,
+    'tiger_id' => $call->tiger_id,
+    'beat_id' => $call->beat_id,
+    'tiger' => $call->tiger ? [
+        'tiger_code' => $call->tiger->tiger_code,
+    ] : null,
+    'inprogress_remarks' => $call->inprogress_remarks,
+    'location_details' => $call->location_details,
+    'history' => ($call->relationLoaded('statusHistory') ? $call->statusHistory : $call->statusHistory()->with('changedBy.role')->orderBy('created_at', 'asc')->get())
+        ->unique(function ($h) {
+            return $h->new_status . $h->remarks . ($h->created_at ? $h->created_at->format('Y-m-d H:i:s') : '');
+        })
+        ->map(function($h) {
+            $operatorName = $h->changedBy?->full_name ?: ($h->changedBy?->username ?: 'Operator');
+            return [
+                'new_status' => $h->new_status,
+                'remarks' => $h->remarks,
+                'changed_by' => $operatorName,
+                'time' => $h->created_at ? $h->created_at->format('H:i:s') : '',
+                'date' => $h->created_at ? $h->created_at->format('d M Y') : ''
+            ];
+        })->values(),
+    'permissions' => [
+        'transition_to_inprogress' => auth()->user()->can('calls.manage_status'),
+        'transition_to_completed' => auth()->user()->can('calls.manage_status'),
+    ]
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+@endphp
 
-<div class="min-h-screen bg-[#f8fafc] rounded-[3rem] -mt-4 shadow-2xl relative overflow-hidden pb-12" x-data="commandControl(window._showData)">
+<script id="call-show-data" type="application/json">{!! $showJson !!}</script>
+
+<div class="min-h-screen bg-[#f8fafc] rounded-[3rem] -mt-4 shadow-2xl relative overflow-hidden pb-12" x-data="commandControl(JSON.parse(document.getElementById('call-show-data').textContent))">
     {{-- Top Decorative Layer --}}
     <div class="absolute top-0 inset-x-0 h-96 bg-gradient-to-b from-blue-50 to-transparent pointer-events-none"></div>
     <div class="absolute inset-0 bg-grid-slate-100 pointer-events-none opacity-50"></div>
@@ -293,7 +294,7 @@
                         </div>
                         
                         <div class="h-4 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner flex">
-                            <div class="{{ $color }} h-full rounded-full shadow-lg transition-all duration-500" style="width: {{ $perc }}%"></div>
+                            <div class="{{ $color }} h-full rounded-full shadow-lg transition-all duration-500" :style="{ width: '{{ $perc }}%' }"></div>
                         </div> 
                         
                         <div class="flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-slate-400">
@@ -544,7 +545,8 @@
                 
                 this.isLoading = true;
                 try {
-                    const response = await fetch(`/calls/${this.item.id}/status`, {
+                    const callIdentifier = this.item.uuid || this.item.id;
+                    const response = await fetch(`/calls/${callIdentifier}/status`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',

@@ -2,87 +2,178 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\CallListResource;
+use App\Http\Resources\CallShowResource;
+use Illuminate\Support\Str;
 use App\Models\Call;
 use App\Models\CallType;
 use App\Models\CallSubType;
 use App\Models\VehicleType;
 use App\Models\Office;
 use App\Models\Carriageway;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Exception;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
+use App\Models\GeospatialLandmark;
 use App\Models\User;
+use App\Services\CallService;
+use Carbon\Carbon;
+use Exception;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class CallController extends Controller
 {
-    public function __construct(private readonly \App\Services\CallService $callService) {}
+    public function __construct(private readonly CallService $callService) {}
 
+    /**
+     * @param Builder|\Illuminate\Database\Query\Builder|Call|User|mixed $query
+     * @return Builder|\Illuminate\Database\Query\Builder|mixed
+     */
     private function applyScopeVisibility($query)
     {
-        /** @var \App\Models\User $user */
-        $user = auth()->user();
+        /** @var User|null $user */
+        $user = Auth::user();
+        if (!$user || !$user->is_active) {
+            return $query->whereRaw('1 = 0');
+        }
 
-        if (in_array($user->role?->name, ['super_admin', 'operation_admin', 'agent_supervisor'])) {
+        // Global National Administrators (super_admin, operation_admin with national scope_level)
+        $isGlobalAdmin = in_array($user->role?->name, ['super_admin', 'operation_admin'], true)
+            && ($user->role?->scope_level === 'national' || $user->role?->name === 'super_admin');
+
+        if ($isGlobalAdmin) {
             return $query;
         }
 
-        if ($user->role?->name === 'agent') {
-            return $query->where('agent_id', $user->id);
+        // Call Center Supervisor (national read oversight of helpline calls)
+        if ($user->role?->name === 'agent_supervisor') {
+            return $query;
         }
 
+        // Call Center Agent: Strictly restricted to their own assigned calls
+        if ($user->role?->name === 'agent') {
+            return $query->where('calls.agent_id', $user->id);
+        }
+
+        // Operational Scoped Users (zone_admin, sector_admin, beat_operator, etc.)
         $scopes = $user->activeScopes;
         
         if ($scopes && $scopes->isNotEmpty()) {
-            return $query->where(function ($q) use ($scopes) {
-                foreach ($scopes as $scope) {
-                    if (!$scope->office_id) {
-                        $q->orWhere(fn($nested) => $nested->whereRaw('1 = 1'));
-                        return; 
-                    }
-                    
-                    $officeIds = $scope->office->getDescendantIds(true);
-                    $q->orWhereIn('office_id', $officeIds);
+            $accessibleOfficeIds = [];
+            foreach ($scopes as $scope) {
+                // Missing or null office_id must FAIL CLOSED (never add 1=1 or open access)
+                if (empty($scope->office_id) || (int) $scope->office_id <= 0) {
+                    continue;
                 }
-            });
+                
+                $officeIds = $this->getOfficeDescendantIds((int) $scope->office_id);
+                if (!empty($officeIds)) {
+                    $accessibleOfficeIds = array_merge($accessibleOfficeIds, $officeIds);
+                }
+            }
+
+            $accessibleOfficeIds = array_values(array_unique(array_filter($accessibleOfficeIds)));
+
+            if (!empty($accessibleOfficeIds)) {
+                return $query->whereIn('calls.office_id', $accessibleOfficeIds);
+            }
         }
 
-        return $query->where(fn($nested) => $nested->whereRaw('1 = 0'));
+        // Fail closed for any user with missing or invalid scopes
+        return $query->whereRaw('1 = 0');
     }
 
+    /**
+     * In-memory breadth-first office hierarchy resolution via Office model.
+     */
+    private function getOfficeDescendantIds(int $officeId): array
+    {
+        return Office::getDescendantIdsFor($officeId, true);
+    }
 
-    private function applyFiltersAndSearch($query, Request $request)
+    /**
+     * Apply search, temporal, organizational, agent, and category filters.
+     * Note: Does NOT apply status or assignment directory filters so that index stats compute accurately across tabs.
+     *
+     * @param Builder|\Illuminate\Database\Query\Builder|Call|mixed $query
+     * @param Request $request
+     * @return Builder|\Illuminate\Database\Query\Builder|mixed
+     */
+    /**
+     * Apply context-level filters (search, date range, agents, office hierarchy)
+     * which define the active operational scope.
+     *
+     * @param Builder|\Illuminate\Database\Query\Builder|Call|mixed $query
+     * @param Request $request
+     * @return Builder|\Illuminate\Database\Query\Builder|mixed
+     */
+    private function applyContextFilters($query, Request $request)
     {
         if ($request->search) {
             $s = trim($request->search);
-            // Pre-fetch matching IDs from small auxiliary tables in-memory
-            // to eliminate 4 correlated subqueries on the 718,000+ rows calls table
-            $vehicleTypeIds = \App\Models\VehicleType::where('name', 'like', "%$s%")->pluck('id');
-            $callTypeIds = \App\Models\CallType::where('name', 'like', "%$s%")->pluck('id');
-            $callSubTypeIds = \App\Models\CallSubType::where('name', 'like', "%$s%")->pluck('id');
-            $officeIds = \App\Models\Office::where('name', 'like', "%$s%")->pluck('id');
 
-            $query->where(function($q) use ($s, $vehicleTypeIds, $callTypeIds, $callSubTypeIds, $officeIds) {
-                $q->where('call_number', 'like', "%$s%")
-                  ->orWhere('caller_number', 'like', "%$s%")
-                  ->orWhere('caller_name', 'like', "%$s%")
-                  ->orWhere('vehicle_no', 'like', "%$s%");
+            // Fast path for indexed lookups: Call Number ("CRM-...") or Phone Number
+            if (str_starts_with(strtolower($s), 'crm-') || str_starts_with(strtolower($s), 'crm_')) {
+                $query->where('calls.call_number', $s);
+            } elseif (preg_match('/^(\+?92|0)?(3[0-9]{2,})$/', $s, $m)) {
+                $phonePrefix = '0' . $m[2];
+                $bidx = (strlen($phonePrefix) >= 10 && function_exists('phone_blind_index')) ? phone_blind_index($phonePrefix) : null;
+                $query->where(function ($q) use ($phonePrefix, $bidx) {
+                    if ($bidx) {
+                        $q->where('calls.caller_number_bidx', $bidx)
+                          ->orWhere('calls.caller_number', 'like', "{$phonePrefix}%");
+                    } else {
+                        $q->where('calls.caller_number', 'like', "{$phonePrefix}%");
+                    }
+                });
+            } else {
+                // Pre-fetch matching IDs from small auxiliary tables in-memory
+                // to eliminate correlated subqueries on the large calls table
+                $vehicleTypeIds = VehicleType::where('name', 'like', "%$s%")->pluck('id');
+                $callTypeIds = CallType::where('name', 'like', "%$s%")->pluck('id');
+                $callSubTypeIds = CallSubType::where('name', 'like', "%$s%")->pluck('id');
+                $officeIds = Office::where('name', 'like', "%$s%")->pluck('id');
+                $generalBidx = (function_exists('phone_blind_index') && strlen($s) >= 7) ? phone_blind_index($s) : null;
 
-                if ($vehicleTypeIds->isNotEmpty()) {
-                    $q->orWhereIn('vehicle_type_id', $vehicleTypeIds);
-                }
-                if ($callTypeIds->isNotEmpty()) {
-                    $q->orWhereIn('call_type_id', $callTypeIds);
-                }
-                if ($callSubTypeIds->isNotEmpty()) {
-                    $q->orWhereIn('call_sub_type_id', $callSubTypeIds);
-                }
-                if ($officeIds->isNotEmpty()) {
-                    $q->orWhereIn('office_id', $officeIds);
-                }
-            });
+                $query->where(function($q) use ($s, $generalBidx, $vehicleTypeIds, $callTypeIds, $callSubTypeIds, $officeIds) {
+                    $q->where('calls.call_number', 'like', "%$s%")
+                      ->orWhere('calls.caller_number', 'like', "%$s%")
+                      ->orWhere('calls.caller_name', 'like', "%$s%")
+                      ->orWhere('calls.vehicle_no', 'like', "%$s%");
+
+                    if ($generalBidx) {
+                        $q->orWhere('calls.caller_number_bidx', $generalBidx);
+                    }
+
+                    if ($vehicleTypeIds->isNotEmpty()) {
+                        $q->orWhereIn('calls.vehicle_type_id', $vehicleTypeIds);
+                    }
+                    if ($callTypeIds->isNotEmpty()) {
+                        $q->orWhereIn('calls.call_type_id', $callTypeIds);
+                    }
+                    if ($callSubTypeIds->isNotEmpty()) {
+                        $q->orWhereIn('calls.call_sub_type_id', $callSubTypeIds);
+                    }
+                    if ($officeIds->isNotEmpty()) {
+                        $q->orWhereIn('calls.office_id', $officeIds);
+                    }
+                });
+            }
+        }
+
+        // Agent and My Records Filtering
+        if ($request->boolean('my_records') || $request->input('scope') === 'my_records' || $request->input('view') === 'my_records') {
+            $user = Auth::user();
+            if ($user) {
+                $query->where('calls.agent_id', $user->id);
+            }
+        } elseif ($request->agent_id) {
+            $query->where('calls.agent_id', $request->agent_id);
         }
 
         if ($request->date_from) {
@@ -90,11 +181,11 @@ class CallController extends Controller
                 $dateTime = $request->date_from;
                 if ($request->time_from) {
                     $dateTime .= ' ' . $request->time_from;
-                    $query->where('created_at', '>=', Carbon::parse($dateTime));
+                    $query->where('calls.created_at', '>=', Carbon::parse($dateTime));
                 } else {
-                    $query->where('created_at', '>=', Carbon::parse($dateTime)->startOfDay());
+                    $query->where('calls.created_at', '>=', Carbon::parse($dateTime)->startOfDay());
                 }
-            } catch (\Exception $e) {}
+            } catch (Exception $e) {}
         }
 
         if ($request->date_to) {
@@ -102,142 +193,287 @@ class CallController extends Controller
                 $dateTime = $request->date_to;
                 if ($request->time_to) {
                     $dateTime .= ' ' . $request->time_to;
-                    $query->where('created_at', '<=', Carbon::parse($dateTime));
+                    $query->where('calls.created_at', '<=', Carbon::parse($dateTime));
                 } else {
-                    $query->where('created_at', '<=', Carbon::parse($dateTime)->endOfDay());
+                    $query->where('calls.created_at', '<=', Carbon::parse($dateTime)->endOfDay());
                 }
-            } catch (\Exception $e) {}
+            } catch (Exception $e) {}
         }
 
         if ($request->office_id) {
-            $query->where('office_id', $request->office_id);
+            $query->where('calls.office_id', $request->office_id);
         } elseif ($request->beat_id) {
-            $query->where('office_id', $request->beat_id);
+            $query->where('calls.office_id', $request->beat_id);
         } elseif ($request->sector_id) {
-            $office = Office::find($request->sector_id);
-            if ($office) $query->whereIn('office_id', $office->getDescendantIds());
+            $descendantIds = $this->getOfficeDescendantIds((int) $request->sector_id);
+            if (!empty($descendantIds)) {
+                $query->whereIn('calls.office_id', $descendantIds);
+            }
         } elseif ($request->zone_id) {
-            $office = Office::find($request->zone_id);
-            if ($office) $query->whereIn('office_id', $office->getDescendantIds());
+            $descendantIds = $this->getOfficeDescendantIds((int) $request->zone_id);
+            if (!empty($descendantIds)) {
+                $query->whereIn('calls.office_id', $descendantIds);
+            }
         }
-
-        if ($request->call_type_id) { $query->where('call_type_id', $request->call_type_id); }
-        if ($request->call_sub_type_id) { $query->where('call_sub_type_id', $request->call_sub_type_id); }
-        if ($request->agent_id) { $query->where('agent_id', $request->agent_id); }
 
         return $query;
     }
 
-    private function getAjaxResponse($calls, $stats)
+    /**
+     * Apply category and subcategory filters.
+     *
+     * @param Builder|\Illuminate\Database\Query\Builder|Call|mixed $query
+     * @param Request $request
+     * @return Builder|\Illuminate\Database\Query\Builder|mixed
+     */
+    private function applyCategoryFilters($query, Request $request)
+    {
+        // Category Filter: Supports numeric ID or slug (e.g. 'emergency', 'information')
+        $catFilter = $request->input('call_type_id', $request->input('category', $request->input('type')));
+        if ($catFilter) {
+            if (is_numeric($catFilter)) {
+                $query->where('calls.call_type_id', (int) $catFilter);
+            } else {
+                $slugMap = [
+                    'emergency'    => 'Emergency',
+                    'general_help' => 'General Help',
+                    'information'  => 'Information',
+                    'complaint'    => 'Complaint',
+                    'crime'        => 'Crime',
+                    'junk_silent'  => 'Junk/Silent',
+                    'junk'         => 'Junk/Silent',
+                ];
+                $typeName = $slugMap[strtolower($catFilter)] ?? null;
+                if ($typeName) {
+                    $matchedId = CallType::where('name', $typeName)->value('id');
+                    if ($matchedId) {
+                        $query->where('calls.call_type_id', $matchedId);
+                    }
+                }
+            }
+        }
+
+        if ($request->call_sub_type_id) {
+            $query->where('calls.call_sub_type_id', $request->call_sub_type_id);
+        }
+
+        return $query;
+    }
+
+    /**
+     * Legacy composite filter method for full backward compatibility.
+     *
+     * @param Builder|\Illuminate\Database\Query\Builder|Call|mixed $query
+     * @param Request $request
+     * @return Builder|\Illuminate\Database\Query\Builder|mixed
+     */
+    private function applyFiltersAndSearch($query, Request $request)
+    {
+        $query = $this->applyContextFilters($query, $request);
+        return $this->applyCategoryFilters($query, $request);
+    }
+
+    /**
+     * Apply directory tab (assigned vs unassigned) and status filters.
+     *
+     * @param Builder|\Illuminate\Database\Query\Builder|Call|mixed $query
+     * @param Request $request
+     * @return Builder|\Illuminate\Database\Query\Builder|mixed
+     */
+    private function applyDirectoryAndStatus($query, Request $request)
+    {
+        // 1. Assignment Directory Filter: 'assigned' vs 'unassigned'
+        $assignment = $request->input('assignment');
+        if (!$assignment && in_array($request->status, ['assigned', 'unassigned'], true)) {
+            $assignment = $request->status;
+        }
+
+        if ($assignment === 'assigned') {
+            $query->whereNotNull('calls.office_id')
+                  ->where('calls.office_id', '>', 0);
+        } elseif ($assignment === 'unassigned') {
+            $query->whereNull('calls.office_id');
+        }
+
+        // 2. Gender / Women Safety Filter
+        $gender = $request->input('gender', $request->input('caller_gender'));
+        if ($gender) {
+            if ($gender === 'female' || $gender === 'women') {
+                $query->where(function ($q) {
+                    $q->where('calls.caller_gender', 'female')
+                      ->orWhere('calls.call_type_id', 10);
+                });
+            } else {
+                $query->where('calls.caller_gender', $gender);
+            }
+        }
+
+        // 3. Status Filter (excluding assignment pseudo-statuses)
+        if ($request->status && !in_array($request->status, ['all', 'assigned', 'unassigned'], true)) {
+            $query->where('calls.status', $request->status);
+        }
+
+        return $query;
+    }
+
+    /**
+     * @param LengthAwarePaginator $calls
+     * @param array $stats
+     * @return JsonResponse
+     */
+    private function getAjaxResponse(LengthAwarePaginator $calls, array $stats): JsonResponse
     {
         return response()->json([
-            'items' => $calls->items(),
+            'items' => CallListResource::collection($calls->items())->resolve(),
             'stats' => $stats,
             'current_page' => $calls->currentPage(),
             'last_page' => $calls->lastPage(),
+            'per_page' => $calls->perPage(),
             'total' => $calls->total(),
         ]);
     }
 
+    /**
+     * Authorized, on-demand filter metadata endpoint.
+     * Replaces 26KB+ inlined HTML payload with an asynchronous, role/scope-isolated cacheable response.
+     */
+    public function getFilterOptions(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', Call::class);
+
+        /** @var User|null $user */
+        $user = Auth::user();
+        if (!$user || !$user->is_active) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $isPrivileged = in_array($user->role?->name, ['super_admin', 'operation_admin', 'agent_supervisor'], true);
+        $scopeKey = $isPrivileged ? 'privileged' : 'scope_' . $user->id;
+
+        $data = Cache::remember("crm:calls:filter_options:{$scopeKey}:v2", 3600, function () use ($user, $isPrivileged): mixed {
+            $zonesQuery = Office::zones()->where('is_active', true)->select('id', 'name')->orderBy('name');
+            $sectorsQuery = Office::sectors()->where('is_active', true)->select('id', 'name', 'parent_id')->orderBy('name');
+            $beatsQuery = Office::beats()->where('is_active', true)->select('id', 'name', 'parent_id')->orderBy('name');
+
+            if (!$isPrivileged && $user->activeScopes && $user->activeScopes->isNotEmpty()) {
+                $allowedOfficeIds = collect();
+                foreach ($user->activeScopes as $scope) {
+                    if ($scope->office) {
+                        $allowedOfficeIds = $allowedOfficeIds->merge($scope->office->getDescendantIds(true));
+                    }
+                }
+                if ($allowedOfficeIds->isNotEmpty()) {
+                    $beatsQuery->whereIn('id', $allowedOfficeIds);
+                }
+            }
+
+            return [
+                'zones'        => $zonesQuery->get(),
+                'sectors'      => $sectorsQuery->get(),
+                'beats'        => $beatsQuery->get(),
+                'callTypes'    => CallType::where('is_active', true)->select('id', 'name')->orderBy('name')->get(),
+                'callSubTypes' => CallSubType::where('is_active', true)->select('id', 'name', 'call_type_id')->orderBy('name')->get(),
+                'agents'       => $isPrivileged
+                    ? User::whereHas('role', fn($q) => $q->where('name', 'agent'))
+                          ->select('id', 'full_name', 'username')
+                          ->orderBy('username')
+                          ->get()
+                          ->map(fn($u) => ['id' => $u->id, 'username' => $u->username, 'name' => $u->full_name ?? $u->username])
+                    : [],
+            ];
+        });
+
+        return response()->json($data);
+    }
+
     private function getFilterData()
     {
-        /** @var \App\Models\User $user */
-        $user = auth()->user();
-        $isPrivileged = in_array($user->role?->name, ['super_admin', 'operation_admin', 'agent_supervisor']);
-
         return [
-            'zones' => Office::zones()->where('is_active', true)->select('id', 'name')->orderBy('name')->get(),
-            'sectors' => Office::sectors()->where('is_active', true)->select('id', 'name', 'parent_id')->orderBy('name')->get(),
-            'beats' => Office::beats()->where('is_active', true)->select('id', 'name', 'parent_id')->orderBy('name')->get(),
-            'callTypes' => \App\Models\CallType::where('is_active', true)->select('id', 'name')->orderBy('name')->get(),
-            'callSubTypes' => \App\Models\CallSubType::where('is_active', true)->select('id', 'name', 'call_type_id')->orderBy('name')->get(),
-            'agents' => $isPrivileged
-                ? \App\Models\User::whereHas('role', function($q) {
-                    $q->where('name', 'agent');
-                })->select('id', 'username')->orderBy('username')->get()
-                : collect([]),
+            'zones'        => [],
+            'sectors'      => [],
+            'beats'        => [],
+            'callTypes'    => [],
+            'callSubTypes' => [],
+            'agents'       => [],
         ];
     }
 
-    public function index(Request $request)
+    /**
+     * Compute optimized index statistics (status & categories) in 2 queries.
+     *
+     * @param Builder $query
+     * @param Request $request
+     * @return array
+     */
+    /**
+     * Compute optimized index statistics (status & categories) across the active context.
+     * Category, Status, and Assignment directory filters are intentionally NOT applied to these
+     * top overview metrics to ensure cards remain stable, correct, and non-clobbering.
+     *
+     * @param Builder $contextQuery
+     * @param Request $request
+     * @return array
+     */
+    private function computeIndexStats($contextQuery, Request $request): array
     {
-        $this->authorize('viewAny', Call::class);
-        $query = Call::with(['callType', 'callSubType', 'office.parent.parent', 'agent', 'carriageway', 'vehicleType']);
-        $query = $this->applyScopeVisibility($query);
-        $query = $this->applyFiltersAndSearch($query, $request);
+        /** @var User|null $user */
+        $user = Auth::user();
 
-        // High-Performance Optimization: Calculate all status counts in 1 conditional aggregation
-        // and all category counts in 1 group-by aggregation (reduces 25 queries to 2).
-        $user = auth()->user();
-        $isPrivileged = in_array($user->role?->name, ['super_admin', 'operation_admin', 'agent_supervisor']);
-        $hasFilters = $request->filled('search') || $request->filled('date_from') || $request->filled('date_to')
-            || $request->filled('office_id') || $request->filled('beat_id') || $request->filled('sector_id')
-            || $request->filled('zone_id') || $request->filled('call_type_id') || $request->filled('call_sub_type_id')
-            || $request->filled('agent_id');
+        // Dynamic cache per unique filter scope with atomic version invalidation
+        $statsVersion = Cache::get('crm:calls:stats_version', 1);
+        $cacheKey = 'crm:calls:stats_v12:' . $statsVersion . ':' . ($user?->id ?? 'anon') . ':' . md5(serialize($request->only([
+            'search', 'date_from', 'date_to', 'time_from', 'time_to',
+            'office_id', 'beat_id', 'sector_id', 'zone_id',
+            'agent_id', 'my_records', 'scope', 'view',
+            'call_type_id', 'category', 'type'
+        ])));
 
-        if ($isPrivileged && !$hasFilters) {
-            $stats = Cache::remember('calls_index_global_stats', 60, function () {
-                $statsRow = DB::table('calls')->selectRaw("
-                    COUNT(*) as total,
-                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-                    SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
-                    SUM(CASE WHEN status = 'tiger_reached' THEN 1 ELSE 0 END) as tiger_reached,
-                    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
-                ")->first();
+        return Cache::remember($cacheKey, 60, function () use ($contextQuery, $request): mixed {
+            // Base context query (respects zone, sector, beat, search, dates, agent)
+            $baseContext = (clone $contextQuery);
 
-                $totalCount = (int) ($statsRow->total ?? 0);
-                $statusStats = [
-                    'total'         => $totalCount,
-                    'pending'       => (int) ($statsRow->pending ?? 0),
-                    'in_progress'   => (int) ($statsRow->in_progress ?? 0),
-                    'tiger_reached' => (int) ($statsRow->tiger_reached ?? 0),
-                    'completed'     => (int) ($statsRow->completed ?? 0),
-                ];
+            // 1. Status Stats: If a category is selected, calculate status metrics for that category subset.
+            // If no category is selected, calculate across the entire active operational scope.
+            $statusBase = (clone $baseContext);
+            if ($request->filled('call_type_id') || $request->filled('category') || $request->filled('type')) {
+                $statusBase = $this->applyCategoryFilters($statusBase, $request);
+            }
 
-                $activeTotal = $statusStats['pending'] + $statusStats['in_progress'] + $statusStats['tiger_reached'];
-                $statusStats['pending_percent']       = $activeTotal > 0 ? round(($statusStats['pending'] / $activeTotal) * 100, 1) : 0;
-                $statusStats['in_progress_percent']   = $activeTotal > 0 ? round(($statusStats['in_progress'] / $activeTotal) * 100, 1) : 0;
-                $statusStats['tiger_reached_percent'] = $activeTotal > 0 ? round(($statusStats['tiger_reached'] / $activeTotal) * 100, 1) : 0;
-                $statusStats['completed_percent']     = $totalCount > 0 ? round(($statusStats['completed'] / $totalCount) * 100, 1) : 0;
-                $statusStats['total_percent']         = 100;
+            $statsQuery = (clone $statusBase)->getQuery();
+            $statsQuery->columns = null;
+            $statsQuery->orders = null;
 
-                $typeCounts = DB::table('calls')
-                    ->select('call_type_id', DB::raw('COUNT(*) as count'))
-                    ->groupBy('call_type_id')
-                    ->pluck('count', 'call_type_id')
-                    ->all();
-
-                $callTypes = CallType::where('is_active', true)->get();
-                $categoryStats = [];
-                foreach ($callTypes as $type) {
-                    $c = (int) ($typeCounts[$type->id] ?? 0);
-                    $categoryStats[] = [
-                        'id' => $type->id,
-                        'name' => $type->name,
-                        'count' => $c,
-                        'percent' => $totalCount > 0 ? round(($c / $totalCount) * 100, 1) : 0,
-                        'icon' => $type->icon ?? 'fa-tag'
-                    ];
-                }
-
-                return array_merge($statusStats, ['categories' => $categoryStats]);
-            });
-        } else {
-            $statsRow = (clone $query)->selectRaw("
+            $statsRow = $statsQuery->selectRaw("
                 COUNT(*) as total,
-                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-                SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
-                SUM(CASE WHEN status = 'tiger_reached' THEN 1 ELSE 0 END) as tiger_reached,
-                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
+                SUM(CASE WHEN calls.office_id IS NOT NULL THEN 1 ELSE 0 END) as assigned,
+                SUM(CASE WHEN calls.office_id IS NULL THEN 1 ELSE 0 END) as unassigned,
+                SUM(CASE WHEN calls.caller_gender = 'female' OR calls.call_type_id = 10 THEN 1 ELSE 0 END) as women_calls,
+                SUM(CASE WHEN (calls.caller_gender = 'female' OR calls.call_type_id = 10) AND calls.status = 'pending' THEN 1 ELSE 0 END) as pending_women,
+                SUM(CASE WHEN calls.status = 'pending' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN calls.status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
+                SUM(CASE WHEN calls.status = 'tiger_reached' THEN 1 ELSE 0 END) as tiger_reached,
+                SUM(CASE WHEN calls.status = 'completed' THEN 1 ELSE 0 END) as completed
             ")->first();
 
-            $totalCount = (int) ($statsRow->total ?? 0);
+            $totalCount      = (int) ($statsRow->total ?? 0);
+            $assignedCount   = (int) ($statsRow->assigned ?? 0);
+            $unassignedCount = (int) ($statsRow->unassigned ?? 0);
+            $womenCalls      = (int) ($statsRow->women_calls ?? 0);
+            $pendingWomen    = (int) ($statsRow->pending_women ?? 0);
+
             $statusStats = [
-                'total'         => $totalCount,
-                'pending'       => (int) ($statsRow->pending ?? 0),
-                'in_progress'   => (int) ($statsRow->in_progress ?? 0),
-                'tiger_reached' => (int) ($statsRow->tiger_reached ?? 0),
-                'completed'     => (int) ($statsRow->completed ?? 0),
+                'total'               => $totalCount,
+                'assigned'            => $assignedCount,
+                'unassigned'          => $unassignedCount,
+                'assigned_percent'    => $totalCount > 0 ? round(($assignedCount / $totalCount) * 100, 1) : 0,
+                'unassigned_percent'  => $totalCount > 0 ? round(($unassignedCount / $totalCount) * 100, 1) : 0,
+                'women_calls'         => $womenCalls,
+                'women_calls_percent' => $totalCount > 0 ? round(($womenCalls / $totalCount) * 100, 1) : 0,
+                'pending_women'       => $pendingWomen,
+                'pending'             => (int) ($statsRow->pending ?? 0),
+                'in_progress'         => (int) ($statsRow->in_progress ?? 0),
+                'tiger_reached'       => (int) ($statsRow->tiger_reached ?? 0),
+                'completed'           => (int) ($statsRow->completed ?? 0),
             ];
 
             $activeTotal = $statusStats['pending'] + $statusStats['in_progress'] + $statusStats['tiger_reached'];
@@ -247,49 +483,124 @@ class CallController extends Controller
             $statusStats['completed_percent']     = $totalCount > 0 ? round(($statusStats['completed'] / $totalCount) * 100, 1) : 0;
             $statusStats['total_percent']         = 100;
 
-            // Single GROUP BY query for all categories
-            $typeCounts = (clone $query)
-                ->select('call_type_id', DB::raw('COUNT(*) as count'))
-                ->groupBy('call_type_id')
-                ->pluck('count', 'call_type_id')
+            // 2. Category Cards: Always retain their overall context counts across all categories
+            // so selecting a category doesn't wipe out the category card counters.
+            $typeQuery = (clone $baseContext)->getQuery();
+            $typeQuery->columns = null;
+            $typeQuery->orders = null;
+            $typeCounts = $typeQuery
+                ->select('calls.call_type_id', DB::raw('COUNT(*) as count'))
+                ->groupBy('calls.call_type_id')
+                ->pluck('count', 'calls.call_type_id')
                 ->all();
 
-            $callTypes = CallType::where('is_active', true)->get();
+            $globalTotal = array_sum($typeCounts);
+
+            $callTypes = CallType::where('is_active', true)->select('id', 'name', 'icon')->orderBy('id')->get();
             $categoryStats = [];
+
+            // Primary Categories (ID 1-6 strictly):
+            // Exclude ID 7 (Emergency Assistance) and ID 10 (Women's Safety Emergency)
+            // So that there are exactly 6 category cards aligned on a single row
             foreach ($callTypes as $type) {
+                if ($type->id == 7 || $type->id == 10) {
+                    continue;
+                }
                 $c = (int) ($typeCounts[$type->id] ?? 0);
                 $categoryStats[] = [
-                    'id' => $type->id,
-                    'name' => $type->name,
-                    'count' => $c,
-                    'percent' => $totalCount > 0 ? round(($c / $totalCount) * 100, 1) : 0,
-                    'icon' => $type->icon ?? 'fa-tag'
+                    'id'      => $type->id,
+                    'name'    => $type->name,
+                    'count'   => $c,
+                    'percent' => $globalTotal > 0 ? round(($c / $globalTotal) * 100, 1) : 0,
+                    'icon'    => $type->icon ?? 'fa-tag',
                 ];
             }
 
-            $stats = array_merge($statusStats, ['categories' => $categoryStats]);
+            return array_merge($statusStats, ['categories' => $categoryStats]);
+        });
+    }
+
+    public function index(Request $request)
+    {
+        $this->authorize('viewAny', Call::class);
+
+        $perPage = (int) $request->input('per_page', $request->input('perPage', 10));
+        if (!in_array($perPage, [10, 25, 50, 100], true)) {
+            $perPage = 10;
         }
 
-        if ($request->status && $request->status !== 'all') {
-            $query->where('status', $request->status);
-        }
-        
-        if ($request->call_type_id) {
-            $query->where('call_type_id', $request->call_type_id);
-        }
+        // Exact minimal columns selected from calls (zero unneeded database fields)
+        $listColumns = [
+            'id', 'uuid', 'call_number', 'caller_name', 'caller_number', 'caller_gender',
+            'status', 'priority', 'call_type_id', 'call_sub_type_id',
+            'agent_id', 'office_id', 'vehicle_no', 'vehicle_type_id',
+            'created_at', 'call_reminder_count',
+            'last_reminder_at', 'tiger_id',
+            DB::raw('SUBSTRING(details, 1, 120) as details')
+        ];
+
+        // Constrained eager loading: only essential primary keys and display fields
+        $baseQuery = Call::select($listColumns)
+            ->with([
+                'callType:id,name',
+                'callSubType:id,name',
+                'agent:id,full_name',
+            ]);
+
+        $baseQuery = $this->applyScopeVisibility($baseQuery);
+        $contextQuery = $this->applyContextFilters($baseQuery, $request);
+
+        // Pre-compute & cache office location hierarchy map in Redis/memory (zero DB queries per call row)
+        $locationMap = Cache::remember('office_location_hierarchy_map', 3600, function (): mixed {
+            $offices = Office::select('id', 'name', 'type', 'parent_id')->get()->keyBy('id');
+            $map = [];
+            foreach ($offices as $id => $office) {
+                $parts = [];
+                $curr = $office;
+                while ($curr) {
+                    array_unshift($parts, $curr->name);
+                    $curr = $curr->parent_id && isset($offices[$curr->parent_id]) ? $offices[$curr->parent_id] : null;
+                }
+                $map[$id] = implode(' / ', $parts);
+            }
+            return $map;
+        });
+        CallListResource::setLocationMap($locationMap);
+
+        $vehicleTypesMap = Cache::remember('crm:vehicle_types_map:v1', 86400, function (): mixed {
+            return VehicleType::pluck('name', 'id')->toArray();
+        });
+        CallListResource::setVehicleTypesMap($vehicleTypesMap);
+
+        // High-Performance Optimization: Calculate all status counts and category stats across the active scope
+        $stats = $this->computeIndexStats($contextQuery, $request);
+
+        // Apply active category filter and active directory tab (assigned/unassigned) and status filter to records
+        $query = (clone $contextQuery);
+        $query = $this->applyCategoryFilters($query, $request);
+        $query = $this->applyDirectoryAndStatus($query, $request);
 
         $filterData = $this->getFilterData();
 
-        $sort = $request->get('sort');
-        $dir = $request->get('direction', 'desc') === 'asc' ? 'asc' : 'desc';
-        $allowedSorts = ['call_number', 'created_at', 'priority', 'status', 'caller_name', 'caller_number', 'vehicle_no', 'call_type_id', 'office_id'];
+        $sort = $request->input('sort', 'created_at');
+        $dir = strtolower($request->input('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+        $allowedSorts = ['created_at', 'id', 'call_number', 'priority', 'status', 'caller_name', 'caller_number', 'vehicle_no', 'call_type_id', 'office_id'];
         
         if ($sort === 'beat_id') $sort = 'office_id';
-        
-        if ($sort && in_array($sort, $allowedSorts)) {
-            $calls = $query->orderBy($sort, $dir)->paginate($request->perPage ?? 25);
+        if (!in_array($sort, $allowedSorts, true)) {
+            $sort = 'created_at';
+        }
+
+        // Critical requirement: Any pending Women Safety emergency or call where gender is female
+        // MUST immediately populate at the very top of the table until initialized.
+        $pendingWomenSortRaw = "CASE WHEN (calls.caller_gender = 'female' OR calls.call_type_id = 10) AND calls.status = 'pending' THEN 0 ELSE 1 END ASC";
+
+        // Deterministic ordering: always apply secondary tiebreaker (calls.id)
+        // to prevent unstable pagination across pages with duplicate timestamps
+        if ($sort === 'created_at') {
+            $calls = $query->orderByRaw($pendingWomenSortRaw)->orderBy('calls.created_at', $dir)->orderBy('calls.id', $dir)->paginate($perPage);
         } else {
-            $calls = $query->orderBy('created_at', 'desc')->paginate($request->perPage ?? 25);
+            $calls = $query->orderByRaw($pendingWomenSortRaw)->orderBy('calls.' . $sort, $dir)->orderBy('calls.id', 'desc')->paginate($perPage);
         }
 
         if ($request->wantsJson()) {
@@ -297,6 +608,9 @@ class CallController extends Controller
         }
 
         $title = 'Help Management';
+        $assignment = $request->input('assignment', in_array($request->status, ['assigned', 'unassigned']) ? $request->status : null);
+        if ($assignment === 'assigned') $title = 'Assigned Operational Helps';
+        if ($assignment === 'unassigned') $title = 'Unassigned Helps Directory';
         if ($request->status === 'pending') $title = 'Pending Helps';
         if ($request->status === 'in_progress') $title = 'In-Process Helps';
         if ($request->status === 'tiger_reached') $title = 'Tiger Reached Helps';
@@ -305,35 +619,67 @@ class CallController extends Controller
         return view('calls.index', array_merge(compact('calls', 'stats'), $filterData))->with('title', $title);
     }
 
+    public function assigned(Request $request)
+    {
+        $request->merge(['assignment' => 'assigned']);
+        return $this->index($request);
+    }
+
+    public function unassigned(Request $request)
+    {
+        $request->merge(['assignment' => 'unassigned']);
+        return $this->index($request);
+    }
+
     public function pending(Request $request)
     {
-        return redirect()->route('calls.index', array_merge($request->all(), ['status' => 'pending']));
+        $request->merge(['status' => 'pending']);
+        return $this->index($request);
     }
 
     public function inprogress(Request $request)
     {
-        return redirect()->route('calls.index', array_merge($request->all(), ['status' => 'in_progress']));
+        $request->merge(['status' => 'in_progress']);
+        return $this->index($request);
     }
 
     public function tigerReached(Request $request)
     {
-        return redirect()->route('calls.index', array_merge($request->all(), ['status' => 'tiger_reached']));
+        $request->merge(['status' => 'tiger_reached']);
+        return $this->index($request);
     }
 
     public function completed(Request $request)
     {
-        return redirect()->route('calls.index', array_merge($request->all(), ['status' => 'completed']));
+        $request->merge(['status' => 'completed']);
+        return $this->index($request);
     }
+
     public function show(Call $call)
     {
         $this->authorize('view', $call);
 
-        // Security / Anti-Enumeration: If accessed via legacy integer ID, 301 redirect to canonical UUIDv7
-        if (request()->segment(2) === (string) $call->id && $call->uuid) {
-            return redirect()->route('calls.show', $call->uuid, 301);
+        // Canonical UUID Redirect: If accessed via legacy integer ID in a standard browser navigation, permanently redirect (301) to canonical UUID URL
+        $rawParam = request()->route()?->originalParameters()['call'] ?? request()->segment(2);
+        if (!request()->wantsJson() && !request()->ajax() && is_numeric($rawParam) && !empty($call->uuid)) {
+            return redirect()->to(route('calls.show', $call), 301);
         }
 
-        $call->load(['callType', 'callSubType', 'office.parent.parent', 'agent', 'carriageway', 'vehicleType']);
+        $call->load([
+            'callType:id,name,category,icon',
+            'callSubType:id,name,icon,priority',
+            'office.parent.parent',
+            'agent:id,full_name,username,designation_id',
+            'agent.designation:id,name',
+            'carriageway:id,road,road_name,road_short',
+            'vehicleType:id,name,color_hex',
+            'statusHistory' => fn($q) => $q->with(['changedBy:id,full_name,username', 'changedBy.role:id,name,display_name', 'user:id,full_name,username'])->latest(),
+        ]);
+
+        if (request()->wantsJson()) {
+            return (new CallShowResource($call))->response();
+        }
+
         return view('calls.show', compact('call'));
     }
 
@@ -447,6 +793,108 @@ class CallController extends Controller
     {
         $this->authorize('create', Call::class);
 
+        $idempotencyKey = $request->header('Idempotency-Key') ?? $request->input('idempotency_key');
+        $payloadHash = null;
+        $idempotencyLock = null;
+
+        if ($idempotencyKey) {
+            // Compute canonical payload hash across key operational inputs
+            $payloadHash = md5(json_encode([
+                'caller_number' => preg_replace('/[^0-9]/', '', (string)$request->input('caller_number')),
+                'caller_name' => (string)$request->input('caller_name'),
+                'caller_gender' => (string)$request->input('caller_gender'),
+                'call_type_id' => (string)$request->input('call_type_id'),
+                'call_sub_type_id' => (string)$request->input('call_sub_type_id'),
+                'details' => (string)$request->input('details'),
+                'beat_id' => (string)($request->input('beat_id') ?? $request->input('office_id')),
+                'vehicle_no' => (string)$request->input('vehicle_no'),
+            ]));
+
+            // Fast path: Check existing cache before lock acquisition
+            $cachedRecord = Cache::get("call:idempotency:{$idempotencyKey}");
+            if ($cachedRecord) {
+                $cachedCallId = is_array($cachedRecord) ? ($cachedRecord['call_id'] ?? null) : $cachedRecord;
+                $cachedHash = is_array($cachedRecord) ? ($cachedRecord['hash'] ?? null) : null;
+
+                // Reusing same key with different payload: reject safely
+                if ($cachedHash && $cachedHash !== $payloadHash) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Idempotency key reused with mismatched request payload.',
+                        'error_code' => 'IDEMPOTENCY_PAYLOAD_MISMATCH'
+                    ], 409);
+                }
+
+                if ($cachedCallId && ($existingCall = Call::find($cachedCallId))) {
+                    if ($request->ajax() || $request->wantsJson()) {
+                        return response()->json([
+                            'success' => true,
+                            'message' => 'Operational record synchronized (idempotent duplicate): ' . $existingCall->call_number,
+                            'call' => $existingCall,
+                            'idempotent_duplicate' => true
+                        ]);
+                    }
+                    return redirect()
+                        ->route('calls.create')
+                        ->with('success', 'Operational record synchronized: ' . $existingCall->call_number);
+                }
+            }
+
+            // Acquire atomic Redis lock to serialize concurrent duplicate submissions
+            try {
+                $idempotencyLock = Cache::lock("call:idempotency:lock:{$idempotencyKey}", 10);
+                $idempotencyLock->block(5);
+            } catch (\Illuminate\Contracts\Cache\LockTimeoutException $e) {
+                // If lock times out, recheck if concurrent worker finished creation
+                $cachedRecord = Cache::get("call:idempotency:{$idempotencyKey}");
+                $cachedCallId = is_array($cachedRecord) ? ($cachedRecord['call_id'] ?? null) : $cachedRecord;
+                if ($cachedCallId && ($existingCall = Call::find($cachedCallId))) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Operational record synchronized (idempotent duplicate): ' . $existingCall->call_number,
+                        'call' => $existingCall,
+                        'idempotent_duplicate' => true
+                    ]);
+                }
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Concurrent request in progress for this idempotency key. Please retry.',
+                    'error_code' => 'CONCURRENT_IDEMPOTENCY_CONFLICT'
+                ], 429);
+            }
+
+            // Inside lock, re-check cache to prevent race condition
+            $cachedRecord = Cache::get("call:idempotency:{$idempotencyKey}");
+            if ($cachedRecord) {
+                $cachedCallId = is_array($cachedRecord) ? ($cachedRecord['call_id'] ?? null) : $cachedRecord;
+                $cachedHash = is_array($cachedRecord) ? ($cachedRecord['hash'] ?? null) : null;
+                $idempotencyLock->release();
+                $idempotencyLock = null;
+
+                if ($cachedHash && $cachedHash !== $payloadHash) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Idempotency key reused with mismatched request payload.',
+                        'error_code' => 'IDEMPOTENCY_PAYLOAD_MISMATCH'
+                    ], 409);
+                }
+
+                if ($cachedCallId && ($existingCall = Call::find($cachedCallId))) {
+                    if ($request->ajax() || $request->wantsJson()) {
+                        return response()->json([
+                            'success' => true,
+                            'message' => 'Operational record synchronized (idempotent duplicate): ' . $existingCall->call_number,
+                            'call' => $existingCall,
+                            'idempotent_duplicate' => true
+                        ]);
+                    }
+                    return redirect()
+                        ->route('calls.create')
+                        ->with('success', 'Operational record synchronized: ' . $existingCall->call_number);
+                }
+            }
+        }
+
         // Decode base64-encoded free-text fields (WAF bypass encoding applied in JS)
         foreach (['details', 'location_details'] as $field) {
             $val = $request->input($field);
@@ -461,7 +909,7 @@ class CallController extends Controller
             }
         }
 
-        $callType = \App\Models\CallType::find($request->call_type_id);
+        $callType = CallType::find($request->call_type_id);
         $isExempt = $callType && in_array($callType->category, ['junk_silent', 'information']);
 
         $validated = $request->validate([
@@ -476,6 +924,7 @@ class CallController extends Controller
                 },
             ],
             'caller_name' => 'nullable|string|max:150',
+            'caller_gender' => 'nullable|string|in:male,female,other',
             'call_type_id' => 'required|exists:call_types,id',
             'call_sub_type_id' => 'required|exists:call_sub_types,id',
             'details' => 'nullable|string',
@@ -506,7 +955,24 @@ class CallController extends Controller
                 $data['priority'] = $priorities[strtolower($data['priority'])] ?? 3;
             }
 
-            $call = $this->callService->createCall($data, auth()->user());
+            /** @var User $currentUser */
+            $currentUser = Auth::user();
+            $call = $this->callService->createCall($data, $currentUser);
+
+            // Invalidate overview statistics cache across all nodes atomically
+            try {
+                Cache::increment('crm:calls:stats_version');
+            } catch (Throwable $e) {
+                Cache::put('crm:calls:stats_version', 2, 86400);
+            }
+
+            if ($idempotencyKey && isset($call->id)) {
+                Cache::put("call:idempotency:{$idempotencyKey}", [
+                    'call_id' => $call->id,
+                    'hash' => $payloadHash,
+                    'created_at' => now()->toIso8601String(),
+                ], 300);
+            }
             
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json([
@@ -537,14 +1003,31 @@ class CallController extends Controller
                 ->back()
                 ->withInput()
                 ->with('error', 'Failed to sync record: ' . $e->getMessage());
+        } finally {
+            if ($idempotencyLock) {
+                try {
+                    $idempotencyLock->release();
+                } catch (Throwable $t) {
+                    // Lock release safety
+                }
+            }
         }
     }
 
     public function updateStatus(Request $request, Call $call)
     {
-        $this->authorize('calls.manage_status');
+        $this->authorize('manageStatus', $call);
         try {
-            $this->callService->updateStatus($call, $request->status, auth()->user(), $request->all());
+            /** @var User $currentUser */
+            $currentUser = Auth::user();
+            $this->callService->updateStatus($call, $request->status, $currentUser, $request->all());
+
+            // Invalidate overview statistics cache across all nodes atomically
+            try {
+                Cache::increment('crm:calls:stats_version');
+            } catch (Throwable $e) {
+                Cache::put('crm:calls:stats_version', 2, 86400);
+            }
             
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json([
@@ -571,15 +1054,32 @@ class CallController extends Controller
     public function searchCallerHistory(Request $request)
     {
         $this->authorize('calls.api_lookup');
-        $num = $request->get('number', $request->get('caller_number'));
+        $this->authorize('viewAny', Call::class);
+
+        $num = $request->input('number', $request->input('caller_number'));
         if (!$num || strlen($num) < 7) return response()->json(['calls' => []]);
 
-        $calls = Call::with(['office.parent.parent', 'agent'])->where('caller_number', $num)
-            ->orderBy('created_at', 'desc')
+        $bidx = phone_blind_index($num);
+
+        $query = Call::with(['office.parent.parent', 'agent'])
+            ->where(function ($q) use ($num, $bidx) {
+                if ($bidx) {
+                    $q->where('caller_number_bidx', $bidx)
+                      ->orWhere('caller_number', $num);
+                } else {
+                    $q->where('caller_number', $num);
+                }
+            });
+
+        // Scope query to user organizational boundary to prevent data leakage
+        $query = $this->applyScopeVisibility($query);
+
+        $calls = $query->orderBy('created_at', 'desc')
             ->limit(5)
             ->get();
 
-        $user = auth()->user();
+        /** @var User|null $user */
+        $user = Auth::user();
         $showAgent = !in_array($user->role?->name, ['zone_admin', 'sector_admin', 'beat_operator']);
 
         $formattedCalls = $calls->map(function ($c) use ($showAgent) {
@@ -589,9 +1089,10 @@ class CallController extends Controller
 
             return [
                 'id' => $c->id,
-                'uuid' => $c->uuid,
+                'uuid' => $c->uuid ?? null,
                 'call_number' => $c->call_number,
                 'caller_name' => $c->caller_name,
+                'caller_gender' => $c->caller_gender ?? ($c->call_type_id == 10 ? 'female' : null),
                 'caller_number' => $c->caller_number,
                 'status' => $c->status,
                 'created_at' => $c->created_at ? $c->created_at->format('Y-m-d H:i:s') : '',
@@ -623,21 +1124,32 @@ class CallController extends Controller
     {
         $this->authorize('calls.api_lookup');
         if (!$call) {
-            $id = $request->input('ref');
-            $call = Call::findOrFail($id);
+            $ref = $request->input('ref') ?? $request->input('id') ?? $request->input('call_id');
+            if (\Illuminate\Support\Str::isUuid($ref)) {
+                $call = Call::where('uuid', $ref)->firstOrFail();
+            } else {
+                $call = Call::findOrFail($ref);
+            }
         }
+
+        // Must be authorized to dispatch reminder on targeted call
+        $this->authorize('reminder', $call);
+
         try {
-            $call = $this->callService->sendReminder($call, auth()->user());
+            /** @var User $currentUser */
+            $currentUser = Auth::user();
+            $call = $this->callService->sendReminder($call, $currentUser);
             return response()->json([
                 'success' => true,
                 'message' => "Reminder sent successfully for call {$call->call_number}.",
                 'call' => [
                     'id' => $call->id,
+                    'uuid' => $call->uuid,
                     'call_reminder_count' => $call->call_reminder_count,
                     'last_reminder_at' => $call->last_reminder_at ? $call->last_reminder_at->toDateTimeString() : null,
                 ]
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => "Failed to send reminder: " . $e->getMessage()
@@ -649,15 +1161,31 @@ class CallController extends Controller
     public function getBeatResources(Request $request)
     {
         $this->authorize('calls.api_lookup');
-        $beatId = $request->get('beat_id');
+        $beatId = $request->input('beat_id');
         if (!$beatId) return response()->json(['officers' => []]);
 
-        $query = \App\Models\User::whereHas('activeScopes', function($q) use ($beatId) {
+        /** @var User|null $user */
+        $user = Auth::user();
+        if (!$user || !$user->is_active) {
+            return response()->json(['officers' => []], 403);
+        }
+
+        $isPrivileged = in_array($user->role?->name, ['super_admin', 'operation_admin', 'agent_supervisor'], true);
+        if (!$isPrivileged) {
+            $allowedOfficeIds = [];
+            foreach ($user->activeScopes ?? [] as $scope) {
+                if (!empty($scope->office_id)) {
+                    $allowedOfficeIds = array_merge($allowedOfficeIds, $this->getOfficeDescendantIds((int) $scope->office_id));
+                }
+            }
+            if (!in_array((int) $beatId, $allowedOfficeIds, true)) {
+                return response()->json(['officers' => []], 403);
+            }
+        }
+
+        $query = User::query()->where('is_active', true)->whereHas('activeScopes', function($q) use ($beatId) {
             $q->where('office_id', $beatId);
         });
-
-        // Apply same scope visibility to prevent data leakage
-        $query = $this->applyScopeVisibility($query);
 
         $officers = $query->get(['id', 'username', 'full_name']);
 
@@ -666,7 +1194,7 @@ class CallController extends Controller
 
     public function destroy(Call $call)
     {
-        $this->authorize('calls.delete');
+        $this->authorize('delete', $call);
         try {
             $call->delete();
             return response()->json(['success' => true]);
@@ -680,7 +1208,8 @@ class CallController extends Controller
      */
     public function getNotificationsPoll(Request $request)
     {
-        $user = auth()->user();
+        /** @var User|null $user */
+        $user = Auth::user();
         $this->authorize('calls.api_lookup');
 
         try {
@@ -696,7 +1225,7 @@ class CallController extends Controller
 
             $since = $request->query('since');
             
-            $query = Call::where('status', 'pending');
+            $query = Call::query()->where('status', 'pending');
             
             if ($since) {
                 try {
@@ -705,14 +1234,23 @@ class CallController extends Controller
                         $q->where('created_at', '>', $dtSince)
                           ->orWhere('last_reminder_at', '>', $dtSince);
                     });
-                } catch (\Throwable $e) {}
+                } catch (Throwable $e) {}
             }
 
             $query = $this->applyScopeVisibility($query);
-            $newCalls = $query->with(['callType', 'callSubType', 'office'])->orderBy('created_at', 'desc')->get();
+            $newCalls = $query->select([
+                    'id', 'call_number', 'caller_name', 'created_at',
+                    'last_reminder_at', 'call_type_id', 'call_sub_type_id', 'office_id'
+                ])
+                ->with([
+                    'callType:id,name',
+                    'callSubType:id,name'
+                ])
+                ->orderBy('created_at', 'desc')
+                ->get();
 
             // Calculate current total pending helps count for navigation badge
-            $pendingQuery = Call::where('status', 'pending');
+            $pendingQuery = Call::query()->where('status', 'pending');
             $pendingCount = $this->applyScopeVisibility($pendingQuery)->count();
 
             $results = $newCalls->map(function($call) {
@@ -732,12 +1270,16 @@ class CallController extends Controller
                 'pending_count' => $pendingCount,
                 'timestamp' => now()->toIso8601String()
             ]);
-        } catch (\Throwable $e) {
-            return response()->json([
+        } catch (Throwable $e) {
+            Log::error('Notifications poll failed', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'user_id' => Auth::id(),
+            ]);
+
+            return response()->json([
+                'error' => 'Unable to retrieve notification updates at this time.',
                 'new_calls' => [],
-                'timestamp' => now()->toDateTimeString()
+                'timestamp' => now()->toIso8601String()
             ], 500);
         }
     }
@@ -748,15 +1290,16 @@ class CallController extends Controller
         $this->authorize('export', Call::class);
 
         try {
-            $user = auth()->user();
+            /** @var User|null $user */
+            $user = Auth::user();
             $showAgent = !in_array($user->role?->name, ['zone_admin', 'sector_admin', 'beat_operator']);
 
             $baseQuery = $this->applyScopeVisibility(Call::query());
             $query = $this->applyFiltersAndSearch($baseQuery, $request);
 
             // Sorting logic
-            $sort = $request->get('sort', 'created_at');
-            $direction = $request->get('direction', 'desc');
+            $sort = $request->input('sort', 'created_at');
+            $direction = $request->input('direction', 'desc');
             $allowedSorts = ['call_number', 'created_at', 'priority', 'status', 'caller_name', 'caller_number', 'vehicle_no'];
             
             if ($sort === 'beat_id') $sort = 'office_id';
@@ -767,13 +1310,20 @@ class CallController extends Controller
                 $query->orderBy('status', 'asc')->orderBy('created_at', 'desc');
             }
 
-            // Optimize query for export
-            $query->with([
-                'callType', 
-                'callSubType', 
-                'office.parent.parent', // Beat -> Sector -> Zone
-                'agent', 
-                'vehicleType'
+            // Optimize query for export: minimal columns, no large remarks/details
+            $query->select([
+                'id', 'call_number', 'created_at', 'priority', 'status',
+                'call_type_id', 'call_sub_type_id', 'office_id',
+                'caller_name', 'caller_number', 'vehicle_no',
+                'vehicle_type_id', 'agent_id'
+            ])->with([
+                'callType:id,name', 
+                'callSubType:id,name', 
+                'office:id,name,type,parent_id',
+                'office.parent:id,name,type,parent_id',
+                'office.parent.parent:id,name,type',
+                'agent:id,full_name,username', 
+                'vehicleType:id,name'
             ]);
 
             // Set execution limits for large exports
@@ -856,7 +1406,7 @@ class CallController extends Controller
                 fclose($file);
             }, 200, $headers);
 
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('Export failed: ' . $e->getMessage(), [
                 'request' => $request->all(),
                 'trace' => $e->getTraceAsString()
@@ -882,7 +1432,7 @@ class CallController extends Controller
         $kmMarker = $request->input('km_marker');
         $direction = $request->input('direction');
 
-        $landmarkQuery = \App\Models\GeospatialLandmark::with('office.parent.parent');
+        $landmarkQuery = GeospatialLandmark::with('office.parent.parent');
 
         if ($road) {
             $landmarkQuery->where('road_name', 'like', "%{$road}%");
@@ -900,7 +1450,7 @@ class CallController extends Controller
 
         // Also search offices (Beats) by KM range if kmMarker is numeric
         if ($kmMarker && is_numeric($kmMarker)) {
-            $offices = \App\Models\Office::with('parent.parent')
+            $offices = Office::with('parent.parent')
                 ->where('type', 'beat')
                 ->where('is_active', true)
                 ->where('km_start', '<=', $kmMarker)
@@ -932,9 +1482,9 @@ class CallController extends Controller
     public function spatialContacts(Request $request)
     {
         $this->authorize('calls.api_lookup');
-        $zoneId = $request->get('zone_id');
-        $sectorId = $request->get('sector_id');
-        $beatId = $request->get('beat_id');
+        $zoneId = $request->input('zone_id');
+        $sectorId = $request->input('sector_id');
+        $beatId = $request->input('beat_id');
 
         $contacts = [
             'zone' => null,
@@ -943,17 +1493,17 @@ class CallController extends Controller
         ];
 
         if ($beatId) {
-            $contacts['beat'] = \App\Models\GeospatialLandmark::where('office_id', $beatId)
+            $contacts['beat'] = GeospatialLandmark::where('office_id', $beatId)
                 ->whereNotNull('contact_numbers')
                 ->where('contact_numbers', '!=', '')
                 ->value('contact_numbers');
         }
 
         if ($sectorId) {
-            $sector = \App\Models\Office::find($sectorId);
+            $sector = Office::find($sectorId);
             if ($sector) {
                 $beatIds = $sector->getDescendantIds(true);
-                $contacts['sector'] = \App\Models\GeospatialLandmark::whereIn('office_id', $beatIds)
+                $contacts['sector'] = GeospatialLandmark::whereIn('office_id', $beatIds)
                     ->whereNotNull('contact_numbers')
                     ->where('contact_numbers', '!=', '')
                     ->value('contact_numbers');
@@ -961,10 +1511,10 @@ class CallController extends Controller
         }
 
         if ($zoneId) {
-            $zone = \App\Models\Office::find($zoneId);
+            $zone = Office::find($zoneId);
             if ($zone) {
                 $beatIds = $zone->getDescendantIds(true);
-                $contacts['zone'] = \App\Models\GeospatialLandmark::whereIn('office_id', $beatIds)
+                $contacts['zone'] = GeospatialLandmark::whereIn('office_id', $beatIds)
                     ->whereNotNull('contact_numbers')
                     ->where('contact_numbers', '!=', '')
                     ->value('contact_numbers');

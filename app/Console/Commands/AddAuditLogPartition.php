@@ -40,7 +40,7 @@ class AddAuditLogPartition extends Command
 
         if (!empty($exists)) {
             $this->info("Partition {$partitionName} already exists. Nothing to do.");
-            return Command::SUCCESS;
+            return self::SUCCESS;
         }
 
         // Add the new partition before the p_future catchall
@@ -53,6 +53,6 @@ class AddAuditLogPartition extends Command
         ");
 
         $this->info("✅ Added partition {$partitionName} covering up to {$nextMonthStart}");
-        return Command::SUCCESS;
+        return self::SUCCESS;
     }
 }

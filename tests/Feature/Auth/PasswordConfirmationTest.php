@@ -3,15 +3,23 @@
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class PasswordConfirmationTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class]);
+    }
 
     public function test_confirm_password_screen_can_be_rendered(): void
     {
+        /** @var User $user */
         $user = User::factory()->create();
 
         $response = $this->actingAs($user)->get('/confirm-password');
@@ -21,10 +29,14 @@ class PasswordConfirmationTest extends TestCase
 
     public function test_password_can_be_confirmed(): void
     {
-        $user = User::factory()->create();
+        $plain = 'P@ssw0rd2026!Strong';
+        /** @var User $user */
+        $user = User::factory()->create([
+            'password' => Hash::make($plain),
+        ]);
 
         $response = $this->actingAs($user)->post('/confirm-password', [
-            'password' => 'password',
+            'password' => $plain,
         ]);
 
         $response->assertRedirect();
@@ -33,10 +45,13 @@ class PasswordConfirmationTest extends TestCase
 
     public function test_password_is_not_confirmed_with_invalid_password(): void
     {
-        $user = User::factory()->create();
+        /** @var User $user */
+        $user = User::factory()->create([
+            'password' => Hash::make('P@ssw0rd2026!Strong'),
+        ]);
 
         $response = $this->actingAs($user)->post('/confirm-password', [
-            'password' => 'wrong-password',
+            'password' => 'WrongPassword123!',
         ]);
 
         $response->assertSessionHasErrors();

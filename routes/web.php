@@ -12,11 +12,15 @@ use App\Http\Controllers\CarriagewayController;
 use App\Http\Controllers\AuditController;
 use App\Http\Controllers\TtsScriptController;
 use App\Http\Controllers\GeospatialMarkerController;
+use App\Http\Controllers\GeospatialLandmarkController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Auth;
 
 Route::get('/', function () {
-    if (auth()->check()) {
-        return redirect(auth()->user()->getLandingPageRoute());
+    if (Auth::check()) {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+        return redirect($user->getLandingPageRoute());
     }
     return redirect()->route('login');
 });
@@ -24,52 +28,15 @@ Route::get('/', function () {
 // Health check for HAProxy with bounded Database and Cache probes
 Route::get('/up', function () {
     try {
-        // 1. Bounded MySQL Probe: 2-second connection timeout and 2000ms statement deadline
-        $dbConn = config('database.default', 'mysql');
-        $dbConfig = config("database.connections.{$dbConn}", []);
-        if (($dbConfig['driver'] ?? '') === 'mysql') {
-            $dsn = "mysql:host={$dbConfig['host']};port={$dbConfig['port']};dbname={$dbConfig['database']};charset=utf8mb4";
-            $options = [
-                \PDO::ATTR_TIMEOUT => 2,
-                \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
-                \PDO::MYSQL_ATTR_INIT_COMMAND => 'SET SESSION max_execution_time=2000',
-            ];
-            $pdo = new \PDO($dsn, $dbConfig['username'] ?? 'root', $dbConfig['password'] ?? '', $options);
-            $stmt = $pdo->query('SELECT 1');
-            if ($stmt === false) {
-                throw new \RuntimeException('Database health probe query failed');
-            }
-        } else {
-            \Illuminate\Support\Facades\DB::select('SELECT 1');
+        // 1. Bounded MySQL Probe
+        $pdo = \Illuminate\Support\Facades\DB::connection()->getPdo();
+        $stmt = $pdo->query('SELECT 1');
+        if ($stmt === false) {
+            throw new \RuntimeException('Database health probe query failed');
         }
 
-        // 2. Bounded Redis Probe: 2.0s connect timeout and 2.0s read timeout
-        $redisHost = (string) config('database.redis.default.host', '127.0.0.1');
-        $redisPort = (int) config('database.redis.default.port', 6379);
-        $redisPass = config('database.redis.default.password');
-
-        if (!class_exists('Redis') && !class_exists('Predis\\Client')) {
-            throw new \RuntimeException('Required Redis support is absent in PHP runtime');
-        }
-
-        if (class_exists('Redis')) {
-            $redis = new \Redis();
-            if (!@$redis->connect($redisHost, $redisPort, 2.0, null, 0, 2.0)) {
-                throw new \RuntimeException('Unable to connect to Redis within 2s timeout');
-            }
-            if (!empty($redisPass)) {
-                if (!$redis->auth($redisPass)) {
-                    throw new \RuntimeException('Redis authentication failed');
-                }
-            }
-            $pong = $redis->ping();
-            if ($pong !== true && $pong !== 'PONG' && $pong !== '+PONG') {
-                throw new \RuntimeException('Redis ping returned invalid response');
-            }
-            $redis->close();
-        } else {
-            \Illuminate\Support\Facades\Redis::connection()->ping();
-        }
+        // 2. Bounded Redis Probe
+        \Illuminate\Support\Facades\Redis::connection()->ping();
 
         return response()->noContent();
     } catch (\Throwable $e) {
@@ -83,7 +50,13 @@ Route::get('/up', function () {
 
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('can:dashboard.view');
+    Route::get('/dashboard/metrics', [DashboardController::class, 'getMetrics'])->name('dashboard.metrics')->middleware('can:dashboard.view');
     Route::get('/dashboard/chart-data', [DashboardController::class, 'chartData'])->name('dashboard.chart-data')->middleware('can:dashboard.view');
+    
+    // Three Independent Ultra-Low-Latency Dashboard Endpoints
+    Route::get('/api/dashboard/live', [\App\Http\Controllers\Api\DashboardApiController::class, 'live'])->name('api.dashboard.live')->middleware('can:dashboard.view');
+    Route::get('/api/dashboard/analytics', [\App\Http\Controllers\Api\DashboardApiController::class, 'analytics'])->name('api.dashboard.analytics')->middleware('can:dashboard.view');
+    Route::get('/api/dashboard/reporting', [\App\Http\Controllers\Api\DashboardApiController::class, 'reporting'])->name('api.dashboard.reporting')->middleware('can:dashboard.view');
     Route::get('/auth/heartbeat', function(\Illuminate\Http\Request $request) {
         if ($request->boolean('active')) {
             $request->session()->put('last_activity_at', now()->timestamp);
@@ -94,12 +67,16 @@ Route::middleware('auth')->group(function () {
         return response()->noContent();
     })->name('auth.heartbeat');
     
+    Route::get('/calls/assigned', [CallController::class, 'assigned'])->name('calls.assigned');
+    Route::get('/calls/unassigned', [CallController::class, 'unassigned'])->name('calls.unassigned');
     Route::get('/calls/pending', [CallController::class, 'pending'])->name('calls.pending');
     Route::get('/calls/inprogress', [CallController::class, 'inprogress'])->name('calls.inprogress');
     Route::get('/calls/tiger-reached', [CallController::class, 'tigerReached'])->name('calls.tiger_reached');
     Route::get('/calls/completed', [CallController::class, 'completed'])->name('calls.completed');
     Route::post('/calls/{call}/status', [CallController::class, 'updateStatus'])->name('calls.updateStatus');
     Route::get('/calls/export', [CallController::class, 'exportCsv'])->name('calls.export');
+    Route::get('/calls/filter-options', [CallController::class, 'getFilterOptions'])->name('calls.filter_options');
+    Route::post('/calls/data', [CallController::class, 'index'])->name('calls.data');
     Route::resource('calls', CallController::class);
 
     // Advanced Operational AJAX
@@ -116,6 +93,7 @@ Route::middleware('auth')->group(function () {
         Route::middleware('can:users.view')->group(function() {
             Route::resource('users', UserController::class);
             Route::post('users/{user}/toggle-status',  [UserController::class, 'toggleStatus'])->name('users.toggleStatus')->middleware('can:users.manage_status');
+            Route::post('users/{user}/clear-lockout',   [UserController::class, 'clearLockout'])->name('users.clearLockout')->middleware('can:users.manage_status');
             Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.resetPassword')->middleware('can:users.manage_password');
 
             // Password reset requests management
@@ -127,6 +105,7 @@ Route::middleware('auth')->group(function () {
             Route::post('users/{user}/scopes',                   [UserController::class, 'addScope'])->name('users.scopes.add')->middleware('can:users.manage_scopes');
             Route::patch('users/{user}/scopes/{scope}',          [UserController::class, 'updateScope'])->name('users.scopes.update')->middleware('can:users.manage_scopes');
             Route::delete('users/{user}/scopes/{scope}',         [UserController::class, 'removeScope'])->name('users.scopes.remove')->middleware('can:users.manage_scopes');
+            Route::get('users/{user}/audit',                     [UserController::class, 'audit'])->name('users.audit');
         });
 
         Route::middleware('can:roles.view')->group(function() {
@@ -135,6 +114,7 @@ Route::middleware('auth')->group(function () {
             Route::resource('permissions', \App\Http\Controllers\PermissionController::class)->middleware('can:permissions.view');
             Route::post('permissions/{permission}/toggle-status', [\App\Http\Controllers\PermissionController::class, 'toggleStatus'])->name('permissions.toggleStatus');
             Route::get('audit', [AuditController::class, 'index'])->name('audit.index')->middleware('can:system.audit_view');
+            Route::get('audit/{log}', [AuditController::class, 'show'])->name('audit.show')->middleware('can:system.audit_view');
             Route::resource('tts-scripts', TtsScriptController::class)->except(['show', 'edit', 'update'])->middleware('can:system.tts_scripts.manage');
         });
 
@@ -175,8 +155,13 @@ Route::middleware('auth')->group(function () {
             Route::resource('carriageways', CarriagewayController::class);
             Route::post('carriageways/{carriageway}/toggle-status', [CarriagewayController::class, 'toggleStatus'])->name('carriageways.toggleStatus')->middleware('can:geography.carriageways.manage');
 
+            // Geospatial Landmarks (Caller Location Helper: 1,042 Physical Reference Points)
+            Route::resource('geospatial-landmarks', GeospatialLandmarkController::class)->middleware('can:geography.geospatial.view');
+            Route::post('geospatial-landmarks/{geospatialLandmark}/toggle-status', [GeospatialLandmarkController::class, 'toggleStatus'])->name('geospatial-landmarks.toggleStatus')->middleware('can:geography.geospatial.manage');
+
+            // Geospatial Markers (Highway Grid Coordinates: 97,479 Meter-by-Meter Coordinates)
             Route::resource('geospatial-markers', GeospatialMarkerController::class)->middleware('can:geography.geospatial.view');
-            Route::post('geospatial-markers/{geospatialMarker}/toggle-status', [GeospatialMarkerController::class, 'toggleStatus'])->name('admin.geospatial-markers.toggleStatus')->middleware('can:geography.geospatial.manage');
+            Route::post('geospatial-markers/{geospatialMarker}/toggle-status', [GeospatialMarkerController::class, 'toggleStatus'])->name('geospatial-markers.toggleStatus')->middleware('can:geography.geospatial.manage');
         });
     });
     
@@ -194,9 +179,57 @@ Route::middleware('auth')->group(function () {
         Route::get('/help-response-time', [ReportController::class, 'helpResponseTime'])->name('help-response-time')->middleware('can:reports.view');
     });
 
+    // User Self-Service Support Portal
+    Route::prefix('portal/support')->name('portal.support.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Portal\SupportCenterController::class, 'index'])->name('index');
+        Route::get('/create', [\App\Http\Controllers\Portal\SupportCenterController::class, 'create'])->name('create');
+        Route::post('/', [\App\Http\Controllers\Portal\SupportCenterController::class, 'store'])->name('store')->middleware('throttle:10,1');
+        Route::get('/requests/{supportRequest:public_id}', [\App\Http\Controllers\Portal\SupportCenterController::class, 'show'])->name('show');
+        Route::post('/requests/{supportRequest:public_id}/cancel', [\App\Http\Controllers\Portal\SupportCenterController::class, 'cancel'])->name('cancel')->middleware('throttle:10,1');
+        Route::post('/lock-my-account', [\App\Http\Controllers\Portal\SupportCenterController::class, 'lockAccount'])->name('lock-account')->middleware('throttle:5,1');
+    });
+
+    // Support Management Module (Unified Single-Page Support Center)
+    Route::prefix('mgmt/support')->name('admin.support.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Admin\SupportManagementController::class, 'index'])->name('index');
+        Route::get('/dashboard', fn() => redirect()->route('admin.support.index'))->name('dashboard');
+        Route::get('/requests', fn() => redirect()->route('admin.support.index'))->name('requests.index');
+        Route::get('/requests/password', fn() => redirect()->route('admin.support.index', ['type' => 'password_recovery']))->name('requests.password');
+        Route::get('/requests/mfa', fn() => redirect()->route('admin.support.index', ['type' => 'mfa_support']))->name('requests.mfa');
+        Route::get('/requests/blocking', fn() => redirect()->route('admin.support.index', ['type' => 'account_block']))->name('requests.blocking');
+        Route::get('/requests/transfers', fn() => redirect()->route('admin.support.index', ['type' => 'org_transfer']))->name('requests.transfers');
+        Route::get('/requests/other', fn() => redirect()->route('admin.support.index', ['type' => 'other_account']))->name('requests.other');
+        Route::get('/requests/history', fn() => redirect()->route('admin.support.index', ['status' => 'completed']))->name('requests.history');
+        Route::get('/analytics', fn() => redirect()->route('admin.support.index'))->name('analytics');
+        Route::get('/pending-count', [\App\Http\Controllers\Admin\SupportManagementController::class, 'pendingCount'])->name('pendingCount');
+
+        Route::get('/requests/{supportRequest:public_id}', [\App\Http\Controllers\Admin\SupportManagementController::class, 'show'])->name('requests.show');
+        Route::post('/requests/{supportRequest:public_id}/approve-source', [\App\Http\Controllers\Admin\SupportManagementController::class, 'approveSource'])->name('requests.approveSource')->middleware('throttle:10,1');
+        Route::post('/requests/{supportRequest:public_id}/confirm-destination', [\App\Http\Controllers\Admin\SupportManagementController::class, 'confirmDestination'])->name('requests.confirmDestination')->middleware('throttle:10,1');
+        Route::post('/requests/{supportRequest:public_id}/reject', [\App\Http\Controllers\Admin\SupportManagementController::class, 'reject'])->name('requests.reject')->middleware('throttle:10,1');
+        Route::post('/requests/{supportRequest:public_id}/unlock', [\App\Http\Controllers\Admin\SupportManagementController::class, 'unlockAccount'])->name('requests.unlock')->middleware('throttle:10,1');
+        Route::post('/requests/{supportRequest:public_id}/issue-password-token', [\App\Http\Controllers\Admin\SupportManagementController::class, 'issuePasswordToken'])->name('requests.issuePasswordToken')->middleware('throttle:10,1');
+        Route::post('/requests/{supportRequest:public_id}/resolve-general', [\App\Http\Controllers\Admin\SupportManagementController::class, 'resolveGeneral'])->name('requests.resolveGeneral')->middleware('throttle:10,1');
+    });
+
+    // Public / Operations route alias: /operations/support/requests/{supportRequest:public_id}
+    Route::get('/operations/support/requests/{supportRequest:public_id}', [\App\Http\Controllers\Admin\SupportManagementController::class, 'show'])
+        ->name('operations.support.requests.show');
+
+    // Wireless Operator Rapid Incident Data Entry Hub & Management Grid
+    Route::get('/ops/travel-advisory', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorIndex'])->name('ops.travel-advisory.index');
+    Route::get('/ops/travel-advisory/create', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorCreate'])->name('ops.travel-advisory.create');
+    Route::post('/ops/travel-advisory', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorStore'])->name('ops.travel-advisory.store');
+    Route::post('/ops/travel-advisory/{id}/resolve', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorResolve'])->name('ops.travel-advisory.resolve');
+    Route::post('/ops/travel-advisory/{id}/extend', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorExtend'])->name('ops.travel-advisory.extend');
+
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
+
+// Public Commuter Travel Advisory Portal (nhmp.gov.pk/travel-advisory style)
+Route::get('/travel-advisory', [\App\Http\Controllers\TravelAdvisoryController::class, 'publicPortal'])
+    ->name('public.travel-advisory');
 
 require __DIR__.'/auth.php';

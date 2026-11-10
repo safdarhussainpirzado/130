@@ -2,15 +2,21 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\PasswordResetRequest;
+use App\Models\Role;
 use App\Models\User;
-use Illuminate\Auth\Notifications\ResetPassword;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Notification;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
 
 class PasswordResetTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class]);
+    }
 
     public function test_reset_password_link_screen_can_be_rendered(): void
     {
@@ -19,55 +25,44 @@ class PasswordResetTest extends TestCase
         $response->assertStatus(200);
     }
 
-    public function test_reset_password_link_can_be_requested(): void
+    public function test_reset_password_request_can_be_submitted(): void
     {
-        Notification::fake();
-
+        /** @var User $user */
         $user = User::factory()->create();
 
-        $this->post('/forgot-password', ['email' => $user->email]);
+        $response = $this->post('/forgot-password', ['email' => $user->email]);
 
-        Notification::assertSentTo($user, ResetPassword::class);
+        $response->assertSessionHas('status_operator');
+        $this->assertDatabaseHas('password_reset_requests', [
+            'user_id' => $user->id,
+            'status' => 'pending',
+        ]);
     }
 
-    public function test_reset_password_screen_can_be_rendered(): void
+    public function test_super_admin_cannot_request_web_password_reset(): void
     {
-        Notification::fake();
+        $superAdminRole = Role::firstOrCreate(['name' => Role::SUPER_ADMIN], [
+            'display_name' => 'Super Administrator',
+            'scope_level' => 'national',
+            'status' => 'active',
+        ]);
 
-        $user = User::factory()->create();
+        /** @var User $admin */
+        $admin = User::factory()->create(['role_id' => $superAdminRole->id]);
 
-        $this->post('/forgot-password', ['email' => $user->email]);
+        $response = $this->post('/forgot-password', ['email' => $admin->email]);
 
-        Notification::assertSentTo($user, ResetPassword::class, function ($notification) {
-            $response = $this->get('/reset-password/'.$notification->token);
-
-            $response->assertStatus(200);
-
-            return true;
-        });
+        $response->assertSessionHasErrors(['identifier']);
     }
 
-    public function test_password_can_be_reset_with_valid_token(): void
+    public function test_duplicate_pending_reset_request_returns_info_status(): void
     {
-        Notification::fake();
-
+        /** @var User $user */
         $user = User::factory()->create();
 
         $this->post('/forgot-password', ['email' => $user->email]);
+        $response = $this->post('/forgot-password', ['email' => $user->email]);
 
-        Notification::assertSentTo($user, ResetPassword::class, function ($notification) use ($user) {
-            $response = $this->post('/reset-password', [
-                'token' => $notification->token,
-                'email' => $user->email,
-                'password' => 'password',
-                'password_confirmation' => 'password',
-            ]);
-
-            $response
-                ->assertSessionHasNoErrors()
-                ->assertRedirect(route('login'));
-
-            return true;
-        });
+        $response->assertSessionHas('status_info');
     }
 }

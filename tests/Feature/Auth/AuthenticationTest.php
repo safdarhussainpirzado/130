@@ -142,10 +142,13 @@ class AuthenticationTest extends TestCase
             ])->assertSessionHasErrors('username');
         }
 
-        $this->post('/login', [
+        $response = $this->post('/login', [
             'username' => 'unknown.officer',
             'password' => 'wrong-password',
-        ])->assertTooManyRequests();
+        ]);
+
+        $response->assertSessionHasErrors('username');
+        $this->assertStringContainsString('Too many login attempts', session('errors')->first('username'));
 
         $this->assertGuest();
     }
@@ -176,10 +179,13 @@ class AuthenticationTest extends TestCase
     {
         $user = $this->createUser();
 
+        /** @var \Illuminate\Auth\SessionGuard $guard */
+        $guard = Auth::guard('web');
+
         $this->post('/login', [...$this->credentials($user), 'remember' => '1'])
             ->assertSessionHasNoErrors()
             ->assertRedirect($user->getLandingPageRoute())
-            ->assertCookie(Auth::guard('web')->getRecallerName());
+            ->assertCookie($guard->getRecallerName());
 
         $this->assertAuthenticatedAs($user);
         $this->assertNotEmpty($user->fresh()->remember_token);
@@ -204,8 +210,13 @@ class AuthenticationTest extends TestCase
 
     public function test_required_two_factor_authentication_blocks_access_until_valid_code(): void
     {
+        Role::firstOrCreate(['id' => 1], [
+            'name' => 'super_admin',
+            'display_name' => 'Super Administrator',
+            'scope_level' => 'national',
+        ]);
         SystemSetting::set('2fa_level', 'all');
-        $user = $this->createUser(['totp_secret' => 'JBSWY3DPEHPK3PXP']);
+        $user = $this->createUser(['totp_secret' => 'JBSWY3DPEHPK3PXP', 'role_id' => 1, 'mfa_required' => true]);
         $google2fa = new Google2FA;
         $code = $google2fa->getCurrentOtp($user->totp_secret);
         $invalidCode = $code === '111111' ? '222222' : '111111';
@@ -230,8 +241,13 @@ class AuthenticationTest extends TestCase
 
     public function test_required_two_factor_setup_redirects_users_without_a_secret(): void
     {
+        Role::firstOrCreate(['id' => 1], [
+            'name' => 'super_admin',
+            'display_name' => 'Super Administrator',
+            'scope_level' => 'national',
+        ]);
         SystemSetting::set('2fa_level', 'all');
-        $user = $this->createUser();
+        $user = $this->createUser(['role_id' => 1, 'mfa_required' => true]);
 
         $this->post('/login', $this->credentials($user))->assertRedirect();
         $this->get(route('auth.heartbeat'))->assertRedirect(route('2fa.enroll.required'));
@@ -282,9 +298,13 @@ class AuthenticationTest extends TestCase
         });
         Schema::create('users', function (Blueprint $table) {
             $table->id();
+            $table->string('uuid', 36)->nullable();
             $table->string('full_name');
             $table->string('email')->unique();
-            $table->string('mobile_no')->unique();
+            $table->string('mobile_no')->nullable();
+            $table->string('mobile_no_bidx', 64)->nullable();
+            $table->string('cnic', 50)->nullable();
+            $table->string('cnic_bidx', 64)->nullable();
             $table->string('username')->unique();
             $table->string('password');
             $table->rememberToken();
@@ -357,6 +377,8 @@ class AuthenticationTest extends TestCase
             $table->text('new_values')->nullable();
             $table->string('ip_address')->nullable();
             $table->string('user_agent')->nullable();
+            $table->string('previous_hash', 64)->nullable();
+            $table->string('record_hash', 64)->nullable();
             $table->timestamp('created_at')->useCurrent();
         });
     }

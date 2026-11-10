@@ -12,10 +12,13 @@ class Call extends Model
     use HasFactory;
 
     protected $fillable = [
+        'uuid',
         'call_number',
         'agent_id',
         'caller_number',
+        'caller_number_bidx',
         'caller_name',
+        'caller_gender',
         'is_reminder_call',
         'parent_call_id',
         'call_type_id',
@@ -62,24 +65,84 @@ class Call extends Model
         'call_reminder_count',
         'last_reminder_at',
         'location_details',
+        'commuter_user_id',
+        'patrol_duty_session_id',
+        'assigned_at',
+        'acknowledged_at',
+        'acknowledged_by',
+        'cannot_respond_reason',
+        'public_summary',
+        'internal_control_note',
+        'completion_outcome',
     ];
 
     protected $casts = [
-        'is_reminder_call' => 'boolean',
+        'caller_number'     => \App\Casts\GracefulEncrypted::class,
+        'caller_name'       => \App\Casts\GracefulEncrypted::class,
+        'is_reminder_call'  => 'boolean',
         'is_phone_activity' => 'boolean',
-        'followup_needed' => 'boolean',
-        'call_start_time' => 'datetime',
-        'call_pickup_time' => 'datetime',
-        'call_end_time' => 'datetime',
-        'inprogress_at' => 'datetime',
-        'tiger_reached_at' => 'datetime',
-        'completed_at' => 'datetime',
-        'last_reminder_at' => 'datetime',
+        'followup_needed'   => 'boolean',
+        'call_start_time'   => 'datetime',
+        'call_pickup_time'  => 'datetime',
+        'call_end_time'     => 'datetime',
+        'assigned_at'       => 'datetime',
+        'acknowledged_at'   => 'datetime',
+        'inprogress_at'     => 'datetime',
+        'tiger_reached_at'  => 'datetime',
+        'completed_at'      => 'datetime',
+        'last_reminder_at'  => 'datetime',
     ];
+
+    /**
+     * Auto-generate RFC 9562 UUIDv7 and Blind Index on Call saving.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (Call $call): void {
+            if (empty($call->uuid)) {
+                $call->uuid = (string) \Illuminate\Support\Str::uuid7();
+            }
+        });
+
+        static::saving(function (Call $call): void {
+            if (!empty($call->caller_number)) {
+                $call->caller_number_bidx = phone_blind_index((string) $call->caller_number);
+            }
+        });
+    }
+
+    /**
+     * Exclusively use UUIDv7 in route URLs (Anti-IDOR / Anti-Enumeration).
+     */
+    public function getRouteKeyName(): string
+    {
+        return 'uuid';
+    }
+
+    /**
+     * Canonical UUIDv7 route-model binding with backward-compatible numeric ID resolution.
+     */
+    public function resolveRouteBinding($value, $field = null): ?Model
+    {
+        if (\Illuminate\Support\Str::isUuid($value)) {
+            return $this->where('uuid', $value)->firstOrFail();
+        }
+
+        if (is_numeric($value)) {
+            return $this->where('id', (int) $value)->firstOrFail();
+        }
+
+        abort(404, 'Call record not found.');
+    }
 
     public function agent(): BelongsTo
     {
         return $this->belongsTo(User::class, 'agent_id');
+    }
+
+    public function tiger(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'tiger_id');
     }
 
     public function tigerReachedBy(): BelongsTo
@@ -131,6 +194,26 @@ class Call extends Model
     public function outgoingCalls(): HasMany
     {
         return $this->hasMany(OutgoingCall::class);
+    }
+
+    public function commuterUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'commuter_user_id');
+    }
+
+    public function patrolDutySession(): BelongsTo
+    {
+        return $this->belongsTo(PatrolDutySession::class, 'patrol_duty_session_id');
+    }
+
+    public function acknowledgedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'acknowledged_by');
+    }
+
+    public function messages(): HasMany
+    {
+        return $this->hasMany(CaseMessage::class, 'call_id')->orderBy('created_at', 'asc');
     }
 
     /**

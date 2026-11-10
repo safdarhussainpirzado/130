@@ -96,8 +96,8 @@ sync_clear: sync
 	docker compose exec app-2 php artisan optimize:clear
 	docker compose exec app-1 php artisan optimize
 	docker compose exec app-2 php artisan optimize
-	@echo "==> Syncing build assets to all nodes (app + web)..."
-	@for c in app-1 app-2 web-1 web-2; do \
+	@echo "==> Syncing build assets to app nodes..."
+	@for c in app-1 app-2; do \
 		docker cp public/build/. 130-$$c-1:/var/www/html/public/build/ && echo "  [OK] $$c build synced"; \
 	done
 	@echo "==> Done! All nodes are up to date."

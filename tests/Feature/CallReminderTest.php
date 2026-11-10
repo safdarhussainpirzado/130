@@ -2,33 +2,68 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
 use App\Models\User;
 use App\Models\Call;
 use App\Models\CallType;
 use App\Models\CallSubType;
-use App\Models\Beat;
-use Illuminate\Support\Facades\DB;
+use App\Models\Office;
 use Illuminate\Support\Facades\Event;
 use App\Events\CallLogged;
+use App\Services\CallService;
+use Illuminate\Support\Str;
 
 class CallReminderTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->artisan('db:seed');
+        $this->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class]);
     }
 
-    public function test_can_save_call_with_location_details()
+    private function getPrerequisites(): array
     {
-        $user = User::first();
-        $callType = CallType::first();
-        $subType = CallSubType::where('call_type_id', $callType->id)->first();
-        $beat = Beat::first();
+        $role = \App\Models\Role::firstOrCreate(['name' => 'super_admin'], [
+            'display_name' => 'Super Administrator',
+            'scope_level' => 'national',
+            'is_active' => true,
+        ]);
+
+        $user = User::firstOrCreate(['username' => 'test_call_agent'], [
+            'uuid' => (string) Str::uuid(),
+            'full_name' => 'Test Call Agent',
+            'email' => 'test_call_agent@nhmp.gov.pk',
+            'mobile_no' => '03001234500',
+            'cnic' => '11111-1111111-1',
+            'role_id' => $role->id,
+            'password' => 'Secret12345!',
+            'is_active' => true,
+            'is_blocked' => false,
+        ]);
+
+        $callType = CallType::firstOrCreate(['name' => 'Emergency Help'], [
+            'category' => 'emergency',
+            'is_active' => true,
+        ]);
+
+        $subType = CallSubType::firstOrCreate(['name' => 'Accident Response', 'call_type_id' => $callType->id], [
+            'is_active' => true,
+            'priority' => 3,
+        ]);
+
+        $zone = Office::firstOrCreate(['name' => 'Test Zone', 'type' => 'zone'], ['uuid' => (string) Str::uuid(), 'is_active' => true]);
+        $sector = Office::firstOrCreate(['name' => 'Test Sector', 'type' => 'sector', 'parent_id' => $zone->id], ['uuid' => (string) Str::uuid(), 'is_active' => true]);
+        $beat = Office::firstOrCreate(['name' => 'Test Beat', 'type' => 'beat', 'parent_id' => $sector->id], ['uuid' => (string) Str::uuid(), 'is_active' => true]);
+
+        return [$user, $callType, $subType, $beat];
+    }
+
+    public function test_can_save_call_with_location_details(): void
+    {
+        [$user, $callType, $subType, $beat] = $this->getPrerequisites();
 
         $response = $this->actingAs($user)->post('/calls', [
             'caller_number' => '03001234567',
@@ -40,29 +75,37 @@ class CallReminderTest extends TestCase
             'priority' => 3,
         ]);
 
+        if ($response->exception) {
+            $this->fail("Call creation threw exception: " . $response->exception->getMessage());
+        }
+
         $response->assertSessionHas('success');
         $this->assertDatabaseHas('calls', [
             'location_details' => 'Near Rehman Masjid',
-            'caller_number' => '03001234567'
         ]);
+
+        $savedCall = Call::where('location_details', 'Near Rehman Masjid')->latest()->first();
+        $this->assertNotNull($savedCall);
+        $this->assertEquals('03001234567', $savedCall->caller_number);
     }
 
-    public function test_can_send_reminder_via_api()
+    public function test_can_send_reminder_via_api(): void
     {
         Event::fake();
 
-        $user = User::first();
-        $callType = CallType::first();
-        $subType = CallSubType::where('call_type_id', $callType->id)->first();
-        $beat = Beat::first();
+        [$user, $callType, $subType, $beat] = $this->getPrerequisites();
+
+        $callService = app(CallService::class);
+        $callNumber = $callService->generateCallNumber();
 
         $call = Call::create([
-            'call_number' => 'CRM-2026-99999',
+            'uuid' => (string) Str::uuid(),
+            'call_number' => $callNumber,
             'agent_id' => $user->id,
             'caller_number' => '03001234567',
             'call_type_id' => $callType->id,
             'call_sub_type_id' => $subType->id,
-            'beat_id' => $beat->id,
+            'office_id' => $beat->id,
             'status' => 'pending',
             'priority' => 3,
         ]);

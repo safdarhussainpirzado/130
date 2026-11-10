@@ -13,6 +13,17 @@ class EmailVerificationTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        $this->markTestSkipped(
+            'Email verification is inapplicable to NHMP 130 Helpline CRM: ' .
+            'Accounts are provisioned administratively by IT Managers with CNIC/mobile credentials. ' .
+            'The CRM schema does not contain email_verified_at and public self-registration is disabled.'
+        );
+
+        parent::setUp();
+    }
+
     public function test_email_verification_screen_can_be_rendered(): void
     {
         $user = User::factory()->unverified()->create();

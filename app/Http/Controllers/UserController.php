@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\UserListResource;
 use App\Models\User;
 use App\Models\UserScope;
 use App\Models\Role;
@@ -10,6 +11,7 @@ use App\Models\Office;
 use App\Models\PasswordResetRequest;
 use App\Models\AuditLog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -21,21 +23,201 @@ class UserController extends Controller
     /*  User CRUD                                                           */
     /* ─────────────────────────────────────────────────────────────────── */
 
-    public function index()
+    /**
+     * Display a listing of the users.
+     *
+     * @param Request $request
+     * @return \Illuminate\View\View|\Illuminate\Http\JsonResponse
+     */
+    public function index(Request $request)
     {
         $this->authorize('viewAny', User::class);
-        $users            = User::with(['role.permissions', 'designation', 'activeScopes.office'])->get();
-        $roles            = Role::all();
+
+        $query = User::select([
+                'id', 'uuid', 'username', 'full_name', 'email', 'mobile_no', 'cnic',
+                'designation_id', 'role_id', 'is_active', 'is_blocked', 'locked_until', 'failed_attempts',
+                'mfa_required', 'mfa_enrolled_at', 'last_login_at'
+            ])
+            ->with([
+                'role:id,name,display_name,scope_level',
+                'designation:id,name,bps,short_code',
+                'activeScopes:id,user_id,office_id,access_level,label,is_active',
+                'activeScopes.office:id,name,type,parent_id',
+            ]);
+
+        $this->applyUserFilters($query, $request);
+
+        // Sorting
+        $sortBy = in_array($request->input('sort_by'), ['id', 'username', 'full_name', 'last_login_at', 'is_active'])
+            ? $request->input('sort_by')
+            : 'id';
+        $sortDir = strtolower($request->input('sort_dir', 'desc')) === 'asc' ? 'asc' : 'desc';
+        $query->orderBy($sortBy, $sortDir);
+
+        $perPage = min(max((int) $request->input('per_page', 25), 10), 100);
+        $paginated = $query->paginate($perPage);
+
+        $users = UserListResource::collection($paginated->items())->resolve();
+
+        $pagination = [
+            'current_page' => $paginated->currentPage(),
+            'last_page'    => $paginated->lastPage(),
+            'per_page'     => $paginated->perPage(),
+            'total'        => $paginated->total(),
+            'from'         => $paginated->firstItem(),
+            'to'           => $paginated->lastItem(),
+        ];
+
+        $stats = $this->getUserStats();
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'items'      => $users,
+                'pagination' => $pagination,
+                'stats'      => $stats,
+            ]);
+        }
+
+        $roles            = Role::where('status', 'active')
+            ->with(['permissions:id,name,display_name', 'mfaPolicy'])
+            ->select(['id', 'name', 'display_name', 'scope_level'])
+            ->get();
         $designations     = Designation::where('is_active', true)->orderByDesc('bps')->orderBy('sort_order')->get(['id', 'name', 'bps', 'short_code']);
         $zones            = Office::zones()->where('is_active', true)->get(['id', 'name']);
         $sectors          = Office::sectors()->where('is_active', true)->get(['id', 'name', 'parent_id as zone_id']);
         $beats            = Office::beats()->where('is_active', true)->get(['id', 'name', 'parent_id as sector_id']);
-        $passwordRequests = PasswordResetRequest::with('user.role')
-            ->where('status', 'pending')
-            ->orderByDesc('created_at')
-            ->get();
 
-        return view('operations.users.index', compact('users', 'roles', 'designations', 'zones', 'sectors', 'beats', 'passwordRequests'));
+        return view('operations.users.index', compact('users', 'pagination', 'roles', 'designations', 'zones', 'sectors', 'beats', 'stats'));
+    }
+
+    /**
+     * Apply search, role, status and hierarchy filters to user query.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param Request $request
+     * @return void
+     */
+    private function applyUserFilters($query, Request $request): void
+    {
+        // Search filter (searches across username, full_name, cnic, email, mobile)
+        if ($search = trim((string) $request->input('search'))) {
+            $query->where(function ($q) use ($search) {
+                $q->where('username', 'like', "%{$search}%")
+                  ->orWhere('full_name', 'like', "%{$search}%")
+                  ->orWhere('cnic', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('mobile_no', 'like', "%{$search}%");
+            });
+        }
+
+        // Role filter
+        if ($roleId = $request->input('role_id')) {
+            $query->where('role_id', $roleId);
+        }
+
+        // Status filter
+        if ($status = $request->input('status')) {
+            if ($status === 'active') {
+                $query->where('is_active', true)
+                      ->where('is_blocked', false)
+                      ->where(function ($lq) {
+                          $lq->whereNull('locked_until')
+                             ->orWhere('locked_until', '<=', now());
+                      });
+            } elseif ($status === 'blocked') {
+                $query->where('is_blocked', true);
+            } elseif ($status === 'suspended') {
+                $query->where('is_active', false)
+                      ->where('is_blocked', false)
+                      ->where(function ($lq) {
+                          $lq->whereNull('locked_until')
+                             ->orWhere('locked_until', '<=', now());
+                      });
+            } elseif ($status === 'security_locked' || $status === 'locked') {
+                $query->whereNotNull('locked_until')
+                      ->where('locked_until', '>', now());
+            } elseif ($status === 'inactive') {
+                $query->where(function ($iq) {
+                    $iq->where('is_active', false)
+                       ->orWhere('is_blocked', true)
+                       ->orWhere(function ($lq) {
+                           $lq->whereNotNull('locked_until')
+                              ->where('locked_until', '>', now());
+                       });
+                });
+            } elseif ($status === 'admin') {
+                $query->whereHas('role', function ($rq) {
+                    $rq->whereIn('name', ['super_admin', 'operation_admin']);
+                });
+            } elseif ($status === 'ops') {
+                $query->whereHas('activeScopes.office', function ($oq) {
+                    $oq->whereIn('type', ['sector', 'beat']);
+                });
+            } elseif ($status === 'call_centre_user' || $status === 'call_center') {
+                $query->where(function ($cq) {
+                    $cq->whereHas('role', fn($rq) => $rq->whereIn('name', ['agent', 'agent_supervisor']))
+                       ->orWhereHas('activeScopes.office', fn($oq) => $oq->whereIn('type', ['call_centre', 'call_center']));
+                });
+            } elseif ($status === 'zone_user' || $status === 'zone') {
+                $query->where(function ($zq) {
+                    $zq->whereHas('role', fn($rq) => $rq->where('name', 'zone_admin'))
+                       ->orWhereHas('activeScopes.office', fn($oq) => $oq->where('type', 'zone'));
+                });
+            } elseif ($status === 'sector_user' || $status === 'sector') {
+                $query->where(function ($sq) {
+                    $sq->whereHas('role', fn($rq) => $rq->where('name', 'sector_admin'))
+                       ->orWhereHas('activeScopes.office', fn($oq) => $oq->where('type', 'sector'));
+                });
+            } elseif ($status === 'beat_user' || $status === 'beat') {
+                $query->where(function ($bq) {
+                    $bq->whereHas('role', fn($rq) => $rq->where('name', 'beat_operator'))
+                       ->orWhereHas('activeScopes.office', fn($oq) => $oq->where('type', 'beat'));
+                });
+            }
+        }
+
+        // Hierarchy filters (beat, sector, zone)
+        if ($beatId = $request->input('beat_id')) {
+            $query->whereHas('activeScopes', fn($sq) => $sq->where('office_id', $beatId));
+        } elseif ($sectorId = $request->input('sector_id')) {
+            $query->whereHas('activeScopes.office', fn($oq) => $oq->where('id', $sectorId)->orWhere('parent_id', $sectorId));
+        } elseif ($zoneId = $request->input('zone_id')) {
+            $query->whereHas('activeScopes.office', function ($oq) use ($zoneId) {
+                $oq->where('id', $zoneId)
+                   ->orWhere('parent_id', $zoneId)
+                   ->orWhereHas('parent', fn($pq) => $pq->where('parent_id', $zoneId));
+            });
+        }
+    }
+
+    /**
+     * Compute summary statistics for user management status cards.
+     *
+     * @return array<string, int>
+     */
+    private function getUserStats(): array
+    {
+        return [
+            'admins'      => User::whereHas('role', fn($rq) => $rq->whereIn('name', ['super_admin', 'operation_admin']))->count(),
+            'zone'        => User::where(function ($zq) {
+                $zq->whereHas('role', fn($rq) => $rq->where('name', 'zone_admin'))
+                   ->orWhereHas('activeScopes.office', fn($oq) => $oq->where('type', 'zone'));
+            })->count(),
+            'sector'      => User::where(function ($sq) {
+                $sq->whereHas('role', fn($rq) => $rq->where('name', 'sector_admin'))
+                   ->orWhereHas('activeScopes.office', fn($oq) => $oq->where('type', 'sector'));
+            })->count(),
+            'beat'        => User::where(function ($bq) {
+                $bq->whereHas('role', fn($rq) => $rq->where('name', 'beat_operator'))
+                   ->orWhereHas('activeScopes.office', fn($oq) => $oq->where('type', 'beat'));
+            })->count(),
+            'call_center' => User::where(function ($cq) {
+                $cq->whereHas('role', fn($rq) => $rq->whereIn('name', ['agent', 'agent_supervisor']))
+                   ->orWhereHas('activeScopes.office', fn($oq) => $oq->whereIn('type', ['call_centre', 'call_center']));
+            })->count(),
+            'inactive'    => User::where('is_active', false)->orWhere('is_blocked', true)->count(),
+            'total'       => User::count(),
+        ];
     }
 
     public function store(Request $request)
@@ -52,11 +234,18 @@ class UserController extends Controller
             'designation_id' => ['required', 'exists:designations,id'],
             'password'       => ['required', 'confirmed', Rules\Password::defaults()],
             'role_id'        => ['required', 'exists:roles,id'],
+            'is_blocked'     => ['nullable', 'boolean'],
         ]);
 
+        $isBlocked = $request->boolean('is_blocked');
+        unset($validated['is_blocked']);
         $validated['password_changed_at'] = now();
 
         $user = User::create($validated);
+
+        if ($isBlocked) {
+            $user->blockAccount('Administrative Block during user provisioning');
+        }
 
         // Attach initial scopes if provided
         if ($request->has('scopes')) {
@@ -64,7 +253,8 @@ class UserController extends Controller
         }
 
         if ($request->wantsJson()) {
-            return response()->json(['success' => true, 'user' => $user->load(['role', 'activeScopes'])]);
+            $user->load(['role:id,name,display_name,scope_level', 'designation:id,name,bps,short_code', 'activeScopes:id,user_id,office_id,access_level,label,is_active', 'activeScopes.office:id,name,type,parent_id']);
+            return response()->json(['success' => true, 'user' => (new UserListResource($user))->resolve()]);
         }
 
         return redirect()->route('operations.users.index')->with('success', 'User created successfully.');
@@ -84,13 +274,33 @@ class UserController extends Controller
             'designation_id' => ['required', 'exists:designations,id'],
             'password'       => ['nullable', 'confirmed', Rules\Password::defaults()],
             'role_id'        => ['required', 'exists:roles,id'],
+            'is_blocked'     => ['nullable', 'boolean'],
         ]);
+
+        // Security Barrier: Prevent blocking own account
+        if ($request->has('is_blocked') && $request->boolean('is_blocked') && $user->id === Auth::id()) {
+            abort(403, 'You cannot block your own account.');
+        }
+
+        $newBlockedState = $request->boolean('is_blocked');
+        $currentlyBlocked = (bool) $user->is_blocked;
 
         if (empty($validated['password'])) {
             unset($validated['password']);
         }
 
+        unset($validated['is_blocked']);
+
         $user->update($validated);
+
+        if ($request->has('is_blocked')) {
+            if ($newBlockedState && !$currentlyBlocked) {
+                $user->blockAccount('Administrative Block via User Management');
+            } elseif (!$newBlockedState && $currentlyBlocked) {
+                $newPassword = !empty($validated['password']) ? $validated['password'] : Str::random(16);
+                $user->unblockAccount($newPassword);
+            }
+        }
 
         // Sync scopes if provided in request
         if ($request->has('scopes')) {
@@ -98,7 +308,8 @@ class UserController extends Controller
         }
 
         if ($request->wantsJson()) {
-            return response()->json(['success' => true, 'user' => $user->load(['role', 'activeScopes'])]);
+            $user->load(['role:id,name,display_name,scope_level', 'designation:id,name,bps,short_code', 'activeScopes:id,user_id,office_id,access_level,label,is_active', 'activeScopes.office:id,name,type,parent_id']);
+            return response()->json(['success' => true, 'user' => (new UserListResource($user))->resolve()]);
         }
 
         return back()->with('success', 'User configuration updated.');
@@ -109,13 +320,79 @@ class UserController extends Controller
         $this->authorize('manageStatus', $user);
 
         // Prevent disabling own account
-        abort_if($user->id === auth()->id(), 403, 'You cannot deactivate your own account.');
+        abort_if($user->id === Auth::id(), 403, 'You cannot deactivate your own account.');
 
         $user->update(['is_active' => !$user->is_active]);
 
+        $isSecurityLocked = (bool) ($user->locked_until && $user->locked_until->isFuture());
+        $statusState = $isSecurityLocked ? 'security_locked' : ($user->is_active ? 'active' : 'suspended');
+        $statusLabel = $isSecurityLocked ? 'Security Locked' : ($user->is_active ? 'Active' : 'Suspended');
+
         return response()->json([
-            'success' => true,
-            'status'  => $user->is_active ? 'active' : 'inactive',
+            'success'            => true,
+            'status'             => $statusState,
+            'status_state'       => $statusState,
+            'status_label'       => $statusLabel,
+            'is_active'          => (bool)$user->is_active,
+            'is_security_locked' => $isSecurityLocked,
+            'locked_until'       => $user->locked_until?->toISOString(),
+            'message'            => "User {$user->username} status updated to " . ($user->is_active ? 'active' : 'suspended'),
+        ]);
+    }
+
+    /**
+     * Clear security lockout and restore account to active state.
+     * Resets locked_until = null, clears failed_attempts = 0, sets is_active = true,
+     * and logs an administrative audit event.
+     *
+     * @param Request $request
+     * @param User $user
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function clearLockout(Request $request, User $user)
+    {
+        $this->authorize('manageStatus', $user);
+
+        // Security Barrier: Prevent modifying security locks on own account
+        abort_if($user->id === Auth::id(), 403, 'You cannot modify security locks on your own account.');
+
+        $currentUser = Auth::user();
+
+        $user->forceFill([
+            'locked_until'    => null,
+            'failed_attempts' => 0,
+            'is_active'       => true,
+        ])->save();
+
+        // Administrative Audit Log
+        try {
+            AuditLog::create([
+                'user_id'    => $currentUser?->id ?? $user->id,
+                'action'     => 'ADMIN_SECURITY_LOCKOUT_CLEARED',
+                'table_name' => 'users',
+                'record_id'  => $user->id,
+                'new_values' => [
+                    'action'          => 'Administrative Security Lockout Cleared and Restored by ' . ($currentUser?->username ?? 'Administrator'),
+                    'target_user'     => $user->username,
+                    'is_active'       => true,
+                    'locked_until'    => null,
+                    'failed_attempts' => 0,
+                ],
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('AuditLog creation failed in clearLockout: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'success'            => true,
+            'is_active'          => true,
+            'locked_until'       => null,
+            'is_security_locked' => false,
+            'status_state'       => 'active',
+            'status_label'       => 'Active',
+            'message'            => "Security lockout cleared. User [{$user->username}] has been restored to Active status.",
         ]);
     }
 
@@ -123,9 +400,10 @@ class UserController extends Controller
     {
         $this->authorize('managePassword', $user);
 
-        // Security Barrier: Super Admin can NEVER be reset via web application
+        // Security Barrier: Super Admin can NEVER be reset via web application.
+        // Internal Note: Root recovery is strictly restricted to server console / SSH infrastructure.
         if ($user->role?->name === Role::SUPER_ADMIN) {
-            abort(403, 'Super Administrator credentials cannot be reset via web application. Root recovery is strictly restricted to server console / SSH infrastructure.');
+            abort(403, 'Super Administrator credentials cannot be reset via the web application. Please contact system support.');
         }
 
         $validated = $request->validate([
@@ -158,14 +436,17 @@ class UserController extends Controller
             DB::table('sessions')->where('user_id', $user->id)->delete();
         } catch (\Throwable $e) {}
 
+        /** @var User|null $currentUser */
+        $currentUser = Auth::user();
+
         // Fulfill any pending PasswordResetRequests for this user
         PasswordResetRequest::where('user_id', $user->id)
             ->where('status', 'pending')
             ->update([
                 'status'      => 'completed',
-                'actioned_by' => auth()->id(),
+                'actioned_by' => Auth::id(),
                 'actioned_at' => now(),
-                'admin_notes' => 'Password reset and authorized by Operation Manager ' . (auth()->user()->username ?? 'admin'),
+                'admin_notes' => 'Password reset and authorized by Operation Manager ' . ($currentUser?->username ?? 'admin'),
             ]);
 
         // Audit Log
@@ -175,7 +456,7 @@ class UserController extends Controller
                 'action'     => 'OP_ADMIN_PASSWORD_RESET',
                 'table_name' => 'users',
                 'record_id'  => $user->id,
-                'new_values' => ['action' => 'Password reset authorized by Operation Manager ' . (auth()->user()->username ?? 'admin')],
+                'new_values' => ['action' => 'Password reset authorized by Operation Manager ' . ($currentUser?->username ?? 'admin')],
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ]);
@@ -191,7 +472,12 @@ class UserController extends Controller
     {
         $this->authorize('viewAny', User::class);
 
-        $requests = PasswordResetRequest::with('user.role', 'actionedByUser')
+        $requests = PasswordResetRequest::with([
+                'user:id,username,full_name,role_id',
+                'user.role:id,name,display_name',
+                'actionedByUser:id,username,full_name'
+            ])
+            ->select(['id', 'user_id', 'status', 'actioned_by', 'actioned_at', 'admin_notes', 'created_at'])
             ->orderByRaw("FIELD(status, 'pending', 'completed', 'rejected')")
             ->orderByDesc('created_at')
             ->take(50)
@@ -208,11 +494,14 @@ class UserController extends Controller
     {
         $this->authorize('viewAny', User::class);
 
+        /** @var User|null $currentUser */
+        $currentUser = Auth::user();
+
         $resetRequest->update([
             'status'      => 'rejected',
-            'actioned_by' => auth()->id(),
+            'actioned_by' => Auth::id(),
             'actioned_at' => now(),
-            'admin_notes' => $request->input('notes', 'Request rejected by Operation Manager ' . (auth()->user()->username ?? 'admin')),
+            'admin_notes' => $request->input('notes', 'Request rejected by Operation Manager ' . ($currentUser?->username ?? 'admin')),
         ]);
 
         return response()->json([
@@ -226,18 +515,34 @@ class UserController extends Controller
         $this->authorize('delete', $user);
 
         // Prevent self-deletion
-        abort_if($user->id === auth()->id(), 403, 'You cannot delete your own account.');
+        abort_if($user->id === Auth::id(), 403, 'You cannot delete your own account.');
 
-        // Remove all scope assignments first to avoid FK issues
-        $user->scopes()->delete();
+        DB::transaction(function () use ($user) {
+            // Delete user-scoped and authentication-related child records
+            $user->scopes()->delete();
+            DB::table('sessions')->where('user_id', $user->id)->delete();
+            DB::table('two_factor_recovery_codes')->where('user_id', $user->id)->delete();
+            DB::table('password_recovery_tokens')->where('user_id', $user->id)->delete();
+            DB::table('password_histories')->where('user_id', $user->id)->delete();
+            DB::table('login_logs')->where('user_id', $user->id)->delete();
 
-        $user->delete();
+            // Check if user has permanent operational audit records (calls, assignments, etc.)
+            $hasCallHistory = DB::table('calls')->where('agent_id', $user->id)->orWhere('forwarded_to_user_id', $user->id)->exists();
+            $hasSupportHistory = DB::table('support_requests')->where('requester_id', $user->id)->orWhere('assigned_approver_id', $user->id)->exists();
+
+            if ($hasCallHistory || $hasSupportHistory) {
+                // Enterprise archival: scramble credentials, purge 2FA, and permanently block
+                $user->blockAccount('Administrative Account Deletion & Archival');
+            } else {
+                $user->delete();
+            }
+        });
 
         if (request()->wantsJson()) {
-            return response()->json(['success' => true]);
+            return response()->json(['success' => true, 'message' => 'User account removed from active registry.']);
         }
 
-        return redirect()->back()->with('success', 'User removed from registry.');
+        return redirect()->back()->with('success', 'User removed from active registry.');
     }
 
     /* ─────────────────────────────────────────────────────────────────── */
@@ -407,7 +712,8 @@ class UserController extends Controller
      */
     private function enforceOperationAdminRestrictions(Request $request): void
     {
-        $currentUser = auth()->user();
+        /** @var User|null $currentUser */
+        $currentUser = Auth::user();
         if (!$currentUser || $currentUser->role->name !== Role::IT_ADMIN) {
             return;
         }
@@ -429,5 +735,66 @@ class UserController extends Controller
                 }
             }
         }
+    }
+
+    /**
+     * Display comprehensive user-wise activity history & audit trail.
+     */
+    public function audit(Request $request, User $user)
+    {
+        $this->authorize('users.view');
+
+        $user->load(['role:id,name,display_name', 'activeScopes.office.parent.parent']);
+
+        $perPage = (int) $request->input('per_page', 20);
+        if (!in_array($perPage, [10, 20, 25, 50, 100], true)) {
+            $perPage = 20;
+        }
+
+        $query = AuditLog::with(['user:id,uuid,username,full_name,role_id', 'user.role:id,name,display_name'])
+            ->where(function ($q) use ($user) {
+                $q->where('user_id', $user->id)
+                  ->orWhere(function ($oq) use ($user) {
+                      $oq->where('table_name', 'users')
+                         ->where('record_id', $user->id);
+                  });
+            })->orderBy('id', 'desc');
+
+        if ($request->filled('action')) {
+            $action = $request->input('action');
+            if ($action === 'created') {
+                $query->where(function ($aq) {
+                    $aq->where('action', 'like', '%create%')
+                       ->orWhere('action', 'like', '%enrolled%');
+                });
+            } elseif ($action === 'updated') {
+                $query->where(function ($aq) {
+                    $aq->where('action', 'like', '%update%')
+                       ->orWhere('action', 'like', '%reset%')
+                       ->orWhere('action', 'like', '%cleared%');
+                });
+            } elseif ($action === 'deleted') {
+                $query->where(function ($aq) {
+                    $aq->where('action', 'like', '%delete%')
+                       ->orWhere('action', 'like', '%revoked%')
+                       ->orWhere('action', 'like', '%locked%');
+                });
+            } else {
+                $query->where('action', $action);
+            }
+        }
+
+        if ($request->filled('search')) {
+            $s = trim($request->input('search'));
+            $query->where(function ($q) use ($s) {
+                $q->where('action', 'like', "%{$s}%")
+                  ->orWhere('table_name', 'like', "%{$s}%")
+                  ->orWhere('ip_address', 'like', "%{$s}%");
+            });
+        }
+
+        $logs = $query->paginate($perPage);
+
+        return view('operations.users.audit', compact('user', 'logs'));
     }
 }

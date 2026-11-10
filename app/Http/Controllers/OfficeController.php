@@ -14,7 +14,12 @@ class OfficeController extends Controller
     {
         $this->authorize('geography.offices.view');
 
-        $offices = Office::with(['parent', 'children'])->get();
+        $offices = Office::select(['id', 'name', 'type', 'parent_id', 'is_active', 'operational_type'])
+            ->with([
+                'parent:id,name,type,parent_id',
+                'children:id,name,type,parent_id,is_active'
+            ])
+            ->get();
         
         $regions = $offices->where('type', 'region')->values();
         $zones = $offices->where('type', 'zone')->values();
@@ -38,6 +43,7 @@ class OfficeController extends Controller
         ]);
 
         $office = Office::create($validated);
+        Office::clearHierarchyCache();
 
         if ($request->wantsJson()) {
             return response()->json(['success' => true, 'office' => $office]);
@@ -60,6 +66,7 @@ class OfficeController extends Controller
         ]);
 
         $office->update($validated);
+        Office::clearHierarchyCache();
 
         if ($request->wantsJson()) {
             return response()->json(['success' => true, 'office' => $office]);
@@ -76,6 +83,7 @@ class OfficeController extends Controller
         $this->authorize('geography.offices.update');
         $office->is_active = !$office->is_active;
         $office->save();
+        Office::clearHierarchyCache();
 
         return response()->json([
             'success' => true,
@@ -99,6 +107,7 @@ class OfficeController extends Controller
         }
 
         $office->delete();
+        Office::clearHierarchyCache();
 
         if (request()->wantsJson()) {
             return response()->json(['success' => true]);

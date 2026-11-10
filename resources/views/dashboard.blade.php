@@ -167,20 +167,21 @@
     .hm-10 { background: #1e3a8a; } /* blue-900 */
     .hm-11 { background: #172554; } /* blue-950 */
 
-    /* Custom Tooltip */
-    #hm-tooltip {
+    /* Custom Tooltip (Shared Heatmap & Dot Matrix Engine) */
+    #hm-tooltip, #dm-tooltip {
         position: fixed; pointer-events: none; z-index: 9999;
         background: rgba(15, 23, 42, 0.98); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
         color: white; padding: 14px; border-radius: 16px;
         box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
         border: 1px solid rgba(255,255,255,0.12);
-        display: none; min-width: 220px; max-height: 400px; overflow-y: auto;
+        display: none; min-width: 230px; max-width: 320px; max-height: 420px; overflow-y: auto;
         font-size: 11px; line-height: 1.6;
+        transition: opacity 0.1s ease;
     }
-    .htt-title { font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; color: #94a3b8; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 6px; margin-bottom: 8px; }
+    .htt-title { font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 6px; margin-bottom: 8px; }
     .htt-total { font-size: 14px; font-weight: 900; color: #fff; display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
     .htt-row { display: flex; align-items: center; justify-content: space-between; color: #cbd5e1; }
-    .htt-dot { width: 6px; height: 6px; border-radius: 50%; margin-right: 8px; }
+    .htt-dot { width: 6px; height: 6px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; }
 
     /* ── Live pulse dot ─────────────────────────────────────────── */
     .live-dot {
@@ -229,10 +230,10 @@
         }
     }
 
-    /* ── Row 2: Heatmap + Weekly Call Volume ────────────────────────── */
+    /* ── Row 2: Heatmap + Quantized Dot Matrix ──────────────────────── */
     .row-heatmap-weekly {
         display: grid;
-        grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
         gap: 1.25rem;
         align-items: stretch;
         width: 100%;
@@ -241,6 +242,73 @@
         .row-heatmap-weekly {
             grid-template-columns: 1fr;
         }
+    }
+
+    .dot-matrix-card {
+        min-height: 280px;
+        position: relative;
+    }
+    .dot-matrix-container {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 5px;
+        width: 100%;
+        height: 195px;
+        padding: 10px 4px 4px 4px;
+        position: relative;
+        transition: opacity .15s ease;
+    }
+    .dm-col {
+        flex: 1;
+        display: flex;
+        flex-direction: column-reverse;
+        align-items: center;
+        gap: 4px;
+        height: 100%;
+        justify-content: flex-start;
+        cursor: pointer;
+        padding: 4px 2px;
+        border-radius: 8px;
+        transition: background-color .15s ease, transform .15s ease;
+        position: relative;
+    }
+    .dm-col:hover {
+        background-color: rgba(241, 245, 249, 0.9);
+        transform: translateY(-2px);
+    }
+    .dm-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 9999px;
+        transition: all .2s cubic-bezier(0.4, 0, 0.2, 1);
+        flex-shrink: 0;
+    }
+    .dm-dot.inactive {
+        background-color: #f1f5f9;
+        border: 1px solid rgba(226, 232, 240, 0.7);
+    }
+    .dm-dot.active {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        box-shadow: 0 0 6px rgba(16, 185, 129, 0.35);
+    }
+    .dm-dot.active.peak {
+        background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+        box-shadow: 0 0 8px rgba(14, 165, 233, 0.5);
+    }
+    .dm-col:hover .dm-dot.active {
+        box-shadow: 0 0 10px rgba(16, 185, 129, 0.7);
+        transform: scale(1.15);
+    }
+    .dm-timeline {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        padding: 8px 6px 0 6px;
+        border-top: 1px solid #f1f5f9;
+        font-size: 10px;
+        font-weight: 700;
+        color: #94a3b8;
     }
 
     /* ── Live Incident Map ───────────────────────────────────────── */
@@ -547,11 +615,11 @@
     </div>
 
     {{-- ══════════════════════════════════════════════
-         ROW 2 — ACTIVITY HEATMAP  +  WEEKLY CALL VOLUME
+         ROW 2 — ACTIVITY HEATMAP  +  QUANTIZED DOT-MATRIX CALL DENSITY
     ══════════════════════════════════════════════ --}}
     <div class="row-heatmap-weekly">
 
-        {{-- Activity Heatmap --}}
+        {{-- Left: Activity Heatmap --}}
         <div class="bc ac-sky flex flex-col justify-between w-full" style="min-width: 0;">
             <div class="ch">
                 <div class="ci bg-sky-100"><i class="fa-solid fa-fire-flame-curved text-sky-600"></i></div>
@@ -588,23 +656,53 @@
             </div>
         </div>
 
-        {{-- Weekly Call Volume --}}
-        <div class="bc ac-em flex flex-col justify-between w-full" style="min-width: 0;">
-            <div class="ch">
-                <div class="ci bg-emerald-100"><i class="fa-solid fa-chart-column text-emerald-600"></i></div>
+        {{-- Right: Quantized Dot-Matrix Call Volume & Density --}}
+        <div class="bc ac-em w-full dot-matrix-card flex flex-col justify-between" style="min-width: 0;">
+            <div class="ch mb-1">
+                <div class="ci bg-emerald-100 text-emerald-600 shadow-sm"><i class="fa-solid fa-braille text-lg"></i></div>
                 <div class="flex-1 min-w-0">
-                    <div class="ct">Weekly Call Volume</div>
-                    <div class="cst">DAILY CALL DISTRIBUTION</div>
+                    <div class="ct text-sm">Helpline Call Volume & Density</div>
+                    <div class="cst">QUANTIZED TEMPORAL MATRIX</div>
                 </div>
+
+                {{-- Range Filters: 1D, 7D, 30D --}}
                 <div class="fp shrink-0">
-                    <button class="on uppercase text-[10px] font-bold py-1 px-2.5" onclick="setWeeklyRange('7d',this)">7D</button>
-                    <button class="uppercase text-[10px] font-bold py-1 px-2.5" onclick="setWeeklyRange('14d',this)">14D</button>
-                    <button class="uppercase text-[10px] font-bold py-1 px-2.5" onclick="setWeeklyRange('30d',this)">30D</button>
+                    <button id="btnDm1d" class="on uppercase text-[10px] font-bold py-1 px-2.5" onclick="setDotMatrixRange('1d', this)">1D</button>
+                    <button id="btnDm7d" class="uppercase text-[10px] font-bold py-1 px-2.5" onclick="setDotMatrixRange('7d', this)">7D</button>
+                    <button id="btnDm30d" class="uppercase text-[10px] font-bold py-1 px-2.5" onclick="setDotMatrixRange('30d', this)">30D</button>
                 </div>
             </div>
-            <div style="height: 205px; position: relative; width: 100%;" class="flex-1">
-                <canvas id="weeklyChart" role="img" aria-label="Daily call volume bar chart" style="width: 100% !important; height: 205px !important; display: block;"></canvas>
+
+            {{-- Summary Metric Highlights Strip --}}
+            <div class="flex items-center justify-between px-1 py-1 mb-1 border-b border-slate-100 text-[10px]">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-slate-400 font-bold uppercase tracking-wider text-[9px]">Total:</span>
+                    <span id="dmTotalCalls" class="text-slate-800 font-black tabular-nums text-xs">--</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-slate-400 font-bold uppercase tracking-wider text-[9px]">Peak:</span>
+                    <span id="dmPeakTime" class="text-emerald-600 font-black tabular-nums text-xs">--</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-slate-400 font-bold uppercase tracking-wider text-[9px]">SLA:</span>
+                    <span id="dmSlaRate" class="text-sky-600 font-black tabular-nums text-xs">--</span>
+                </div>
             </div>
+
+            {{-- Interactive Dot Matrix Grid Canvas --}}
+            <div class="flex-1 w-full flex flex-col justify-between" style="min-height: 165px;">
+                <div id="dotMatrixGrid" class="dot-matrix-container" style="height: 155px;">
+                    <div class="flex items-center justify-center w-full h-full text-slate-400 text-xs font-medium">
+                        <i class="fa-solid fa-circle-notch fa-spin mr-2 text-emerald-500"></i> Loading matrix...
+                    </div>
+                </div>
+                <div id="dotMatrixTimeline" class="dm-timeline">
+                    {{-- Timeline labels injected dynamically --}}
+                </div>
+            </div>
+
+            {{-- Floating Tooltip --}}
+            <div id="dm-tooltip" style="display: none; position: fixed; pointer-events: none; transition: opacity 0.1s ease;"></div>
         </div>
 
     </div>
@@ -761,7 +859,7 @@
                 <div id="sunburstLegend" style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; height: 135px;">
                     @php $ci = 0; @endphp
                     @foreach(array_slice($sbCatTotals, 0, 6, true) as $catName => $catCnt)
-                    @php 
+                    @php
                         $pct = round(($catCnt / $sbTotal) * 100);
                         $cleanCat = ucwords(str_replace('_', ' ', $catName));
                     @endphp
@@ -1083,20 +1181,214 @@ async function setPrioRange(r, btn) {
 }
 
 async function setWeeklyRange(r, btn) {
+    return window.setDotMatrixRange(r, btn);
+}
+
+window.setDotMatrixRange = async function(r, btn) {
+    if (btn) {
+        setFilterActive(btn);
+    } else {
+        const btnId = (r === '1d' || r === '24h') ? 'btnDm1d' : (r === '7d' ? 'btnDm7d' : 'btnDm30d');
+        const defaultBtn = document.getElementById(btnId);
+        if (defaultBtn) setFilterActive(defaultBtn);
+    }
+
+    const grid = document.getElementById('dotMatrixGrid');
+    if (!grid) return;
+    grid.style.opacity = '0.4';
+
+    try {
+        const res = await fetch(`/api/dashboard/analytics?range=${r}`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+        });
+        const json = await res.json();
+        if (json && json.status === 'success' && json.data) {
+            const d = json.data;
+            const totalCallsEl = document.getElementById('dmTotalCalls');
+            const peakTimeEl   = document.getElementById('dmPeakTime');
+            const slaRateEl    = document.getElementById('dmSlaRate');
+
+            if (totalCallsEl && d.summary) {
+                totalCallsEl.textContent = Number(d.summary.total_calls || 0).toLocaleString();
+            }
+            if (slaRateEl && d.summary) {
+                slaRateEl.textContent = (d.summary.sla_percentage || 100) + '%';
+            }
+
+            renderDotMatrix(d.matrix_columns, r, d.summary);
+        }
+    } catch (e) {
+        console.error('Failed to update dot matrix:', e);
+    } finally {
+        grid.style.opacity = '1';
+    }
+};
+
+function renderDotMatrix(columns, range, summary) {
+    const grid = document.getElementById('dotMatrixGrid');
+    const timeline = document.getElementById('dotMatrixTimeline');
+    const tooltip = document.getElementById('dm-tooltip');
+    if (!grid || !timeline || !columns || !columns.length) return;
+
+    grid.innerHTML = '';
+    timeline.innerHTML = '';
+
+    let peakCol = columns.reduce((max, c) => (c.count > (max?.count || 0) ? c : max), columns[0]);
+    const peakTimeEl = document.getElementById('dmPeakTime');
+    if (peakTimeEl && peakCol) {
+        peakTimeEl.textContent = `${peakCol.label} (${Number(peakCol.count).toLocaleString()})`;
+    }
+
+    const maxVal = summary?.max_column_val || peakCol?.count || 1;
+
+    columns.forEach((col) => {
+        const colEl = document.createElement('div');
+        colEl.className = 'dm-col';
+
+        const totalDots = 10;
+        const activeCount = col.active_dots || (col.count > 0 ? Math.max(1, Math.round((col.count / maxVal) * totalDots)) : 0);
+
+        for (let dotIdx = 1; dotIdx <= totalDots; dotIdx++) {
+            const dot = document.createElement('div');
+            const isActive = dotIdx <= activeCount;
+            dot.className = 'dm-dot ' + (isActive ? 'active' : 'inactive') + (col.is_peak && isActive ? ' peak' : '');
+            colEl.appendChild(dot);
+        }
+
+        colEl.addEventListener('mouseenter', (e) => {
+            if (!tooltip) return;
+            const pctOfPeak = maxVal > 0 ? Math.round((col.count / maxVal) * 100) : 0;
+            const compRate = col.count > 0 ? Math.round(((col.completed || 0) / col.count) * 100) : 100;
+
+            let typesHtml = '';
+            if (col.types && Object.keys(col.types).length > 0) {
+                const sortedTypes = Object.entries(col.types).sort((a,b) => b[1] - a[1]);
+                sortedTypes.slice(0, 8).forEach(([type, tCount]) => {
+                    const tPct = col.count > 0 ? Math.round((tCount / col.count) * 100) : 0;
+                    typesHtml += `
+                        <div class="htt-row">
+                            <span class="truncate pr-2" style="max-width:160px;">• ${type}</span>
+                            <span class="font-bold text-white shrink-0">${Number(tCount).toLocaleString()} <span class="text-slate-400 font-normal text-[10px]">(${tPct}%)</span></span>
+                        </div>
+                    `;
+                });
+                if (sortedTypes.length > 8) {
+                    typesHtml += `<div class="htt-row text-slate-500 italic mt-1">+ ${sortedTypes.length - 8} more categories</div>`;
+                }
+            }
+
+            tooltip.innerHTML = `
+                <div class="htt-title" style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                    <span class="tracking-wide">${col.full_label || col.label}</span>
+                    ${col.is_peak ? '<span style="background:linear-gradient(135deg,#f59e0b,#ea580c); color:#fff; font-size:8px; font-weight:900; padding:2px 7px; border-radius:999px; text-transform:uppercase; letter-spacing:0.05em; box-shadow:0 2px 8px rgba(245,158,11,0.4);">Peak Load</span>' : ''}
+                </div>
+                <div class="htt-total">
+                    <span>Total Calls</span>
+                    <span style="color:#34d399; font-size:15px; font-weight:900;">${Number(col.count).toLocaleString()}</span>
+                </div>
+                
+                ${typesHtml ? `
+                    <div class="divider" style="background:rgba(255,255,255,0.1); margin:7px 0 6px 0;"></div>
+                    <div style="font-size:9px; font-weight:800; text-transform:uppercase; color:#94a3b8; letter-spacing:0.06em; margin-bottom:4px;">Calls by Category</div>
+                    ${typesHtml}
+                ` : ''}
+
+                <div class="divider" style="background:rgba(255,255,255,0.1); margin:7px 0 6px 0;"></div>
+                <div class="htt-row">
+                    <span class="flex items-center"><span class="htt-dot" style="background:#10b981;"></span>Completed</span>
+                    <span class="font-bold text-white">${Number(col.completed || 0).toLocaleString()} <span class="text-emerald-400 font-normal">(${compRate}%)</span></span>
+                </div>
+                ${col.pending !== undefined ? `
+                <div class="htt-row">
+                    <span class="flex items-center"><span class="htt-dot" style="background:#f59e0b;"></span>Pending / In-Progress</span>
+                    <span class="font-bold text-amber-300">${Number(col.pending || 0).toLocaleString()}</span>
+                </div>` : ''}
+                <div class="htt-row">
+                    <span class="flex items-center"><span class="htt-dot" style="background:#38bdf8;"></span>SLA Met Rate</span>
+                    <span class="font-bold text-sky-400">${col.sla_percentage ?? 100}%</span>
+                </div>
+                <div class="htt-row">
+                    <span class="flex items-center"><span class="htt-dot" style="background:#a855f7;"></span>Temporal Density</span>
+                    <span class="font-bold text-purple-300">${activeCount}/10 dots <span class="text-slate-400 font-normal">(${pctOfPeak}%)</span></span>
+                </div>
+            `;
+            tooltip.style.display = 'block';
+            tooltip.style.opacity = '1';
+        });
+
+        colEl.addEventListener('mousemove', (e) => {
+            if (!tooltip) return;
+            tooltip.style.display = 'block';
+            let x = e.clientX + 14;
+            let y = e.clientY + 14;
+
+            const tw = tooltip.offsetWidth || 240;
+            const th = tooltip.offsetHeight || 140;
+
+            // Horizontal Flip (prevent clipping on right viewport edge)
+            if (x + tw > window.innerWidth) {
+                x = e.clientX - tw - 14;
+            }
+            // Vertical Flip (prevent clipping on bottom viewport edge)
+            if (y + th > window.innerHeight) {
+                y = e.clientY - th - 14;
+            }
+
+            tooltip.style.left = x + 'px';
+            tooltip.style.top = y + 'px';
+            tooltip.style.opacity = '1';
+        });
+
+        colEl.addEventListener('mouseleave', () => {
+            if (tooltip) {
+                tooltip.style.display = 'none';
+                tooltip.style.opacity = '0';
+            }
+        });
+
+        grid.appendChild(colEl);
+    });
+
+    if (range === '1d' || range === '24h') {
+        const markers = ['12a', '2a', '4a', '6a', '8a', '10a', '12p', '2p', '4p', '6p', '8p', '10p', '11p'];
+        markers.forEach(m => {
+            const span = document.createElement('span');
+            span.textContent = m;
+            timeline.appendChild(span);
+        });
+    } else if (range === '7d') {
+        columns.forEach(col => {
+            const span = document.createElement('span');
+            span.textContent = col.label.split(',')[0] || col.label;
+            timeline.appendChild(span);
+        });
+    } else {
+        for (let i = 0; i < columns.length; i += 5) {
+            const span = document.createElement('span');
+            span.textContent = columns[i].short_label || columns[i].label;
+            timeline.appendChild(span);
+        }
+        const lastSpan = document.createElement('span');
+        lastSpan.textContent = columns[columns.length - 1].short_label || 'Today';
+        timeline.appendChild(lastSpan);
+    }
+}
+
+async function setIncidentRange(r, btn) {
     setFilterActive(btn);
-    const canvas = document.getElementById('weeklyChart');
+    const canvas = document.getElementById('incidentVolumeChart');
     if (!canvas) return;
     canvas.style.opacity = '0.4';
     try {
         const res = await fetch(`/dashboard/chart-data?chart=weekly&range=${r}`);
         const data = await res.json();
-        if (window._dashboardCharts.weekly && data.labels) {
-            window._dashboardCharts.weekly.data.labels = data.labels;
-            window._dashboardCharts.weekly.data.datasets[0].data = data.values;
-            window._dashboardCharts.weekly.update();
+        if (window._dashboardCharts.incidentVolume && data.labels) {
+            window._dashboardCharts.incidentVolume.data.labels = data.labels;
+            window._dashboardCharts.incidentVolume.data.datasets[0].data = data.values;
+            window._dashboardCharts.incidentVolume.update();
         }
     } catch (e) {
-        console.error('Failed to update weekly chart:', e);
+        console.error('Failed to update incident volume chart:', e);
     } finally {
         canvas.style.opacity = '1';
     }
@@ -1232,10 +1524,10 @@ function dashboardApp(data) {
 
                 this.buildIncidentMap(this.mapIncidents);
                 this.buildHeatmap(this.heatmapData);
+                window.setDotMatrixRange('1d');
                 this.buildCategoryChart(this.categories);
                 this.buildGaugeChart();
                 this.buildPriorityChart(this.priorityDist);
-                this.buildWeeklyChart(this.labels, this.values);
                 this.buildIncidentVolumeChart(this.labels, this.values);
                 this.buildRoadChart(this.carriageTypeSplit);
                 this.buildSunburstChart(this.sunburstData);
@@ -1496,13 +1788,13 @@ function dashboardApp(data) {
                 type: 'doughnut',
                 data: {
                     labels: ['SLA Met', 'Gap'],
-                    datasets: [{ 
-                        data: [slaVal, Math.max(0, 100 - slaVal)], 
-                        backgroundColor: ['#10b981', '#f1f5f9'], 
-                        circumference: 180, 
-                        rotation: -90, 
-                        borderRadius: 10, 
-                        borderWidth: 0 
+                    datasets: [{
+                        data: [slaVal, Math.max(0, 100 - slaVal)],
+                        backgroundColor: ['#10b981', '#f1f5f9'],
+                        circumference: 180,
+                        rotation: -90,
+                        borderRadius: 10,
+                        borderWidth: 0
                     }]
                 },
                 options: {
@@ -1541,7 +1833,7 @@ function dashboardApp(data) {
                         x: { stacked: true, grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' }, maxRotation: 0, autoSkip: false } },
                         y: { stacked: true, grid: { color: '#f8fafc' }, border: { display: false }, ticks: { font: { size: 9 } } }
                     },
-                    plugins: { 
+                    plugins: {
                         legend: { display: false },
                         tooltip: {
                             backgroundColor: 'rgba(15, 23, 42, 0.95)',
@@ -1679,13 +1971,13 @@ function dashboardApp(data) {
                 type: 'doughnut',
                 data: {
                     labels: (data || []).map(d => d.type),
-                    datasets: [{ 
-                        data: (data || []).map(d => +d.count), 
-                        backgroundColor: roadColors, 
+                    datasets: [{
+                        data: (data || []).map(d => +d.count),
+                        backgroundColor: roadColors,
                         borderWidth: 2,
                         borderColor: '#fff',
                         hoverOffset: 6,
-                        borderRadius: 3 
+                        borderRadius: 3
                     }]
                 },
                 options: {
@@ -1848,7 +2140,7 @@ function dashboardApp(data) {
                         x: { stacked: true, grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' } } },
                         y: { stacked: true, grid: { color: '#f8fafc' }, border: { display: false }, beginAtZero: true, ticks: { font: { size: 9 } } }
                     },
-                    plugins: { 
+                    plugins: {
                         legend: { display: false },
                         tooltip: {
                             mode: 'index',

@@ -126,7 +126,7 @@ class NHMPCategorySeeder extends Seeder
                 'sub_types' => [
                     ['name' => 'Robbery / Snatching', 'icon' => 'fa-user-ninja'],
                     ['name' => 'Suspicious Activity', 'icon' => 'fa-eye'],
-                    ['name' => 'Armed Firing', 'icon' => 'fa-fire-flame-dotted'],
+                    ['name' => 'Armed Firing', 'icon' => 'fa-gun'],
                     ['name' => 'Stone Pelting', 'icon' => 'fa-mountain-sun'],
                     ['name' => 'Other Crime', 'icon' => 'fa-circle-exclamation']
                 ]

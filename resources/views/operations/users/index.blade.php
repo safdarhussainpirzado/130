@@ -1,47 +1,45 @@
 @extends('layouts.app')
 
-@section('title', 'Access Control - NHMP 130')
+@section('title', 'User Management - NHMP 130')
 
-@section('page-title', 'Access Control')
+@section('page-title', 'User Management')
 
 @section('content')
 
 
 
 
-    <div x-data="userManager(@js([
-        'items' => $users,
-        'roles' => $roles,
-        'designations' => $designations,
-        'zones' => $zones,
-        'sectors' => $sectors,
-        'beats' => $beats,
-        'currentUserRole' => auth()->user()->role->name,
-        'currentUserId' => auth()->id(),
-        'pendingRequests' => $passwordRequests ?? [],
-    ]))" class="space-y-8 relative mt-4 max-w-[1700px] mx-auto" x-cloak>
+    <script id="users-index-data" type="application/json">
+        {!! json_encode([
+            'items' => $users,
+            'pagination' => $pagination ?? [
+                'current_page' => 1,
+                'last_page'    => 1,
+                'per_page'     => count($users),
+                'total'        => count($users),
+                'from'         => 1,
+                'to'           => count($users)
+            ],
+            'stats' => $stats ?? [
+                'admins'      => 0,
+                'zone'        => 0,
+                'sector'      => 0,
+                'beat'        => 0,
+                'call_center' => 0,
+                'inactive'    => 0,
+                'total'       => 0,
+            ],
+            'roles' => $roles,
+            'designations' => $designations,
+            'zones' => $zones,
+            'sectors' => $sectors,
+            'beats' => $beats,
+            'currentUserRole' => auth()->user()->role?->name,
+            'currentUserId' => auth()->id(),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}
+    </script>
 
-        <!-- PENDING PASSWORD RESET REQUESTS BANNER (OPERATION MANAGERS) -->
-        <div x-show="pendingRequests.length > 0" class="p-5 rounded-3xl bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-indigo-500/10 border-2 border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-pulse">
-            <div class="flex items-center gap-4">
-                <div class="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/30">
-                    <i class="fa-solid fa-key text-lg"></i>
-                </div>
-                <div>
-                    <div class="flex items-center gap-2">
-                        <h4 class="text-sm font-black text-slate-900 tracking-tight">Pending Credential Reset Requests</h4>
-                        <span class="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black uppercase tracking-wider" x-text="pendingRequests.length + ' Awaiting Action'"></span>
-                    </div>
-                    <p class="text-xs text-slate-600 mt-0.5 font-medium">
-                        Operators and peer Operation Managers have submitted password reset requests requiring your authorization.
-                    </p>
-                </div>
-            </div>
-            <button @click="showRequestsModal = true" class="px-6 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-black tracking-wider uppercase transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 shrink-0">
-                <i class="fa-solid fa-list-check text-xs"></i>
-                <span>Review Request Queue</span>
-            </button>
-        </div>
+    <div x-data="userManager(JSON.parse(document.getElementById('users-index-data').textContent))" class="space-y-8 relative mt-4 max-w-[1700px] mx-auto" x-cloak>
 
         <!-- Floating Sidebar Toggle -->
         <button @click="showSidebar = true"
@@ -63,7 +61,7 @@
                 </div>
                 <div class="p-5 text-right pt-4">
                     <p class="text-[8px] font-black tracking-widest text-amber-500 uppercase">Administrators</p>
-                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="items.filter(i => (i.role_name === 'operation_admin' || i.role_name === 'super_admin') && (i.scope_unit_type === 'plhq' || i.scope_unit_type === 'national' || i.scope_unit_type === 'region')).length"></h4>
+                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="stats.admins"></h4>
                 </div>
             </div>
 
@@ -74,7 +72,7 @@
                 </div>
                 <div class="p-5 text-right pt-4">
                     <p class="text-[8px] font-black tracking-widest text-blue-500 uppercase">Zone Authority</p>
-                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="items.filter(i => i.scope_unit_type === 'zone').length"></h4>
+                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="stats.zone"></h4>
                 </div>
             </div>
 
@@ -85,7 +83,7 @@
                 </div>
                 <div class="p-5 text-right pt-4">
                     <p class="text-[8px] font-black tracking-widest text-indigo-500 uppercase">Sectors</p>
-                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="items.filter(i => i.scope_unit_type === 'sector').length"></h4>
+                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="stats.sector"></h4>
                 </div>
             </div>
 
@@ -96,7 +94,7 @@
                 </div>
                 <div class="p-5 text-right pt-4">
                     <p class="text-[8px] font-black tracking-widest text-purple-500 uppercase">Beats Ops</p>
-                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="items.filter(i => i.scope_unit_type === 'beat').length"></h4>
+                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="stats.beat"></h4>
                 </div>
             </div>
 
@@ -107,7 +105,7 @@
                 </div>
                 <div class="p-5 text-right pt-4">
                     <p class="text-[8px] font-black tracking-widest text-emerald-500 uppercase">Call Center</p>
-                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="items.filter(i => i.scope_unit_type === 'call_center' || i.scope_unit_type === 'call_centre' || i.role_name === 'agent' || i.role_name === 'agent_supervisor').length"></h4>
+                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="stats.call_center"></h4>
                 </div>
             </div>
 
@@ -118,7 +116,7 @@
                 </div>
                 <div class="p-5 text-right pt-4">
                     <p class="text-[8px] font-black tracking-widest text-rose-500 uppercase">Inactive</p>
-                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="items.filter(i => !i.is_active).length"></h4>
+                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="stats.inactive"></h4>
                 </div>
             </div>
         </div>
@@ -139,7 +137,7 @@
                                 </div>
                                 <div>
                                     <h2 class="text-2xl font-extrabold text-blue-900 tracking-tight flex items-center gap-3">
-                                         User Management <span class="text-lg font-bold text-slate-400" x-text="'(' + filteredItems.length + ' users)'"></span>
+                                         User Management <span class="text-lg font-bold text-slate-400" x-text="'(' + (pagination ? pagination.total : items.length) + ' users)'"></span>
                                     </h2>
                                     <p class="text-slate-500 text-sm font-bold mt-1">Manage system access keys and identity parameters</p>
                                 </div>
@@ -187,14 +185,28 @@
                                         </div>
                                         <div class="text-right">
                                             <div class="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase mb-1">Access State</div>
-                                            <template x-if="item.is_active">
-                                                <span class="flex items-center gap-2 text-blue-600 font-black text-[10px] tracking-widest uppercase justify-end">
-                                                    <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span> Active
+                                            <!-- Blocked (Rose / Ban): item.is_blocked -->
+                                            <template x-if="item.is_blocked">
+                                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black tracking-widest uppercase justify-end bg-rose-100 text-rose-800 border border-rose-300 shadow-sm">
+                                                    <i class="fa-solid fa-ban text-[9px]"></i> Blocked
                                                 </span>
                                             </template>
-                                            <template x-if="!item.is_active">
-                                                <span class="flex items-center gap-2 text-rose-600 font-black text-[10px] tracking-widest uppercase justify-end">
-                                                    <span class="w-2 h-2 rounded-full bg-rose-500"></span> Locked
+                                            <!-- Security Locked (Rose / Padlock): !item.is_blocked && locked_until > now() -->
+                                            <template x-if="!item.is_blocked && item.is_security_locked">
+                                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black tracking-widest uppercase justify-end bg-rose-50 text-rose-700 border border-rose-200 shadow-sm">
+                                                    <i class="fa-solid fa-lock text-[9px] animate-pulse"></i> Security Locked
+                                                </span>
+                                            </template>
+                                            <!-- Active (Green): !item.is_blocked && !item.is_security_locked && item.is_active -->
+                                            <template x-if="!item.is_blocked && !item.is_security_locked && item.is_active">
+                                                <span class="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg text-[10px] font-black tracking-widest uppercase justify-end bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Active
+                                                </span>
+                                            </template>
+                                            <!-- Suspended (Slate): !item.is_blocked && !item.is_security_locked && !item.is_active -->
+                                            <template x-if="!item.is_blocked && !item.is_security_locked && !item.is_active">
+                                                <span class="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg text-[10px] font-black tracking-widest uppercase justify-end bg-slate-100 text-slate-600 border border-slate-200">
+                                                    <span class="w-2 h-2 rounded-full bg-slate-400"></span> Suspended
                                                 </span>
                                             </template>
                                         </div>
@@ -226,31 +238,45 @@
                                                 <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Provisioned</span>
                                             </div>
 
-                                            <!-- Action Grid: 3-col × 2-row, slim w-9 h-9 matching table style -->
-                                            <div class="grid grid-cols-3 gap-2">
-                                                <button @click="viewDetails(item)" title="View Profile" class="w-9 h-9 rounded-xl bg-blue-500 border border-blue-600 text-white hover:bg-blue-600 active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
+                                            <!-- Action Grid: slim w-9 h-9 matching table style -->
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <button @click="viewDetails(item)" title="View Profile" class="w-9 h-9 rounded-xl bg-blue-500 border border-blue-600 text-white hover:bg-blue-600 active:scale-95 transition-all shadow-sm flex items-center justify-center aspect-square shrink-0">
                                                     <i class="fa-solid fa-eye text-xs"></i>
                                                 </button>
-                                                <button @click="editItem(item)" title="Modify Parameters" class="w-9 h-9 rounded-xl bg-indigo-500 border border-indigo-600 text-white hover:bg-indigo-600 active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
+                                                <button @click="editItem(item)" title="Modify Parameters" class="w-9 h-9 rounded-xl bg-indigo-500 border border-indigo-600 text-white hover:bg-indigo-600 active:scale-95 transition-all shadow-sm flex items-center justify-center aspect-square shrink-0">
                                                     <i class="fa-solid fa-sliders text-xs"></i>
                                                 </button>
                                                 <template x-if="canManagePassword(item)">
-                                                    <button @click="openPasswordReset(item)" title="Force Key Rotation" class="w-9 h-9 rounded-xl bg-slate-700 border border-slate-800 text-white hover:bg-slate-800 active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
+                                                    <button @click="openPasswordReset(item)" title="Force Key Rotation" class="w-9 h-9 rounded-xl bg-slate-700 border border-slate-800 text-white hover:bg-slate-800 active:scale-95 transition-all shadow-sm flex items-center justify-center aspect-square shrink-0">
                                                         <i class="fa-solid fa-key text-xs"></i>
                                                     </button>
                                                 </template>
                                                 <template x-if="!canManagePassword(item)">
-                                                    <div :title="(item.role_name === 'super_admin' || (item.role && item.role.name === 'super_admin')) ? 'Super Admin: CLI SSH Recovery Only' : 'Restricted Authority'" class="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 text-slate-300 flex items-center justify-center mx-auto aspect-square shrink-0 cursor-not-allowed opacity-50">
+                                                    <div :title="(item.role_name === 'super_admin' || (item.role && item.role.name === 'super_admin')) ? 'Super Admin: CLI SSH Recovery Only' : 'Restricted Authority'" class="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 text-slate-300 flex items-center justify-center aspect-square shrink-0 cursor-not-allowed opacity-50">
                                                         <i class="fa-solid fa-lock text-xs"></i>
                                                     </div>
                                                 </template>
-                                                <button @click="viewAccess(item)" title="View Access Topology" class="w-9 h-9 rounded-xl bg-purple-600 border border-purple-700 text-white hover:bg-purple-700 active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
+                                                <!-- Clear Security Lockout (Next to Edit & Password Reset) -->
+                                                <template x-if="item.is_security_locked">
+                                                    <button @click="confirmClearLockout(item)" title="Clear Security Lockout & Restore" class="w-9 h-9 rounded-xl bg-rose-600 border border-rose-700 text-white hover:bg-rose-700 active:scale-95 transition-all shadow-md shadow-rose-600/30 flex items-center justify-center aspect-square shrink-0 animate-pulse">
+                                                        <i class="fa-solid fa-lock-open text-xs"></i>
+                                                    </button>
+                                                </template>
+                                                <template x-if="!item.is_security_locked">
+                                                    <button @click="confirmClearLockout(item)" title="Clear Security Lockout Counters" class="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-200 active:scale-95 transition-all flex items-center justify-center aspect-square shrink-0">
+                                                        <i class="fa-solid fa-lock-open text-xs"></i>
+                                                    </button>
+                                                </template>
+                                                <button @click="viewAccess(item)" title="View Access Topology" class="w-9 h-9 rounded-xl bg-purple-600 border border-purple-700 text-white hover:bg-purple-700 active:scale-95 transition-all shadow-sm flex items-center justify-center aspect-square shrink-0">
                                                     <i class="fa-solid fa-shield-halved text-xs"></i>
                                                 </button>
-                                                <button @click="confirmStatus(item)" title="Toggle Active State" :class="item.is_active ? 'bg-amber-500 border-amber-600 hover:bg-amber-600' : 'bg-emerald-500 border-emerald-600 hover:bg-emerald-600'" class="w-9 h-9 rounded-xl text-white border active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
+                                                <a :href="'/mgmt/users/' + (item.uuid || item.id) + '/audit'" title="Activity History & Audit Ledger" class="w-9 h-9 rounded-xl bg-teal-600 border border-teal-700 text-white hover:bg-teal-700 active:scale-95 transition-all shadow-sm flex items-center justify-center aspect-square shrink-0">
+                                                    <i class="fa-solid fa-clock-rotate-left text-xs"></i>
+                                                </a>
+                                                <button @click="confirmStatus(item)" title="Toggle Active State" :class="item.is_active ? 'bg-amber-500 border-amber-600 hover:bg-amber-600' : 'bg-emerald-500 border-emerald-600 hover:bg-emerald-600'" class="w-9 h-9 rounded-xl text-white border active:scale-95 transition-all shadow-sm flex items-center justify-center aspect-square shrink-0">
                                                     <i class="fa-solid fa-power-off text-xs"></i>
                                                 </button>
-                                                <button @click="confirmDelete(item)" title="Purge Identity" class="w-9 h-9 rounded-xl bg-rose-600 border border-rose-700 text-white hover:bg-rose-700 active:scale-95 transition-all shadow-sm flex items-center justify-center mx-auto aspect-square shrink-0">
+                                                <button @click="confirmDelete(item)" title="Purge Identity" class="w-9 h-9 rounded-xl bg-rose-600 border border-rose-700 text-white hover:bg-rose-700 active:scale-95 transition-all shadow-sm flex items-center justify-center aspect-square shrink-0">
                                                     <i class="fa-solid fa-trash-alt text-xs"></i>
                                                 </button>
                                             </div>
@@ -346,11 +372,34 @@
                                             </div>
                                         </td>
                                         <td class="px-6 text-center" :class="density === 'condensed' ? 'py-3' : 'py-5'">
-                                            <span :class="item.is_active ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-rose-50 text-rose-600 border-rose-100'" class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border" x-text="item.is_active ? 'Active' : 'Locked'"></span>
+                                            <!-- Blocked (Rose / Ban): item.is_blocked -->
+                                            <template x-if="item.is_blocked">
+                                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border bg-rose-100 text-rose-800 border-rose-300 shadow-sm">
+                                                    <i class="fa-solid fa-ban text-[8px]"></i> Blocked
+                                                </span>
+                                            </template>
+                                            <!-- Security Locked (Rose / Padlock): !item.is_blocked && locked_until > now() -->
+                                            <template x-if="!item.is_blocked && item.is_security_locked">
+                                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border bg-rose-50 text-rose-700 border-rose-200 shadow-sm">
+                                                    <i class="fa-solid fa-lock text-[8px] animate-pulse"></i> Security Locked
+                                                </span>
+                                            </template>
+                                            <!-- Active (Green): !item.is_blocked && !item.is_security_locked && item.is_active -->
+                                            <template x-if="!item.is_blocked && !item.is_security_locked && item.is_active">
+                                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border bg-emerald-50 text-emerald-700 border-emerald-200">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Active
+                                                </span>
+                                            </template>
+                                            <!-- Suspended (Slate): !item.is_blocked && !item.is_security_locked && !item.is_active -->
+                                            <template x-if="!item.is_blocked && !item.is_security_locked && !item.is_active">
+                                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border bg-slate-100 text-slate-600 border-slate-200">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Suspended
+                                                </span>
+                                            </template>
                                         </td>
                                         <td class="px-6 text-center" :class="density === 'condensed' ? 'py-3' : 'py-5'">
-                                            <!-- Action Grid: 3-col × 2-row icon buttons -->
-                                            <div class="flex flex-wrap items-center justify-center gap-1.5 w-[120px] mx-auto">
+                                            <!-- Action Grid: icon buttons -->
+                                            <div class="flex flex-wrap items-center justify-center gap-1.5 w-[160px] mx-auto">
                                                 <button @click="viewDetails(item)" title="View Profile" class="w-9 h-9 bg-blue-500 border border-blue-600 text-white hover:bg-blue-600 transition-colors flex items-center justify-center rounded-xl shadow-sm active:scale-95 aspect-square shrink-0">
                                                     <i class="fas fa-eye text-xs"></i>
                                                 </button>
@@ -367,9 +416,23 @@
                                                         <i class="fas fa-lock text-xs"></i>
                                                     </div>
                                                 </template>
+                                                <!-- Clear Security Lockout (Next to Edit and Password Reset) -->
+                                                <template x-if="item.is_security_locked">
+                                                    <button @click="confirmClearLockout(item)" title="Clear Security Lockout & Restore" class="w-9 h-9 bg-rose-600 border border-rose-700 text-white hover:bg-rose-700 transition-colors flex items-center justify-center rounded-xl shadow-md shadow-rose-600/30 active:scale-95 aspect-square shrink-0 animate-pulse">
+                                                        <i class="fa-solid fa-lock-open text-xs"></i>
+                                                    </button>
+                                                </template>
+                                                <template x-if="!item.is_security_locked">
+                                                    <button @click="confirmClearLockout(item)" title="Clear Security Lockout Counters" class="w-9 h-9 bg-slate-100 border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors flex items-center justify-center rounded-xl active:scale-95 aspect-square shrink-0">
+                                                        <i class="fa-solid fa-lock-open text-xs"></i>
+                                                    </button>
+                                                </template>
                                                 <button @click="viewAccess(item)" title="View Access Topology" class="w-9 h-9 bg-purple-600 border border-purple-700 text-white hover:bg-purple-700 transition-colors flex items-center justify-center rounded-xl shadow-sm active:scale-95 aspect-square shrink-0">
                                                     <i class="fas fa-shield-halved text-xs"></i>
                                                 </button>
+                                                <a :href="'/mgmt/users/' + (item.uuid || item.id) + '/audit'" title="Activity History & Audit Ledger" class="w-9 h-9 bg-teal-600 border border-teal-700 text-white hover:bg-teal-700 transition-colors flex items-center justify-center rounded-xl shadow-sm active:scale-95 aspect-square shrink-0">
+                                                    <i class="fa-solid fa-clock-rotate-left text-xs"></i>
+                                                </a>
                                                 <button @click="confirmStatus(item)" title="Toggle State" :class="item.is_active ? 'bg-amber-500 border-amber-600 hover:bg-amber-600' : 'bg-emerald-500 border-emerald-600 hover:bg-emerald-600'" class="w-9 h-9 text-white border transition-colors flex items-center justify-center rounded-xl shadow-sm active:scale-95 aspect-square shrink-0">
                                                     <i class="fa-solid fa-power-off text-xs"></i>
                                                 </button>
@@ -382,17 +445,23 @@
                                 </template>
                             </tbody>
                         </table>
+
+                        <!-- Loading Indicator -->
+                        <div x-show="loading" class="py-16 text-center bg-white border-b border-slate-100">
+                            <i class="fa-solid fa-circle-notch fa-spin text-3xl text-blue-600 mb-2"></i>
+                            <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Retrieving Identity Directory...</p>
+                        </div>
                     </div>
 
                     <!-- Pagination -->
                     <div x-show="totalPages > 1" class="p-8 border-t border-slate-100 bg-slate-50/30 flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div class="text-xs font-bold text-slate-400">
-                            Showing <span class="text-blue-900" x-text="((page - 1) * perPage) + 1"></span> to <span class="text-blue-900" x-text="Math.min(page * perPage, filteredItems.length)"></span> of <span class="text-blue-900" x-text="filteredItems.length"></span> users
+                            Showing <span class="text-blue-900" x-text="pagination.from || 0"></span> to <span class="text-blue-900" x-text="pagination.to || 0"></span> of <span class="text-blue-900" x-text="pagination.total || 0"></span> users
                         </div>
                         <div class="flex items-center gap-2">
-                            <!-- First/Next -->
-                            <button @click="page = 1" :disabled="page === 1" class="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-400 disabled:opacity-30 hover:bg-slate-50 transition-all font-black text-[10px] uppercase">First</button>
-                            <button @click="page++" :disabled="page === totalPages" class="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-all"><i class="fa-solid fa-chevron-right"></i></button>
+                            <!-- First/Prev -->
+                            <button @click.prevent="goToPage(1)" :disabled="page === 1" class="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-400 disabled:opacity-30 hover:bg-slate-50 transition-all font-black text-[10px] uppercase">First</button>
+                            <button @click.prevent="goToPage(page - 1)" :disabled="page === 1" class="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-all"><i class="fa-solid fa-chevron-left"></i></button>
                             
                             <!-- Sliding Window -->
                             <template x-for="p in pagesToShow()" :key="p">
@@ -401,19 +470,19 @@
                                         <span class="px-2 text-slate-300 font-bold">...</span>
                                     </template>
                                     <template x-if="p !== '...'">
-                                        <button @click="page = p" :class="page === p ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/30' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'" class="w-10 h-10 rounded-xl border font-black text-xs transition-all" x-text="p"></button>
+                                        <button @click.prevent="goToPage(p)" :class="page === p ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/30' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'" class="w-10 h-10 rounded-xl border font-black text-xs transition-all" x-text="p"></button>
                                     </template>
                                 </div>
                             </template>
 
-                            <!-- Prev/Last -->
-                            <button @click="page--" :disabled="page === 1" class="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-all"><i class="fa-solid fa-chevron-left"></i></button>
-                            <button @click="page = totalPages" :disabled="page === totalPages" class="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-400 disabled:opacity-30 hover:bg-slate-50 transition-all font-black text-[10px] uppercase">Last</button>
+                            <!-- Next/Last -->
+                            <button @click.prevent="goToPage(page + 1)" :disabled="page === totalPages" class="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-all"><i class="fa-solid fa-chevron-right"></i></button>
+                            <button @click.prevent="goToPage(totalPages)" :disabled="page === totalPages" class="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-400 disabled:opacity-30 hover:bg-slate-50 transition-all font-black text-[10px] uppercase">Last</button>
                         </div>
                     </div>
 
                     <!-- Empty State -->
-                    <div x-show="filteredItems.length === 0" class="py-32 text-center bg-white">
+                    <div x-show="!loading && items.length === 0" class="py-32 text-center bg-white">
                         <i class="fa-solid fa-users-slash text-6xl text-slate-100 mb-6 animate-pulse"></i>
                         <h3 class="text-2xl font-black text-blue-900" x-text="search ? 'No identity matches' : 'Identity Registry Empty'"></h3>
                         <p class="text-slate-400 font-bold mt-2" x-text="search ? 'Refine your query parameters.' : 'Database contains no configured users.'"></p>
@@ -523,20 +592,26 @@
                                 <button @click="filterStatus = ''" :class="filterStatus === '' ?
                                         'bg-blue-600 text-white shadow-md' :
                                         'bg-slate-50 text-slate-600 hover:bg-slate-100 border-2 border-slate-100'" class="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-left flex items-center justify-between group">
-                                    <span>Global Data</span>
+                                    <span>Global Directory</span>
                                     <i class="fas fa-globe-americas transition-opacity" :class="filterStatus === '' ? 'opacity-100' : 'opacity-40'"></i>
                                 </button>
                                 <button @click="filterStatus = 'active'" :class="filterStatus === 'active' ?
                                         'bg-emerald-600 text-white shadow-md' :
                                         'bg-slate-50 text-slate-600 hover:bg-slate-100 border-2 border-slate-100'" class="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-left flex items-center justify-between group">
-                                    <span>Authorized Only</span>
+                                    <span>Active (Authorized)</span>
                                     <i class="fas fa-check-circle transition-opacity" :class="filterStatus === 'active' ? 'opacity-100' : 'opacity-40'"></i>
                                 </button>
-                                <button @click="filterStatus = 'inactive'" :class="filterStatus === 'inactive' ?
-                                        'bg-gradient-to-r from-rose-600 to-rose-400 text-white shadow-md' :
+                                <button @click="filterStatus = 'suspended'" :class="filterStatus === 'suspended' ?
+                                        'bg-slate-700 text-white shadow-md' :
                                         'bg-slate-50 text-slate-600 hover:bg-slate-100 border-2 border-slate-100'" class="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-left flex items-center justify-between group">
-                                    <span>Locked Vaults</span>
-                                    <i class="fas fa-lock transition-opacity" :class="filterStatus === 'inactive' ? 'opacity-100' : 'opacity-40'"></i>
+                                    <span>Suspended (Disabled)</span>
+                                    <i class="fas fa-pause-circle transition-opacity" :class="filterStatus === 'suspended' ? 'opacity-100' : 'opacity-40'"></i>
+                                </button>
+                                <button @click="filterStatus = 'security_locked'" :class="filterStatus === 'security_locked' ?
+                                        'bg-rose-600 text-white shadow-md' :
+                                        'bg-slate-50 text-slate-600 hover:bg-slate-100 border-2 border-slate-100'" class="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-left flex items-center justify-between group">
+                                    <span>Security Locked</span>
+                                    <i class="fas fa-lock transition-opacity" :class="filterStatus === 'security_locked' ? 'opacity-100' : 'opacity-40'"></i>
                                 </button>
                             </div>
                         </div>
@@ -586,145 +661,119 @@
             </div>
         </div>
 
-        <!-- Add/Edit Modal (HMS Original MedCare Look) -->
+        <!-- Add/Edit Modal (HMS Master Bento Luxury Architecture) -->
         <div x-show="showModal" class="fixed inset-0 z-[100] overflow-y-auto px-4 py-6" x-transition.opacity>
             <div class="flex items-center justify-center min-h-screen">
-                <div class="fixed inset-0 bg-white/30 backdrop-blur-sm z-[90]" @click="showModal = false"></div>
+                <div class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[90]" @click="showModal = false"></div>
                 
-                <div class="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl z-[100] overflow-hidden relative border border-slate-100" x-transition.scale.origin.center>
-                    <div :class="modalMode === 'add' ? 'from-blue-600 to-blue-700' : 'from-blue-600 to-purple-700'" class="bg-gradient-to-br p-6 text-white relative">
+                <div class="bg-white rounded-3xl shadow-2xl w-full max-w-5xl z-[100] overflow-hidden relative border border-slate-100 max-h-[92vh] flex flex-col" x-transition.scale.origin.center>
+                    {{-- Modal Header --}}
+                    <div :class="modalMode === 'add' ? 'from-blue-600 via-blue-700 to-indigo-800' : 'from-indigo-600 via-purple-700 to-blue-800'" class="bg-gradient-to-r p-6 text-white relative flex-shrink-0">
                         <div class="flex items-center justify-between relative z-10">
                             <div class="flex items-center gap-4">
-                                <div class="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-xl border border-white/20">
+                                <div class="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center shadow-xl border border-white/20">
                                     <i class="fa-solid fa-user-plus text-xl text-white" x-show="modalMode === 'add'"></i>
                                     <i class="fa-solid fa-user-pen text-xl text-white" x-show="modalMode === 'edit'"></i>
                                 </div>
                                 <div>
-                                    <h3 class="text-xl font-extrabold tracking-tight" x-text="modalMode === 'add' ? 'Provision Key' : 'Modify Identity'"></h3>
-                                    <p class="text-blue-100 text-[9px] font-black uppercase tracking-widest mt-0.5" x-text="modalMode === 'add' ? 'Establishing national personnel integration' : 'Identity: ' + form.username"></p>
+                                    <div class="flex items-center gap-2">
+                                        <h3 class="text-xl font-extrabold tracking-tight" x-text="modalMode === 'add' ? 'Provision Identity' : 'Modify Identity Parameters'"></h3>
+                                        <span class="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-white/20 border border-white/30 text-white"
+                                              x-text="modalMode === 'add' ? 'New Officer' : 'Existing Member'"></span>
+                                    </div>
+                                    <p class="text-blue-100 text-[10px] font-bold tracking-wide mt-0.5" x-text="modalMode === 'add' ? 'Establishing authenticated NHMP 130 helpline personnel profile' : 'Modifying profile for @' + form.username"></p>
                                 </div>
                             </div>
-                            <button @click="showModal = false" class="absolute top-6 right-6 w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
-                                <i class="fa-solid fa-times text-lg"></i>
+                            <button type="button" @click="showModal = false" class="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                                <i class="fa-solid fa-times text-base"></i>
                             </button>
                         </div>
                     </div>
 
-                    <form @submit.prevent="submitForm" data-no-pjax class="p-8 space-y-6 bg-slate-50/50">
-                        <div class="grid grid-cols-2 gap-6">
+                    {{-- Form with Two-Column Bento Layout --}}
+                    <form @submit.prevent="submitForm" data-no-pjax class="p-6 sm:p-8 overflow-y-auto space-y-6 bg-slate-50/50 flex-1">
+                        <div class="grid grid-cols-1 lg:grid-cols-12 gap-7">
                             
-                            <!-- Core Identity Section -->
-                            <div class="col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-5">
-                                <h4 class="text-xs font-black text-blue-900 uppercase tracking-widest flex items-center gap-2 mb-2"><i class="fas fa-fingerprint text-blue-500"></i> Core Identity</h4>
-                                <div class="grid grid-cols-2 gap-5">
-                                    <div class="col-span-2 sm:col-span-1">
-                                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Identity Handle (Username)</label>
-                                        <input type="text" x-model="form.username" required autocomplete="username" placeholder="system.admin" class="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
-                                    </div>
-                                    <div class="col-span-2 sm:col-span-1">
-                                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Authority Level (Role)</label>
-                                        <select x-model="form.role_id" required class="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
-                                            <option value="">Select Role...</option>
-                                            <template x-for="r in filteredRolesForAssignment" :key="r.id">
-                                                <option :value="r.id" x-text="r.display_name"></option>
-                                            </template>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
+                            {{-- LEFT COLUMN: Basic Information & Credentials (5 Columns) --}}
+                            <div class="lg:col-span-5 space-y-5">
+                                
+                                {{-- 1. Personnel Identity Card --}}
+                                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 space-y-4">
+                                    <h4 class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                                        <i class="fa-solid fa-id-card text-blue-600"></i> Personnel Identity
+                                    </h4>
 
-                            <!-- Personal Information Section -->
-                            <div class="col-span-2 sm:col-span-1 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-5 text-indigo-900 font-bold">
-                                <h4 class="text-xs font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2 mb-2"><i class="fas fa-id-card text-indigo-500"></i> Personnel Data</h4>
-                                <div>
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Full Name</label>
-                                    <input type="text" x-model="form.full_name" required placeholder="John Doe" class="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">CNIC (00000-0000000-0)</label>
-                                    <input type="text" x-model="form.cnic" required pattern="[0-9]{5}-[0-9]{7}-[0-9]{1}" placeholder="35202-1234567-1" class="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Email Address</label>
-                                    <input type="email" x-model="form.email" required placeholder="admin@nhmp.gov.pk" class="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Mobile (03xxxxxxxxx)</label>
-                                    <input type="text" x-model="form.mobile_no" required pattern="^03[0-9]{9}$" placeholder="03001234567" class="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors" title="Mobile number must start with 03 and be 11 digits long.">
-                                </div>
-                            </div>
-
-                            <!-- Operational Scope Section -->
-                            <div class="col-span-2 sm:col-span-1 flex flex-col gap-6">
-                                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-5 flex-1">
-                                    <h4 class="text-xs font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2 mb-2"><i class="fas fa-network-wired text-emerald-500"></i> Operational Scope</h4>
-                                    
+                                    <!-- Full Name -->
                                     <div>
-                                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Data Bounds</label>
-                                        <select x-model="form.scope_unit_type" @change="form.scope_unit_id = ''; tempZoneId = ''; tempSectorId = ''" required class="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-emerald-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
-                                            <template x-for="st in availableScopeTypes" :key="st.value">
-                                                <option :value="st.value" x-text="st.label"></option>
-                                            </template>
-                                        </select>
+                                        <label class="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Full Name *</label>
+                                        <input type="text" x-model="form.full_name" required autocomplete="name"
+                                               class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-bold text-slate-800 outline-none transition-all shadow-inner text-xs sm:text-sm"
+                                               placeholder="e.g. Muhammad Aadil">
                                     </div>
-                                    
-                                    <div x-show="form.scope_unit_type !== 'national'" x-transition class="space-y-4">
-                                        
-                                        <!-- Zone Selection (Required for Sector/Beat) -->
-                                        <div x-show="['zone', 'sector', 'beat'].includes(form.scope_unit_type)">
-                                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Select Zone</label>
-                                            <select x-model="tempZoneId" @change="tempSectorId = ''; form.scope_unit_id = (form.scope_unit_type === 'zone' ? $event.target.value : '')" :required="['zone', 'sector', 'beat'].includes(form.scope_unit_type)" class="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-emerald-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
-                                                <option value="">Select Zone...</option>
-                                                <template x-for="z in zones" :key="z.id">
-                                                    <option :value="z.id" x-text="z.name"></option>
-                                                </template>
-                                            </select>
-                                        </div>
 
-                                        <!-- Sector Selection (Required for Beat, optional filter for Sector) -->
-                                        <div x-show="['sector', 'beat'].includes(form.scope_unit_type)">
-                                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Select Sector</label>
-                                            <select x-model="tempSectorId" @change="form.scope_unit_id = (form.scope_unit_type === 'sector' ? $event.target.value : '')" :required="['sector', 'beat'].includes(form.scope_unit_type)" class="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-emerald-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
-                                                <option value="">Select Sector...</option>
-                                                <template x-for="s in filteredSectors" :key="s.id">
-                                                    <option :value="s.id" x-text="s.name"></option>
-                                                </template>
-                                            </select>
-                                        </div>
-
-                                        <!-- Final Unit Selection (Beat or Call Center) -->
-                                        <div x-show="['beat', 'call_centre'].includes(form.scope_unit_type)">
-                                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2" x-text="form.scope_unit_type === 'beat' ? 'Select Beat' : 'Select Call Center'"></label>
-                                            
-                                            <select x-model="form.scope_unit_id" :required="form.scope_unit_type === 'beat'" x-show="form.scope_unit_type === 'beat'" class="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-emerald-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
-                                                <option value="">Select Beat...</option>
-                                                <template x-for="b in filteredBeats" :key="b.id">
-                                                    <option :value="b.id" x-text="b.name"></option>
-                                                </template>
-                                            </select>
-
-                                            <select x-model="form.scope_unit_id" :required="form.scope_unit_type === 'call_centre'" x-show="form.scope_unit_type === 'call_centre'" class="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-emerald-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
-                                                <option value="">Select Call Center...</option>
-                                                <option value="1">National Call Center (HQ)</option>
-                                            </select>
+                                    <!-- Identity Handle (Username) -->
+                                    <div>
+                                        <label class="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Identity Handle (Username) *</label>
+                                        <div class="relative">
+                                            <span class="absolute left-3.5 top-2.5 text-slate-400 font-mono text-xs">@</span>
+                                            <input type="text" x-model="form.username" required autocomplete="username"
+                                                   class="w-full pl-8 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-bold font-mono text-slate-800 outline-none transition-all shadow-inner text-xs sm:text-sm"
+                                                   placeholder="username">
                                         </div>
                                     </div>
 
-                                    <div class="space-y-4">
+                                    <!-- Email -->
+                                    <div>
+                                        <label class="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Email Address *</label>
+                                        <div class="relative">
+                                            <i class="fa-solid fa-envelope absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+                                            <input type="email" x-model="form.email" required autocomplete="email"
+                                                   class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-bold text-slate-800 outline-none transition-all shadow-inner text-xs sm:text-sm"
+                                                   placeholder="officer@nhmp.gov.pk">
+                                        </div>
+                                    </div>
+
+                                    <!-- Mobile & CNIC -->
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div>
-                                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Professional Rank (Designation)</label>
-                                            <select x-model="tempDesignationName" @change="form.designation_id = ''" required class="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-emerald-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
+                                            <label class="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Mobile Number</label>
+                                            <div class="relative">
+                                                <i class="fa-solid fa-phone absolute left-3 top-3 text-slate-400 text-xs"></i>
+                                                <input type="text" x-model="form.mobile_no" pattern="^03[0-9]{9}$" autocomplete="tel"
+                                                       class="w-full pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-bold font-mono text-slate-800 outline-none transition-all shadow-inner text-xs"
+                                                       placeholder="03001234567" title="Mobile number must start with 03 and be 11 digits long.">
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">CNIC Identity *</label>
+                                            <div class="relative">
+                                                <i class="fa-solid fa-address-card absolute left-3 top-3 text-slate-400 text-xs"></i>
+                                                <input type="text" x-model="form.cnic" required
+                                                       @input="form.cnic = formatCnicInput($event.target.value)"
+                                                       maxlength="15" autocomplete="off"
+                                                       class="w-full pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-bold font-mono text-slate-800 outline-none transition-all shadow-inner text-xs"
+                                                       placeholder="35202-1234567-1">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Rank & Pay Scale (Designation & BPS) -->
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-slate-100">
+                                        <div>
+                                            <label class="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Rank (Designation)</label>
+                                            <select x-model="tempDesignationName" @change="form.designation_id = ''" required
+                                                    class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-bold text-slate-800 outline-none transition-all text-xs">
                                                 <option value="">Select Rank...</option>
                                                 <template x-for="name in availableDesignationNames" :key="name">
                                                     <option :value="name" x-text="name"></option>
                                                 </template>
                                             </select>
                                         </div>
-
-                                        <div x-show="tempDesignationName" x-transition>
-                                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Basic Pay Scale (BPS)</label>
-                                            <select x-model="form.designation_id" required class="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-emerald-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
-                                                <option value="">Select BPS Grade...</option>
+                                        <div>
+                                            <label class="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">BPS Grade</label>
+                                            <select x-model="form.designation_id" required
+                                                    class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-bold text-slate-800 outline-none transition-all text-xs">
+                                                <option value="">Select BPS...</option>
                                                 <template x-for="d in availableBPS" :key="d.id">
                                                     <option :value="d.id" x-text="'BPS-' + d.bps + ' (' + d.short_code + ')'"></option>
                                                 </template>
@@ -732,54 +781,228 @@
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                            
-                            <!-- Security Section - Only shows when adding to allow generating the first key -->
-                            <!-- Security Section - Only shows when adding to allow generating the first key -->
-                            <div x-show="modalMode === 'add'" class="col-span-2 bg-white p-6 rounded-3xl shadow-md border-2 border-dashed border-blue-200/60 flex flex-col gap-5 text-slate-700" :style="modalMode === 'add' ? 'background-image: radial-gradient(at top left, rgba(219, 234, 254, 0.4), transparent), radial-gradient(at bottom right, rgba(fee2e2, 0.4), transparent);' : ''">
-                                <div class="flex items-center justify-between">
-                                    <h4 class="text-xs font-black text-blue-900 uppercase tracking-widest flex items-center gap-2"><i class="fas fa-key text-blue-500"></i> Generation Vault</h4>
-                                    <div class="text-[9px] font-black text-blue-600 uppercase tracking-widest bg-blue-100 px-2 py-1 rounded border border-blue-200">Security Grade: Enterprise</div>
-                                </div>
-                                <div class="grid grid-cols-2 gap-5 relative">
-                                    <div class="col-span-2 sm:col-span-1">
-                                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Initial Key</label>
-                                        <input type="password" x-model="form.password" autocomplete="new-password" :required="modalMode === 'add'" placeholder="••••••••" class="w-full px-5 py-3.5 bg-white border-2 border-slate-100 focus:border-blue-500 rounded-2xl outline-none font-bold text-slate-800 text-sm transition-colors shadow-inner">
+
+                                {{-- 2. Pure Blocked vs Unblocked State Toggle Card --}}
+                                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 space-y-2">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <span class="text-xs font-black uppercase tracking-wider block text-slate-700">Account Access State</span>
+                                            <span class="text-[11px] font-bold" :class="form.is_blocked ? 'text-rose-600' : 'text-emerald-600'"
+                                                  x-text="form.is_blocked ? 'BLOCKED — Credentials revoked' : 'ACTIVE — Operational duty'"></span>
+                                        </div>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" x-model="form.is_blocked" class="sr-only peer">
+                                            <div class="w-11 h-6 bg-emerald-500 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-600"></div>
+                                        </label>
                                     </div>
-                                    <div class="col-span-2 sm:col-span-1">
-                                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Validate Match</label>
-                                        <input type="password" x-model="form.password_confirmation" autocomplete="new-password" :required="modalMode === 'add'" placeholder="••••••••" class="w-full px-5 py-3.5 bg-white border-2 border-slate-100 focus:border-blue-500 rounded-2xl outline-none font-bold text-slate-800 text-sm transition-colors shadow-inner">
+                                    <p class="text-[9px] text-slate-400 font-medium">
+                                        Pure status architecture: When blocked, password hash is invalidated and active sessions are terminated.
+                                    </p>
+                                </div>
+
+                                {{-- 3. Automated Security Key Vault (Strictly System Generated) --}}
+                                <div x-show="modalMode === 'add'" class="bg-white p-5 rounded-2xl shadow-sm border-2 border-dashed border-blue-200/80 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 space-y-3">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs shadow-sm">
+                                                <i class="fa-solid fa-shield-halved"></i>
+                                            </div>
+                                            <div>
+                                                <h4 class="text-xs font-black text-blue-900 uppercase tracking-widest leading-none">Security Key Vault</h4>
+                                                <p class="text-[9px] font-bold text-slate-500 mt-0.5">High-entropy cryptographic generation</p>
+                                            </div>
+                                        </div>
+                                        <span class="text-[9px] font-black text-emerald-700 uppercase tracking-wider bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                            <i class="fa-solid fa-circle-check text-[8px]"></i> System Generated
+                                        </span>
+                                    </div>
+
+                                    <div>
+                                        <div class="flex items-center justify-between mb-1.5">
+                                            <label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                                Generated Master Key (Read-Only)
+                                            </label>
+                                            <div class="flex items-center gap-1.5">
+                                                <button type="button" @click="copyToClipboard(form.password, 'add_pass')" 
+                                                    class="text-[10px] font-black px-2 py-0.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1 shadow-xs transition-all active:scale-95">
+                                                    <i :class="copiedField === 'add_pass' ? 'fa-solid fa-check text-emerald-600' : 'fa-regular fa-copy text-blue-600'"></i>
+                                                    <span x-text="copiedField === 'add_pass' ? 'Copied!' : 'Copy'"></span>
+                                                </button>
+                                                <button type="button" @click="generateFormPassword()" 
+                                                    class="text-[10px] font-black px-2 py-0.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 shadow-xs shadow-blue-500/20 transition-all active:scale-95">
+                                                    <i class="fa-solid fa-wand-magic-sparkles text-[9px]"></i>
+                                                    <span>Re-Gen</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="relative">
+                                            <input type="text" x-model="form.password" readonly autocomplete="off"
+                                                class="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl font-mono font-bold text-slate-800 text-xs tracking-wider select-all cursor-not-allowed shadow-inner focus:outline-none">
+                                            <input type="hidden" name="password_confirmation" x-model="form.password_confirmation">
+                                            <div class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">
+                                                <i class="fa-solid fa-lock"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Strength Meter Bar -->
+                                    <div class="space-y-1">
+                                        <div class="flex items-center justify-between text-[9px] font-black uppercase tracking-wider">
+                                            <span class="text-emerald-700 flex items-center gap-1">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                Cryptographic Strength: 100% Entropy (16 Chars)
+                                            </span>
+                                            <span class="text-slate-400">Enterprise Standard</span>
+                                        </div>
+                                        <div class="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                                            <div class="h-full bg-gradient-to-r from-emerald-500 to-teal-500 w-full rounded-full"></div>
+                                        </div>
                                     </div>
                                 </div>
-                                <!-- Password Guidelines -->
-                                <div class="mt-2 bg-white/50 rounded-xl p-4 border border-blue-100/50">
-                                    <p class="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Security Requirements</p>
-                                    <div class="grid grid-cols-2 gap-x-4 gap-y-2">
-                                        <div class="flex items-center gap-2 text-[10px] font-bold text-slate-500">
-                                            <i class="fas fa-check-circle text-emerald-500"></i> Minimum 12 characters
-                                        </div>
-                                        <div class="flex items-center gap-2 text-[10px] font-bold text-slate-500">
-                                            <i class="fas fa-check-circle text-emerald-500"></i> Mixed-case (A-z)
-                                        </div>
-                                        <div class="flex items-center gap-2 text-[10px] font-bold text-slate-500">
-                                            <i class="fas fa-check-circle text-emerald-500"></i> Numbers & Symbols
-                                        </div>
-                                        <div class="flex items-center gap-2 text-[10px] font-bold text-slate-500">
-                                            <i class="fas fa-shield-alt text-blue-500"></i> Uncompromised check
-                                        </div>
-                                    </div>
-                                </div>
+
                             </div>
 
+                            {{-- RIGHT COLUMN: Authority Level (Roles) & Operational Scope / Branches (7 Columns) --}}
+                            <div class="lg:col-span-7 space-y-5">
+                                
+                                {{-- 1. Authority Level / Roles 3D Selectable Cards --}}
+                                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 space-y-3">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <h4 class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                                                <i class="fa-solid fa-shield-halved text-indigo-600"></i> Authority Level (Role) *
+                                            </h4>
+                                            <p class="text-[11px] font-bold text-slate-400 mt-0.5">Select the operational role determining governance capabilities</p>
+                                        </div>
+                                        <span class="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg"
+                                              :class="form.role_id ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' : 'bg-slate-100 text-slate-400'"
+                                              x-text="form.role_id ? 'Role Assigned' : 'Required'"></span>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-56 overflow-y-auto pr-1">
+                                        <template x-for="r in filteredRolesForAssignment" :key="r.id">
+                                            <div @click="form.role_id = r.id"
+                                                 :class="form.role_id == r.id ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md border-blue-500 scale-[1.01]' : 'bg-slate-50 hover:bg-slate-100/80 border-slate-200 text-slate-700'"
+                                                 class="p-3 rounded-xl border transition-all duration-150 cursor-pointer select-none flex flex-col justify-between gap-2 shadow-xs active:scale-95">
+                                                <div class="flex items-start justify-between gap-2">
+                                                    <div class="flex items-center gap-2 min-w-0">
+                                                        <div class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-xs"
+                                                             :class="form.role_id == r.id ? 'bg-white/20 text-white' : 'bg-white text-blue-600 shadow-xs border border-slate-100'">
+                                                            <i class="fa-solid fa-user-shield"></i>
+                                                        </div>
+                                                        <span class="text-xs font-bold leading-tight truncate" :class="form.role_id == r.id ? 'text-white' : 'text-slate-800'" x-text="r.display_name"></span>
+                                                    </div>
+                                                    <div class="w-5 h-5 rounded-lg flex items-center justify-center shrink-0 text-[10px]"
+                                                         :class="form.role_id == r.id ? 'bg-white text-blue-600 shadow-xs' : 'border border-slate-300 text-transparent'">
+                                                        <i class="fa-solid fa-check"></i>
+                                                    </div>
+                                                </div>
+                                                <div class="flex items-center justify-between text-[9px] font-black uppercase pt-1 border-t"
+                                                     :class="form.role_id == r.id ? 'border-white/20 text-white/80' : 'border-slate-200 text-slate-400'">
+                                                    <span x-text="r.name.replace('_', ' ')"></span>
+                                                    <span x-text="form.role_id == r.id ? '✓ Selected' : '+ Select'"></span>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                {{-- 2. Operational Scope & Branch Deployment --}}
+                                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 space-y-4">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <h4 class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                                                <i class="fa-solid fa-network-wired text-emerald-600"></i> Operational Scope & Branch *
+                                            </h4>
+                                            <p class="text-[11px] font-bold text-slate-400 mt-0.5">Determine geographical jurisdiction and data bounds</p>
+                                        </div>
+                                        <span class="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                            ★ Primary Access
+                                        </span>
+                                    </div>
+
+                                    <!-- Scope Type Selector Pills -->
+                                    <div>
+                                        <label class="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Scope Boundary Type</label>
+                                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                            <template x-for="st in availableScopeTypes" :key="st.value">
+                                                <button type="button" 
+                                                        @click="form.scope_unit_type = st.value; form.scope_unit_id = ''; tempZoneId = ''; tempSectorId = ''"
+                                                        :class="form.scope_unit_type === st.value ? 'bg-emerald-600 text-white shadow-sm border-emerald-600' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'"
+                                                        class="px-3 py-2 rounded-xl text-xs font-bold border transition-all text-center flex items-center justify-center gap-1.5">
+                                                    <i class="fa-solid fa-circle-dot text-[8px]" x-show="form.scope_unit_type === st.value"></i>
+                                                    <span x-text="st.label"></span>
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </div>
+
+                                    <!-- Cascading Unit Selections (When not National) -->
+                                    <div x-show="form.scope_unit_type !== 'national'" x-transition class="space-y-3 pt-2 border-t border-slate-100">
+                                        <!-- Zone Selection (Required for Zone, Sector, Beat) -->
+                                        <div x-show="['zone', 'sector', 'beat'].includes(form.scope_unit_type)">
+                                            <label class="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Select Zone *</label>
+                                            <select x-model="tempZoneId" @change="tempSectorId = ''; form.scope_unit_id = (form.scope_unit_type === 'zone' ? $event.target.value : '')"
+                                                    :required="['zone', 'sector', 'beat'].includes(form.scope_unit_type)"
+                                                    class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:border-emerald-500 font-bold text-slate-800 text-xs">
+                                                <option value="">Select Zone...</option>
+                                                <template x-for="z in zones" :key="z.id">
+                                                    <option :value="z.id" x-text="z.name"></option>
+                                                </template>
+                                            </select>
+                                        </div>
+
+                                        <!-- Sector Selection (Required for Sector, Beat) -->
+                                        <div x-show="['sector', 'beat'].includes(form.scope_unit_type)">
+                                            <label class="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Select Sector *</label>
+                                            <select x-model="tempSectorId" @change="form.scope_unit_id = (form.scope_unit_type === 'sector' ? $event.target.value : '')"
+                                                    :required="['sector', 'beat'].includes(form.scope_unit_type)"
+                                                    class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:border-emerald-500 font-bold text-slate-800 text-xs">
+                                                <option value="">Select Sector...</option>
+                                                <template x-for="s in filteredSectors" :key="s.id">
+                                                    <option :value="s.id" x-text="s.name"></option>
+                                                </template>
+                                            </select>
+                                        </div>
+
+                                        <!-- Beat Selection -->
+                                        <div x-show="form.scope_unit_type === 'beat'">
+                                            <label class="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Select Beat *</label>
+                                            <select x-model="form.scope_unit_id" :required="form.scope_unit_type === 'beat'"
+                                                    class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:border-emerald-500 font-bold text-slate-800 text-xs">
+                                                <option value="">Select Beat...</option>
+                                                <template x-for="b in filteredBeats" :key="b.id">
+                                                    <option :value="b.id" x-text="b.name"></option>
+                                                </template>
+                                            </select>
+                                        </div>
+
+                                        <!-- Call Center Selection -->
+                                        <div x-show="form.scope_unit_type === 'call_centre'">
+                                            <label class="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Call Center Facility *</label>
+                                            <select x-model="form.scope_unit_id" :required="form.scope_unit_type === 'call_centre'"
+                                                    class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:border-emerald-500 font-bold text-slate-800 text-xs">
+                                                <option value="">Select Facility...</option>
+                                                <option value="1">National Call Center (HQ - Islamabad)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
                         </div>
-                        
-                        <div class="flex gap-4 pt-4 mt-4">
-                            <button type="button" @click="showModal = false" class="flex-1 px-8 py-5 bg-slate-50 text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all">Abort Profile</button>
-                            <button type="submit" :disabled="saving" 
-                                :class="modalMode === 'add' ? 'bg-gradient-to-r from-blue-600 to-indigo-700 shadow-blue-500/30' : 'bg-gradient-to-r from-emerald-500 to-cyan-600 shadow-emerald-500/30'"
-                                class="flex-[2] px-8 py-5 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl hover:-translate-y-1 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3">
-                                <span x-show="!saving" x-text="modalMode === 'add' ? 'Initialize Identity' : 'Update Parameters'"></span>
-                                <span x-show="saving"><i class="fa-solid fa-circle-notch animate-spin mr-2"></i> Latency Sync...</span>
+
+                        {{-- Footer Action Buttons (Sticky at modal bottom) --}}
+                        <div class="sticky bottom-0 z-20 flex items-center justify-between pt-4 pb-4 border-t border-slate-200/80 bg-white/95 backdrop-blur-md -mx-6 -mb-6 sm:-mx-8 sm:-mb-8 px-6 sm:px-8 shadow-md mt-6">
+                            <button type="button" @click="showModal = false"
+                                    class="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-black text-xs uppercase tracking-wider transition-all">
+                                Cancel
+                            </button>
+                            <button type="submit" :disabled="saving"
+                                    :class="modalMode === 'add' ? 'bg-gradient-to-r from-blue-600 to-indigo-700 shadow-blue-500/20' : 'bg-gradient-to-r from-emerald-600 to-teal-700 shadow-emerald-500/20'"
+                                    class="px-8 py-2.5 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-lg hover:-translate-y-0.5 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2">
+                                <span x-show="!saving" x-text="modalMode === 'add' ? 'Provision Identity' : 'Save Changes'"></span>
+                                <span x-show="saving"><i class="fa-solid fa-circle-notch animate-spin mr-1.5"></i> Synchronizing...</span>
                             </button>
                         </div>
                     </form>
@@ -807,29 +1030,55 @@
                             </button>
                         </div>
                     </div>
-                    <form @submit.prevent="submitPasswordReset" data-no-pjax class="p-8 space-y-6">
+                    <form @submit.prevent="submitPasswordReset" data-no-pjax class="p-8 space-y-5">
                         <input type="text" autocomplete="username" style="display: none;" x-bind:value="selectedItem ? selectedItem.username : ''">
+                        
                         <div>
-                            <div class="flex items-center justify-between mb-2">
-                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest">New Security Key</label>
-                                <button type="button" @click="generateCompliantPassword()" class="text-[10px] font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1.5 transition-colors">
-                                    <i class="fa-solid fa-wand-magic-sparkles text-[10px]"></i>
-                                    <span>Auto-Generate</span>
-                                </button>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                    Generated Password (Read-Only)
+                                </label>
+                                <div class="flex items-center gap-2">
+                                    <button type="button" @click="copyToClipboard(passwordForm.password, 'reset_pass')" 
+                                        class="text-[10px] font-black px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1 transition-all active:scale-95">
+                                        <i :class="copiedField === 'reset_pass' ? 'fa-solid fa-check text-emerald-600' : 'fa-regular fa-copy text-rose-600'"></i>
+                                        <span x-text="copiedField === 'reset_pass' ? 'Copied!' : 'Copy Key'"></span>
+                                    </button>
+                                    <button type="button" @click="generateCompliantPassword()" 
+                                        class="text-[10px] font-black px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white flex items-center gap-1 shadow-sm shadow-rose-500/20 transition-all active:scale-95">
+                                        <i class="fa-solid fa-arrows-rotate text-[9px]"></i>
+                                        <span>Re-Generate</span>
+                                    </button>
+                                </div>
                             </div>
-                            <input type="password" x-model="passwordForm.password" autocomplete="new-password" required placeholder="••••••••" class="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-rose-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
+                            <div class="relative">
+                                <input type="text" x-model="passwordForm.password" readonly autocomplete="off" required
+                                    class="w-full px-4 py-3.5 bg-slate-100 border-2 border-slate-200 rounded-xl font-mono font-bold text-slate-800 text-sm tracking-widest select-all cursor-not-allowed shadow-inner focus:outline-none">
+                                <input type="hidden" x-model="passwordForm.password_confirmation">
+                                <div class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">
+                                    <i class="fa-solid fa-lock"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Validate New Key</label>
-                            <input type="password" x-model="passwordForm.password_confirmation" autocomplete="new-password" required placeholder="••••••••" class="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-rose-500 outline-none font-bold text-slate-800 text-sm shadow-inner transition-colors">
+
+                        <!-- Strength Meter Bar -->
+                        <div class="space-y-1">
+                            <div class="flex items-center justify-between text-[9px] font-black uppercase tracking-wider">
+                                <span class="text-emerald-700 flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    Strength: 100% Cryptographic Entropy (16 Characters)
+                                </span>
+                                <span class="text-slate-400">Policy Mandated</span>
+                            </div>
+                            <div class="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                                <div class="h-full bg-gradient-to-r from-emerald-500 to-teal-500 w-full rounded-full"></div>
+                            </div>
                         </div>
-                        <!-- Password Requirements Hint -->
-                        <div class="bg-rose-50 rounded-2xl p-4 border border-rose-100">
-                             <p class="text-[9px] font-black text-rose-900 uppercase tracking-[0.2em] mb-2">Security Standard</p>
-                             <ul class="text-[10px] font-bold text-rose-700 space-y-1">
-                                 <li class="flex items-center gap-2"><i class="fas fa-check-circle text-rose-500"></i> Minimum 12 characters</li>
-                                 <li class="flex items-center gap-2"><i class="fas fa-check-circle text-rose-500"></i> Must include mixed-case, numbers & symbols</li>
-                             </ul>
+
+                        <!-- Security Notice -->
+                        <div class="bg-rose-50/70 rounded-xl p-3 border border-rose-100 text-[10px] text-rose-800 flex items-start gap-2">
+                            <i class="fa-solid fa-shield-halved text-rose-500 mt-0.5 shrink-0"></i>
+                            <span>Administrators are prohibited from entering custom passwords. Copy the generated key and transmit it to the officer.</span>
                         </div>
                         <div class="flex gap-4 pt-6">
                             <button type="button" @click="showPasswordModal = false" class="flex-1 px-8 py-5 bg-slate-50 text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all">Abort</button>
@@ -843,84 +1092,7 @@
             </div>
         </div>
 
-        <!-- Password Reset Requests Queue Modal (Operation Managers) -->
-        <div x-show="showRequestsModal" class="fixed inset-0 z-[100] overflow-y-auto px-4 py-6" x-transition.opacity style="display: none;">
-            <div class="flex items-center justify-center min-h-screen">
-                <div class="fixed inset-0 bg-white/30 backdrop-blur-sm z-[90]" @click="showRequestsModal = false"></div>
-                <div class="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-3xl z-[100] overflow-hidden relative border border-slate-100" x-transition.scale.origin.center>
-                    <div class="bg-gradient-to-br from-indigo-600 via-indigo-700 to-blue-800 p-6 text-white relative">
-                        <div class="flex items-center justify-between relative z-10">
-                            <div class="flex items-center gap-4">
-                                <div class="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-xl border border-white/20">
-                                    <i class="fa-solid fa-key text-xl text-white"></i>
-                                </div>
-                                <div>
-                                    <h3 class="text-xl font-extrabold tracking-tight">Credential Reset Queue</h3>
-                                    <p class="text-indigo-200 text-[10px] font-black uppercase tracking-widest mt-0.5">
-                                        Operation Manager Authorization Portal
-                                    </p>
-                                </div>
-                            </div>
-                            <button @click="showRequestsModal = false" class="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
-                                <i class="fa-solid fa-times text-lg"></i>
-                            </button>
-                        </div>
-                    </div>
 
-                    <div class="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
-                        <template x-if="pendingRequests.length === 0">
-                            <div class="text-center py-12">
-                                <div class="w-16 h-16 rounded-3xl bg-emerald-50 text-emerald-500 mx-auto flex items-center justify-center text-2xl mb-4 border border-emerald-100">
-                                    <i class="fa-solid fa-circle-check"></i>
-                                </div>
-                                <h4 class="text-base font-extrabold text-slate-800">No Pending Requests</h4>
-                                <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">All operator and peer Operation Manager password reset requests have been cleared.</p>
-                            </div>
-                        </template>
-
-                        <template x-if="pendingRequests.length > 0">
-                            <div class="space-y-4">
-                                <template x-for="req in pendingRequests" :key="req.id">
-                                    <div class="p-5 rounded-2xl border border-slate-100 bg-slate-50/70 hover:bg-white transition-all shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                        <div class="space-y-1.5 flex-1">
-                                            <div class="flex items-center gap-2">
-                                                <h5 class="font-extrabold text-sm text-slate-900" x-text="req.requester_name"></h5>
-                                                <span :class="req.requester_role === 'operation_admin' ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-blue-100 text-blue-700 border-blue-200'" class="px-2 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-lg border" x-text="req.requester_role === 'operation_admin' ? 'Peer Operation Manager' : (req.requester_role || 'Operator')"></span>
-                                                <span class="text-[10px] text-slate-400 font-bold" x-text="'REQ-' + req.id"></span>
-                                            </div>
-                                            <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 font-medium">
-                                                <span><i class="fa-regular fa-user mr-1 text-slate-400"></i><span x-text="req.requester_username"></span></span>
-                                                <span x-show="req.requester_email"><i class="fa-regular fa-envelope mr-1 text-slate-400"></i><span x-text="req.requester_email"></span></span>
-                                                <span><i class="fa-regular fa-clock mr-1 text-slate-400"></i><span x-text="new Date(req.created_at).toLocaleString()"></span></span>
-                                            </div>
-                                            <p x-show="req.user_notes" class="text-xs text-slate-600 bg-white p-2.5 rounded-xl border border-slate-100 mt-1">
-                                                <i class="fa-solid fa-comment-dots text-slate-400 mr-1.5"></i>
-                                                <span x-text="req.user_notes"></span>
-                                            </p>
-                                        </div>
-                                        <div class="flex items-center gap-2 shrink-0">
-                                            <button @click="rejectRequest(req)" class="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold rounded-xl transition-colors">
-                                                Reject
-                                            </button>
-                                            <button @click="handleRequestApproval(req)" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-1.5">
-                                                <i class="fa-solid fa-key text-[10px]"></i>
-                                                <span>Authorize & Set Key</span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </template>
-                            </div>
-                        </template>
-                    </div>
-
-                    <div class="p-6 bg-slate-50 border-t border-slate-100 flex justify-end">
-                        <button type="button" @click="showRequestsModal = false" class="px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-100 transition-colors">
-                            Close Queue
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         <!-- Access Viewer Modal -->
         <div x-show="showAccessModal" class="fixed inset-0 z-[100] overflow-y-auto px-4 py-6" x-transition.opacity style="display: none;">
@@ -955,8 +1127,8 @@
                                 </div>
                                 
                                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    <template x-if="selectedItem.role.permissions && selectedItem.role.permissions.length > 0">
-                                        <template x-for="perm in selectedItem.role.permissions" :key="perm.id">
+                                    <template x-if="getRolePermissions(selectedItem ? selectedItem.role_id : null).length > 0">
+                                        <template x-for="perm in getRolePermissions(selectedItem ? selectedItem.role_id : null)" :key="perm.id">
                                             <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-start gap-3">
                                                 <div class="mt-1 w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]"></div>
                                                 <div>
@@ -966,7 +1138,7 @@
                                             </div>
                                         </template>
                                     </template>
-                                    <template x-if="!selectedItem.role.permissions || selectedItem.role.permissions.length === 0">
+                                    <template x-if="getRolePermissions(selectedItem ? selectedItem.role_id : null).length === 0">
                                         <div class="col-span-full py-12 text-center text-slate-400 font-bold">
                                             <i class="fa-solid fa-ban text-4xl mb-4 opacity-50"></i>
                                             <p>No granular capabilities bound to this authority level directly.</p>
@@ -988,113 +1160,169 @@
                     </div>
                 </div>
             </div>
-        </div>
-
-        <!-- View Details Modal -->
+        </div>        <!-- View Details Modal (Luxury Bento Card Layout matching nhmp_hms) -->
         <div x-show="showViewModal" class="fixed inset-0 z-[100] overflow-y-auto px-4 py-6" x-transition.opacity style="display: none;">
             <div class="flex items-center justify-center min-h-screen">
-                <div class="fixed inset-0 bg-white/30 backdrop-blur-sm z-[90]" @click="showViewModal = false"></div>
-                <div class="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl z-[100] overflow-hidden relative border border-slate-100" x-transition.scale.origin.center>
-                    <!-- View User Header -->
-                    <div class="bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-500 p-8 relative overflow-hidden text-white">
-                        <div class="absolute inset-0 bg-grid-white/[0.1] bg-[size:16px_16px]"></div>
-                        <div class="absolute -right-12 -top-12 w-48 h-48 bg-white/20 rounded-full blur-[40px]"></div>
-                        <div class="relative z-10 flex items-center gap-5">
-                            <div class="w-12 h-12 shrink-0 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-xl">
-                                <i class="fa-solid fa-fingerprint text-2xl"></i>
-                            </div>
+                <div class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[90]" @click="showViewModal = false"></div>
+                <div class="bg-white rounded-[2.5rem] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.2)] w-full max-w-2xl z-[100] overflow-hidden relative border border-slate-100 flex flex-col max-h-[90vh]" x-transition.scale.origin.center>
+                    
+                    <!-- Bento Header -->
+                    <div class="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-6 text-white flex justify-between items-center relative overflow-hidden shrink-0">
+                        <div class="absolute -right-8 -bottom-8 w-32 h-32 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
+                        <div class="flex items-center gap-4 relative z-10">
+                            <div class="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white text-2xl font-black shadow-inner border border-white/30"
+                                 x-text="selectedItem ? ((selectedItem.full_name || selectedItem.username || 'US').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()) : 'US'"></div>
                             <div>
-                                <h3 class="text-2xl font-black tracking-widest italic scale-y-110 uppercase leading-none" x-text="selectedItem ? selectedItem.username : 'Unknown'"></h3>
-                                <p class="text-white/80 text-[10px] font-black uppercase tracking-[0.3em] flex items-center gap-2 mt-2">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
-                                    Personnel Identity Profile
-                                </p>
+                                <h3 class="text-xl font-black tracking-tight leading-tight" x-text="selectedItem ? (selectedItem.full_name || selectedItem.username) : 'User Profile'"></h3>
+                                <div class="flex items-center gap-2 text-[11px] font-bold text-indigo-100 tracking-wider mt-0.5">
+                                    <i class="fa-solid fa-envelope text-[10px]"></i>
+                                    <span x-text="selectedItem ? selectedItem.email : ''"></span>
+                                </div>
                             </div>
                         </div>
-                        <button @click="showViewModal = false" class="absolute top-6 right-6 w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
-                            <i class="fa-solid fa-xmark text-lg text-white"></i>
+                        <button @click="showViewModal = false" class="w-10 h-10 rounded-2xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all active:scale-95 border border-white/20 relative z-10 cursor-pointer">
+                            <i class="fa-solid fa-xmark text-lg"></i>
                         </button>
                     </div>
 
-                    <div class="p-8 space-y-6 bg-white overflow-y-auto max-h-[70vh]">
+                    <!-- Bento Content Body -->
+                    <div class="p-6 overflow-y-auto space-y-5 scrollbar-hide" style="scrollbar-width: none;">
                         <template x-if="selectedItem">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <!-- Info Cards (Bento Style) -->
-                                <div class="bg-slate-50/70 p-6 rounded-[2rem] border border-slate-100 transition-all hover:bg-white hover:shadow-xl hover:shadow-blue-500/5 group">
-                                    <div class="flex items-center gap-4 mb-4">
-                                        <div class="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                            <i class="fas fa-user-tag text-xs text-blue-500"></i>
+                            <div class="space-y-5">
+                                <!-- Quick Status Bento Row -->
+                                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                    <div class="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col">
+                                        <span class="text-[9px] font-black uppercase tracking-widest text-slate-400">Account State</span>
+                                        <div class="flex items-center gap-2 mt-1.5">
+                                            <span class="w-2.5 h-2.5 rounded-full" :class="(!selectedItem.is_blocked && selectedItem.is_active) ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'"></span>
+                                            <span class="text-xs font-black uppercase tracking-wider" :class="(!selectedItem.is_blocked && selectedItem.is_active) ? 'text-emerald-600' : 'text-rose-600'" x-text="(!selectedItem.is_blocked && selectedItem.is_active) ? 'Active' : 'Blocked / Inactive'"></span>
                                         </div>
-                                        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Full Name</span>
                                     </div>
-                                    <div class="font-bold text-blue-900 text-lg leading-tight" x-text="selectedItem.full_name || 'N/A'"></div>
+
+                                    <div class="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col">
+                                        <span class="text-[9px] font-black uppercase tracking-widest text-slate-400">Two-Factor</span>
+                                        <span class="text-xs font-black mt-1.5" :class="selectedItem.totp_secret ? 'text-emerald-600' : 'text-slate-500'" x-text="selectedItem.totp_secret ? 'Enabled' : 'Not Enrolled'"></span>
+                                    </div>
+
+                                    <div class="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col col-span-2 sm:col-span-1">
+                                        <span class="text-[9px] font-black uppercase tracking-widest text-slate-400">Registration</span>
+                                        <span class="text-xs font-bold text-slate-700 mt-1.5 font-mono" x-text="selectedItem.created_at ? new Date(selectedItem.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'"></span>
+                                    </div>
                                 </div>
 
-                                <div class="bg-slate-50/70 p-6 rounded-[2rem] border border-slate-100 transition-all hover:bg-white hover:shadow-xl hover:shadow-blue-500/5 group">
-                                    <div class="flex items-center gap-4 mb-4">
-                                        <div class="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                            <i class="fas fa-envelope text-xs text-blue-500"></i>
-                                        </div>
-                                        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email Address</span>
+                                <!-- Personal Identity Bento Card -->
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+                                        <span class="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">Mobile Number</span>
+                                        <span class="font-bold text-slate-800 font-mono text-sm" x-text="selectedItem.mobile_no || 'N/A'"></span>
                                     </div>
-                                    <div class="font-bold text-blue-900 break-all" x-text="selectedItem.email || 'N/A'"></div>
+                                    <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+                                        <span class="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">CNIC Number</span>
+                                        <span class="font-bold text-slate-800 font-mono text-sm" x-text="selectedItem.cnic || 'N/A'"></span>
+                                    </div>
                                 </div>
 
-                                <div class="bg-slate-50/70 p-6 rounded-[2rem] border border-slate-100 transition-all hover:bg-white hover:shadow-xl hover:shadow-blue-500/5 group">
-                                    <div class="flex items-center gap-4 mb-4">
-                                        <div class="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                            <i class="fas fa-mobile-screen text-xs text-blue-500"></i>
-                                        </div>
-                                        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mobile Number</span>
+                                <!-- Assigned Roles Bento Card -->
+                                <div class="p-5 rounded-2xl bg-slate-50/80 border border-slate-100 space-y-3">
+                                    <div class="flex items-center justify-between">
+                                        <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                            <i class="fa-solid fa-user-shield text-indigo-500"></i> Assigned System Roles
+                                        </label>
+                                        <span class="text-[10px] font-bold text-indigo-600 font-mono" x-text="selectedItem.role ? selectedItem.role.display_name : 'Standard Role'"></span>
                                     </div>
-                                    <div class="font-bold text-blue-900 text-lg tabular-nums" x-text="selectedItem.mobile_no || 'N/A'"></div>
+                                    <div class="flex flex-wrap gap-2">
+                                        <div class="px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs font-bold flex items-center gap-2 shadow-sm">
+                                            <i class="fa-solid fa-shield text-indigo-600"></i>
+                                            <span x-text="selectedItem.role ? selectedItem.role.display_name : 'No Role Attached'"></span>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <div class="bg-slate-50/70 p-6 rounded-[2rem] border border-slate-100 transition-all hover:bg-white hover:shadow-xl hover:shadow-blue-500/5 group">
-                                    <div class="flex items-center gap-4 mb-4">
-                                        <div class="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                            <i class="fas fa-id-card text-xs text-blue-500"></i>
-                                        </div>
-                                        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">CNIC Number</span>
+                                <!-- Assigned Operational Scope & Branches Bento Card -->
+                                <div class="p-5 rounded-2xl bg-slate-50/80 border border-slate-100 space-y-3">
+                                    <div class="flex items-center justify-between">
+                                        <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                            <i class="fa-solid fa-building-shield text-blue-500"></i> Branch Authorizations &amp; Scope
+                                        </label>
+                                        <span class="text-[10px] font-black text-blue-600 font-mono uppercase" x-text="selectedItem.scope_unit_type ? selectedItem.scope_unit_type.replace('_', ' ') : 'National'"></span>
                                     </div>
-                                    <div class="font-bold text-blue-900 text-lg tabular-nums" x-text="selectedItem.cnic || 'N/A'"></div>
-                                </div>
-
-                                <div class="col-span-full bg-blue-50/40 p-1 rounded-[2.5rem] border border-blue-100/50">
-                                    <div class="bg-white p-8 rounded-[2.25rem] border border-white shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
-                                        <div class="w-full">
-                                            <div class="flex items-center gap-3 mb-6">
-                                                <div class="w-1.5 h-6 bg-blue-500 rounded-full"></div>
-                                                <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Scope & Access Linkages</div>
+                                    <div class="p-3.5 rounded-xl bg-white border border-slate-200 shadow-sm flex items-center justify-between">
+                                        <div class="flex items-center gap-2.5">
+                                            <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-xs">
+                                                <i class="fa-solid fa-building"></i>
                                             </div>
-                                            
-                                            <div class="grid grid-cols-2 gap-8">
-                                                <div>
-                                                    <div class="text-[9px] font-black text-blue-500 uppercase tracking-widest mb-2">Operational Scope</div>
-                                                    <div class="font-black text-slate-800 text-xl tracking-tight capitalize" x-text="selectedItem.scope_unit_type.replace('_', ' ') + ': ' + selectedItem.scope_unit_name"></div>
-                                                </div>
-                                                <div>
-                                                    <div class="text-[9px] font-black text-indigo-500 uppercase tracking-widest mb-2">Designation Link</div>
-                                                    <div class="font-black text-slate-800 text-xl tracking-tight" x-text="selectedItem.designation ? selectedItem.designation.name : 'System Identity'"></div>
+                                            <div>
+                                                <p class="text-xs font-bold text-slate-800" x-text="selectedItem.scope_unit_name || 'All Jurisdictions / National'"></p>
+                                                <p class="text-[9px] font-bold text-slate-400 uppercase" x-text="selectedItem.designation ? selectedItem.designation.name : 'NHMP Personnel'"></p>
+                                            </div>
+                                        </div>
+                                        <span class="px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 text-[9px] font-black uppercase tracking-wider">PRIMARY</span>
+                                    </div>
+                                </div>
+
+                                <!-- Activity & Access Bento Card -->
+                                <div class="p-5 rounded-2xl bg-slate-50/80 border border-slate-100 space-y-3">
+                                    <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                        <i class="fa-solid fa-clock-rotate-left text-teal-500"></i> System Activity &amp; Security Log
+                                    </label>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                        <div class="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200 shadow-sm">
+                                            <i class="fa-solid fa-right-to-bracket text-indigo-500 text-sm"></i>
+                                            <div>
+                                                <span class="text-[9px] font-black uppercase text-slate-400 block">Last Active Session</span>
+                                                <span class="font-bold text-slate-700" x-text="selectedItem.last_login_at ? new Date(selectedItem.last_login_at).toLocaleString() : 'No active session recorded'"></span>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200 shadow-sm">
+                                            <i class="fa-solid fa-triangle-exclamation text-sm text-slate-400"></i>
+                                            <div>
+                                                <span class="text-[9px] font-black uppercase text-slate-400 block">Wrong Passwords (24h)</span>
+                                                <span class="font-bold text-slate-700" x-text="(selectedItem.failed_attempts || 0) + ' recorded'"></span>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 shadow-sm sm:col-span-2">
+                                            <div class="flex items-center gap-3 min-w-0">
+                                                <i class="fa-solid fa-fingerprint text-purple-500 text-sm shrink-0"></i>
+                                                <div class="min-w-0">
+                                                    <span class="text-[9px] font-black uppercase text-slate-400 block">Cryptographic UUID</span>
+                                                    <span class="font-bold text-slate-700 font-mono text-[10px] truncate block" x-text="selectedItem.uuid || 'N/A'"></span>
                                                 </div>
                                             </div>
-
-                                                <div class="mt-8 pt-8 border-t border-slate-50 flex items-center justify-between gap-4">
-                                                    <div>
-                                                        <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">System Role</div>
-                                                        <div class="text-xs font-black text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100 inline-block" x-text="selectedItem.role ? selectedItem.role.display_name : 'No Role Assigned'"></div>
-                                                    </div>
-                                                    <div class="flex flex-1 gap-4">
-                                                        <!-- <button @click="showViewModal = false" class="flex-1 px-8 py-5 bg-slate-50 text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all">Abort Profile</button> -->
-                                                        <button @click="showViewModal = false" class="flex-[2] px-8 py-5 bg-gradient-to-r from-emerald-500 to-cyan-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl hover:-translate-y-1 transition-all active:scale-95">Close</button>
-                                                    </div>
-                                                </div>
+                                            <button type="button" @click="navigator.clipboard.writeText(selectedItem.uuid); $dispatch('toast', { message: 'UUID copied to clipboard', type: 'success' })" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-[10px] uppercase tracking-wider shrink-0 transition-all cursor-pointer">
+                                                <i class="fa-regular fa-copy mr-1"></i> Copy
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </template>
                     </div>
+
+                    <!-- Bento Footer Actions -->
+                    <div class="p-5 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
+                        <a :href="'/mgmt/users/' + (selectedItem ? (selectedItem.uuid || selectedItem.id) : '') + '/audit'"
+                           class="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md border-b-4 border-slate-950 active:translate-y-0.5 active:border-b-2 transition-all hover:scale-[1.02] group">
+                            <i class="fa-solid fa-clock-rotate-left text-indigo-400 group-hover:rotate-[-30deg] transition-transform"></i>
+                            <span>Full Audit Page</span>
+                            <i class="fa-solid fa-arrow-up-right-from-square text-[9px] text-indigo-300"></i>
+                        </a>
+
+                        <div class="flex items-center gap-2">
+                            <button type="button" @click="showViewModal = false; editItem(selectedItem)"
+                                    class="px-4 py-2.5 bg-indigo-600 text-white border-b-4 border-indigo-800 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-indigo-500 active:translate-y-0.5 active:border-b-2 transition-all cursor-pointer">
+                                <i class="fa-solid fa-pen mr-1"></i> Edit
+                            </button>
+                            <button type="button" @click="showViewModal = false; openPasswordReset(selectedItem)"
+                                    class="px-4 py-2.5 bg-amber-500 text-white border-b-4 border-amber-700 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-amber-400 active:translate-y-0.5 active:border-b-2 transition-all cursor-pointer">
+                                <i class="fa-solid fa-key mr-1"></i> Reset Password
+                            </button>
+                            <button type="button" @click="showViewModal = false"
+                                    class="px-5 py-2.5 bg-slate-100 text-slate-600 border border-slate-200 border-b-4 border-b-slate-300 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-white active:translate-y-0.5 active:border-b-2 transition-all cursor-pointer">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </div>
@@ -1107,7 +1335,7 @@
     <script>
         window.userManager = function(config) {
             return {
-                items: (config.items || []).map(i => {
+                mapUser(i) {
                     const primaryScope = i.active_scopes?.[0] || i.scopes?.[0];
                     let unitName = 'National';
                     let unitType = 'national';
@@ -1128,22 +1356,31 @@
                             parentSectorId = office.id;
                         } else if (office.type === 'beat') {
                             parentSectorId = office.parent_id;
-                            // Attempt to find zone via sector
-                            const sector = config.sectors.find(s => s.id == office.parent_id);
+                            const sector = (this.sectors || config.sectors || []).find(s => s.id == office.parent_id);
                             if (sector) parentZoneId = sector.zone_id;
                         }
                     }
+                    const isSecurityLocked = Boolean(i.is_security_locked || (i.locked_until && new Date(i.locked_until) > new Date()));
+                    const isBlocked = Boolean(i.is_blocked);
                     return { 
                         ...i, 
+                        is_blocked: isBlocked,
+                        is_security_locked: isSecurityLocked,
+                        status_state: isBlocked ? 'blocked' : (isSecurityLocked ? 'security_locked' : (i.is_active ? 'active' : 'suspended')),
+                        status_label: isBlocked ? 'Blocked' : (isSecurityLocked ? 'Security Locked' : (i.is_active ? 'Active' : 'Suspended')),
                         scope_unit_type: unitType,
                         scope_unit_name: unitName,
                         scope_unit_id: unitId,
                         parent_zone_id: parentZoneId,
                         parent_sector_id: parentSectorId,
-                        role_name: i.role ? i.role.name : '',
+                        role_name: i.role ? i.role.name : (i.role_name || ''),
                         scope_unit_type_raw: (primaryScope && primaryScope.office) ? primaryScope.office.type : 'plhq'
                     };
-                }),
+                },
+
+                items: [],
+                pagination: config.pagination || { current_page: 1, last_page: 1, per_page: 25, total: 0, from: 0, to: 0 },
+                stats: config.stats || { admins: 0, zone: 0, sector: 0, beat: 0, call_center: 0, inactive: 0, total: 0 },
                 roles: config.roles || [],
                 designations: config.designations || [],
                 zones: config.zones || [],
@@ -1151,8 +1388,6 @@
                 beats: config.beats || [],
                 currentUserRole: config.currentUserRole || '',
                 currentUserId: config.currentUserId || null,
-                pendingRequests: config.pendingRequests || [],
-                showRequestsModal: false,
                 search: '',
                 filterRole: '',
                 filterStatus: '',
@@ -1162,13 +1397,91 @@
                 filterCallCentre: '',
                 density: 'spacious',
                 viewMode: 'table',
-                sortBy: 'username',
-                sortDirection: 'asc',
+                sortBy: 'id',
+                sortDirection: 'desc',
                 page: 1,
-                perPage: 10,
+                perPage: 25,
+                loading: false,
+                fetchAbortController: null,
                 showModal: false,
                 modalMode: 'add',
                 showSidebar: false,
+
+                init() {
+                    this.items = (config.items || []).map(i => this.mapUser(i));
+                    if (config.stats) {
+                        this.stats = config.stats;
+                    }
+                    if (config.pagination) {
+                        this.pagination = config.pagination;
+                        this.page = config.pagination.current_page || 1;
+                        this.perPage = config.pagination.per_page || 25;
+                    }
+
+                    this.$watch('search', () => { this.page = 1; this.fetchData(1); });
+                    this.$watch('filterRole', () => { this.page = 1; this.fetchData(1); });
+                    this.$watch('filterStatus', () => { this.page = 1; this.fetchData(1); });
+                    this.$watch('filterZone', () => { this.filterSector = ''; this.filterBeat = ''; this.page = 1; this.fetchData(1); });
+                    this.$watch('filterSector', () => { this.filterBeat = ''; this.page = 1; this.fetchData(1); });
+                    this.$watch('filterBeat', () => { this.page = 1; this.fetchData(1); });
+                    this.$watch('perPage', () => { this.page = 1; this.fetchData(1); });
+                },
+
+                async fetchData(targetPage = null) {
+                    if (this.fetchAbortController) {
+                        this.fetchAbortController.abort();
+                    }
+                    this.fetchAbortController = new AbortController();
+                    this.loading = true;
+
+                    const p = targetPage !== null ? targetPage : this.page;
+                    const params = new URLSearchParams({
+                        page: p,
+                        per_page: this.perPage,
+                        sort_by: this.sortBy,
+                        sort_dir: this.sortDirection
+                    });
+
+                    if (this.search) params.append('search', this.search);
+                    if (this.filterRole) params.append('role_id', this.filterRole);
+                    if (this.filterStatus) params.append('status', this.filterStatus);
+                    if (this.filterZone) params.append('zone_id', this.filterZone);
+                    if (this.filterSector) params.append('sector_id', this.filterSector);
+                    if (this.filterBeat) params.append('beat_id', this.filterBeat);
+
+                    try {
+                        const res = await fetch(`/mgmt/users?${params.toString()}`, {
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'Accept': 'application/json'
+                            },
+                            signal: this.fetchAbortController.signal
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            this.items = (data.items || []).map(i => this.mapUser(i));
+                            if (data.pagination) {
+                                this.pagination = data.pagination;
+                                this.page = data.pagination.current_page;
+                            }
+                            if (data.stats) {
+                                this.stats = data.stats;
+                            }
+                        }
+                    } catch (e) {
+                        if (e.name !== 'AbortError') {
+                            console.error('User directory sync error:', e);
+                        }
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                goToPage(p) {
+                    if (p < 1 || p > this.totalPages || p === this.page) return;
+                    this.page = p;
+                    this.fetchData(p);
+                },
 
                 get filteredRolesForAssignment() {
                     if (this.currentUserRole === 'operation_admin') {
@@ -1198,6 +1511,7 @@
                 showConfirmModal: false,
                 confirmLoading: false,
                 selectedItem: null,
+                copiedField: null,
                 passwordForm: {
                     password: '',
                     password_confirmation: ''
@@ -1285,67 +1599,15 @@
                 },
 
                 get filteredItems() {
-                    let filtered = this.items.filter(item => {
-                        const searchLower = this.search.toLowerCase();
-                        const matchesSearch = (item.username || '').toLowerCase().includes(searchLower) || 
-                                             (item.full_name || '').toLowerCase().includes(searchLower) ||
-                                             (item.cnic || '').toLowerCase().includes(searchLower) ||
-                                             (item.designation && item.designation.name ? item.designation.name.toLowerCase().includes(searchLower) : false) ||
-                                             (item.designation && item.designation.bps ? ('bps-' + item.designation.bps).includes(searchLower) : false);
-                        const matchesRole = !this.filterRole || item.role_id == this.filterRole;
-                        let matchesStatus = true;
-                        
-                        if (this.filterStatus === 'active') {
-                            matchesStatus = item.is_active;
-                        } else if (this.filterStatus === 'inactive') {
-                            matchesStatus = !item.is_active;
-                        } else if (this.filterStatus === 'admin') {
-                            matchesStatus = item.role && (item.role.name === 'operation_admin' || item.role.name === 'super_admin');
-                        } else if (this.filterStatus === 'zone_user') {
-                            matchesStatus = item.scope_unit_type_raw === 'zone';
-                        } else if (this.filterStatus === 'sector_user') {
-                            matchesStatus = item.scope_unit_type_raw === 'sector';
-                        } else if (this.filterStatus === 'beat_user') {
-                            matchesStatus = item.scope_unit_type_raw === 'beat';
-                        } else if (this.filterStatus === 'call_centre_user') {
-                            matchesStatus = item.scope_unit_type_raw === 'call_center' || item.scope_unit_type_raw === 'call_centre';
-                        } else if (this.filterStatus === 'ops') {
-                            matchesStatus = ['sector', 'beat'].includes(item.scope_unit_type_raw);
-                        }
-                        
-                        // Hierarchical & Area Filters
-                        let matchesArea = true;
-                        if (this.filterZone || this.filterSector || this.filterBeat || this.filterCallCentre) {
-                            matchesArea = false;
-                            
-                            // Check if user's primary scope matches the selected filters
-                            if (this.filterBeat && item.scope_unit_type === 'beat' && item.scope_unit_id == this.filterBeat) matchesArea = true;
-                            else if (this.filterSector && item.scope_unit_type === 'sector' && item.scope_unit_id == this.filterSector) matchesArea = true;
-                            else if (this.filterZone && item.scope_unit_type === 'zone' && item.scope_unit_id == this.filterZone) matchesArea = true;
-                            else if (this.filterCallCentre && item.scope_unit_type === 'call_centre' && item.scope_unit_id == this.filterCallCentre) matchesArea = true;
-                            
-                            // Hierarchical Fallback: If user is in a Beat, they should show up when filtering by its parent Sector or Zone
-                            if (!matchesArea) {
-                                if (this.filterBeat) {
-                                    // Already checked direct match above
-                                } else if (this.filterSector) {
-                                    if (item.parent_sector_id == this.filterSector) matchesArea = true;
-                                } else if (this.filterZone) {
-                                    if (item.parent_zone_id == this.filterZone) matchesArea = true;
-                                }
-                            }
-                        }
+                    return this.items;
+                },
 
-                        return matchesSearch && matchesRole && matchesStatus && matchesArea;
-                    });
+                get pagedItems() {
+                    return this.items;
+                },
 
-                    return filtered.sort((a, b) => {
-                        let fieldA = (a[this.sortBy] || '').toString().toLowerCase();
-                        let fieldB = (b[this.sortBy] || '').toString().toLowerCase();
-                        if (fieldA < fieldB) return this.sortDirection === 'asc' ? -1 : 1;
-                        if (fieldA > fieldB) return this.sortDirection === 'asc' ? 1 : -1;
-                        return 0;
-                    });
+                get totalPages() {
+                    return this.pagination ? (this.pagination.last_page || 1) : 1;
                 },
 
                 pagesToShow() {
@@ -1378,14 +1640,22 @@
                     return rangeWithDots;
                 },
 
-                get totalPages() {
-                    return Math.ceil(this.filteredItems.length / this.perPage);
-                },
 
-                get pagedItems() {
-                    if (this.page > this.totalPages) this.page = Math.max(1, this.totalPages);
-                    const start = (this.page - 1) * this.perPage;
-                    return this.filteredItems.slice(start, start + this.perPage);
+                formatCnicInput(val) {
+                    if (!val) return '';
+                    let digits = val.replace(/\D/g, '').substring(0, 13);
+                    let formatted = '';
+                    if (digits.length > 5) {
+                        formatted += digits.substring(0, 5) + '-';
+                        if (digits.length > 12) {
+                            formatted += digits.substring(5, 12) + '-' + digits.substring(12, 13);
+                        } else {
+                            formatted += digits.substring(5);
+                        }
+                    } else {
+                        formatted = digits;
+                    }
+                    return formatted;
                 },
 
                 resetForm() {
@@ -1396,6 +1666,8 @@
                         email: '', 
                         mobile_no: '', 
                         cnic: '',
+                        is_blocked: false,
+                        is_active: true,
                         scope_unit_type: this.currentUserRole === 'operation_admin' ? 'zone' : 'national', 
                         scope_unit_id: '', 
                         role_id: '', 
@@ -1405,12 +1677,14 @@
                     };
                     this.tempZoneId = '';
                     this.tempSectorId = '';
+                    this.copiedField = null;
+                    this.generateFormPassword();
                 },
 
                 editItem(user) {
                     this.modalMode = 'edit';
                     const item = JSON.parse(JSON.stringify(user));
-                    this.form = { ...item, password: '', password_confirmation: '' };
+                    this.form = { ...item, is_blocked: Boolean(user.is_blocked), password: '', password_confirmation: '' };
                     
                     // Pre-populate designation name to show BPS options
                     if (user.designation) {
@@ -1460,7 +1734,30 @@
                 openPasswordReset(item) {
                     this.selectedItem = item;
                     this.passwordForm = { password: '', password_confirmation: '' };
+                    this.copiedField = null;
+                    this.generateCompliantPassword();
                     this.showPasswordModal = true;
+                },
+
+                generateFormPassword() {
+                    const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+                    const lower = "abcdefghijkmnopqrstuvwxyz";
+                    const numbers = "23456789";
+                    const symbols = "!@#$%^&*";
+                    const all = upper + lower + numbers + symbols;
+
+                    let chars = [
+                        upper[Math.floor(Math.random() * upper.length)],
+                        lower[Math.floor(Math.random() * lower.length)],
+                        numbers[Math.floor(Math.random() * numbers.length)],
+                        symbols[Math.floor(Math.random() * symbols.length)]
+                    ];
+                    for (let i = 0; i < 12; i++) {
+                        chars.push(all[Math.floor(Math.random() * all.length)]);
+                    }
+                    const pass = chars.sort(() => 0.5 - Math.random()).join('');
+                    this.form.password = pass;
+                    this.form.password_confirmation = pass;
                 },
 
                 generateCompliantPassword() {
@@ -1484,40 +1781,14 @@
                     this.passwordForm.password_confirmation = pass;
                 },
 
-                handleRequestApproval(req) {
-                    const user = this.items.find(u => u.id === req.user_id || u.username === req.requester_username);
-                    if (user) {
-                        this.selectedItem = user;
-                        this.passwordForm = { password: '', password_confirmation: '' };
-                        this.generateCompliantPassword();
-                        this.showRequestsModal = false;
-                        this.showPasswordModal = true;
-                    } else {
-                        showError("Target user identity not found in active registry.");
-                    }
-                },
-
-                async rejectRequest(req) {
-                    if (!confirm(`Are you sure you want to reject the password reset request for ${req.requester_name}?`)) return;
-                    try {
-                        const response = await fetch(`/mgmt/password-requests/${req.id}/reject`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                            }
-                        });
-                        const result = await response.json();
-                        if (response.ok && result.success) {
-                            this.pendingRequests = this.pendingRequests.filter(r => r.id !== req.id);
-                            showSuccess(result.message || "Request rejected.");
-                        } else {
-                            showError(result.message || "Failed to reject request.");
-                        }
-                    } catch (e) {
-                        showError("Communication failure rejecting request.");
-                    }
+                copyToClipboard(text, id) {
+                    if (!text) return;
+                    navigator.clipboard.writeText(text).then(() => {
+                        this.copiedField = id;
+                        setTimeout(() => {
+                            if (this.copiedField === id) this.copiedField = null;
+                        }, 2000);
+                    }).catch(() => {});
                 },
 
                 viewDetails(item) {
@@ -1528,6 +1799,12 @@
                 viewAccess(item) {
                     this.selectedItem = item;
                     this.showAccessModal = true;
+                },
+
+                getRolePermissions(roleId) {
+                    if (!roleId) return [];
+                    const role = this.roles.find(r => r.id === roleId);
+                    return role && role.permissions ? role.permissions : [];
                 },
 
                 clearFilters() {
@@ -1567,27 +1844,70 @@
                         title: willBeActive ? 'Activate Identity' : 'Deactivate Identity',
                         message: willBeActive 
                             ? `Are you sure you want to activate access for <strong>${item.username}</strong>? They will regain system capabilities.`
-                            : `Are you sure you want to lock <strong>${item.username}</strong> out of the system? Active sessions will be terminated.`,
+                            : `Are you sure you want to suspend access for <strong>${item.username}</strong>? Active sessions will be terminated.`,
                         icon: 'fa-power-off',
                         isDanger: !willBeActive,
                         action: async () => {
                             try {
-                                const response = await fetch(`/mgmt/users/${item.id}/toggle-status`, {
+                                const response = await fetch(`/mgmt/users/${item.uuid || item.id}/toggle-status`, {
                                     method: 'POST',
                                     headers: {
                                         'Content-Type': 'application/json',
+                                        'Accept': 'application/json',
                                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                                     }
                                 });
                                 const result = await response.json();
                                 if (result.success) {
-                                    item.is_active = (result.status === 'active');
-                                    showSuccess(`Identity status updated to ${result.status}`);
+                                    item.is_active = (typeof result.is_active !== 'undefined' ? result.is_active : (result.status === 'active'));
+                                    if (typeof result.is_security_locked !== 'undefined') item.is_security_locked = result.is_security_locked;
+                                    if (typeof result.locked_until !== 'undefined') item.locked_until = result.locked_until;
+                                    item.status_state = result.status_state || (item.is_security_locked ? 'security_locked' : (item.is_active ? 'active' : 'suspended'));
+                                    item.status_label = result.status_label || (item.is_security_locked ? 'Security Locked' : (item.is_active ? 'Active' : 'Suspended'));
+                                    showSuccess(`Identity status updated to ${item.status_label}`);
+                                    await this.fetchData();
                                 } else {
                                     showError("Status synchronization failed");
                                 }
                             } catch (error) {
                                 showError("Status synchronization failed");
+                            }
+                        }
+                    };
+                    this.showConfirmModal = true;
+                },
+
+                confirmClearLockout(item) {
+                    this.selectedItem = item;
+                    this.confirmConfig = {
+                        title: 'Clear Security Lockout',
+                        message: `Are you sure you want to clear the security lockout for <strong>${item.username}</strong>?<br><br>Lockout timers will be reset, failed attempts cleared, and the identity restored to <strong>Active</strong> duty.`,
+                        icon: 'fa-lock-open',
+                        isDanger: false,
+                        action: async () => {
+                            try {
+                                const response = await fetch(`/mgmt/users/${item.uuid || item.id}/clear-lockout`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Accept': 'application/json',
+                                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                                    }
+                                });
+                                const result = await response.json();
+                                if (response.ok && result.success) {
+                                    item.is_active = true;
+                                    item.locked_until = null;
+                                    item.is_security_locked = false;
+                                    item.status_state = 'active';
+                                    item.status_label = 'Active';
+                                    showSuccess(result.message || `Security lockout cleared for ${item.username}. Account restored to Active.`);
+                                    await this.fetchData();
+                                } else {
+                                    showError(result.message || "Failed to clear security lockout.");
+                                }
+                            } catch (error) {
+                                showError("Network or server failure while clearing security lockout.");
                             }
                         }
                     };
@@ -1603,7 +1923,7 @@
                         isDanger: true,
                         action: async () => {
                             try {
-                                const response = await fetch(`/mgmt/users/${item.id}`, {
+                                const response = await fetch(`/mgmt/users/${item.uuid || item.id}`, {
                                     method: 'DELETE',
                                     headers: {
                                         'Content-Type': 'application/json',
@@ -1611,7 +1931,7 @@
                                     }
                                 });
                                 if (response.ok) {
-                                    this.items = this.items.filter(i => i.id !== item.id);
+                                    this.items = this.items.filter(i => (item.uuid ? i.uuid !== item.uuid : i.id !== item.id));
                                     showSuccess("Identity purged from system.");
                                 } else {
                                     showError("Delete command failure.");
@@ -1636,7 +1956,7 @@
                 async submitPasswordReset() {
                     this.saving = true;
                     try {
-                        const response = await fetch(`/mgmt/users/${this.selectedItem.id}/reset-password`, {
+                        const response = await fetch(`/mgmt/users/${this.selectedItem.uuid || this.selectedItem.id}/reset-password`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -1648,9 +1968,6 @@
                         const result = await response.json();
                         if (response.ok) {
                             showSuccess(result.message || "Security key overridden.");
-                            if (this.selectedItem) {
-                                this.pendingRequests = this.pendingRequests.filter(r => r.user_id !== this.selectedItem.id);
-                            }
                             this.showPasswordModal = false;
                         } else {
                             if (result.errors) {
@@ -1668,7 +1985,7 @@
 
                 async submitForm() {
                     this.saving = true;
-                    const url = this.modalMode === 'add' ? '/mgmt/users' : `/mgmt/users/${this.form.id}`;
+                    const url = this.modalMode === 'add' ? '/mgmt/users' : `/mgmt/users/${this.form.uuid || this.form.id}`;
                     const method = this.modalMode === 'add' ? 'POST' : 'PUT';
                     
                     try {
@@ -1693,16 +2010,18 @@
                         const result = await response.json();
                         
                         if (response.ok) {
+                            const mappedUser = this.mapUser(result.user);
                             if (this.modalMode === 'add') {
-                                this.items.unshift(result.user);
+                                this.items.unshift(mappedUser);
                                 showSuccess("Identity integrated into registry");
                             } else {
-                                const index = this.items.findIndex(i => i.id === this.form.id);
-                                if (index !== -1) this.items[index] = result.user;
+                                const index = this.items.findIndex(i => (this.form.uuid ? i.uuid === this.form.uuid : i.id === this.form.id));
+                                if (index !== -1) this.items[index] = mappedUser;
                                 showSuccess("Identity parameters updated");
                             }
                             this.showModal = false;
                             this.resetForm();
+                            await this.fetchData();
                         } else {
                             console.error('User Registry Error Payload:', result);
                             if (result.errors) {

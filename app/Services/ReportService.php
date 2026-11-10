@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Call;
 use App\Models\User;
 use App\Models\SystemSetting;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
 class ReportService
@@ -12,10 +13,58 @@ class ReportService
     /**
      * RPT-001: Calls Summary Report — Monthly pivot by call type
      * Columns: Date/Month | Emergency | Information | General Help | Complaint | Junk | Total Voice Calls | IVR | Total Calls Received
+     *
+     * @param array<string, mixed> $filters
+     * @return array<int, array<string, mixed>>
      */
     public function callTypeSummary(array $filters): array
     {
-        $groupByRaw = $filters['group_by'] ?? ['month'];
+        $groupBy = $this->parseGroupByFilter($filters, ['month']);
+        [$selects, $groupByFields, $orderByFields] = $this->getCallTypeSummaryExpressions($groupBy);
+
+        $query = Call::query()
+            ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
+            ->select($selects);
+
+        foreach ($groupByFields as $field) {
+            $query->groupBy($field);
+        }
+
+        foreach ($orderByFields as $field) {
+            $query->orderBy($field);
+        }
+
+        $this->applyFilters($query, $filters);
+        /** @var array<int, array<string, mixed>> $rows */
+        $rows = $query->get()->toArray();
+
+        // Dynamic single-group skeleton layouts for elegant zero-state dashboards
+        if (count($groupBy) === 1) {
+            $singleGroup = $groupBy[0];
+            if ($singleGroup === 'time') {
+                $result = $this->buildHourlyCallTypeSkeleton($rows);
+            } elseif ($singleGroup === 'date') {
+                $result = $this->buildDateCallTypeSkeleton($rows, $filters);
+            } else {
+                $result = $this->buildMonthlyCallTypeSkeleton($rows);
+            }
+        } else {
+            $result = $this->formatMultiGroupCallTypeRows($rows);
+        }
+
+        return $this->appendCallTypeTotalsRow($result);
+    }
+
+    /**
+     * Parse grouping dimensions from filters.
+     *
+     * @param array<string, mixed> $filters
+     * @param array<string> $default
+     * @return array<string>
+     */
+    private function parseGroupByFilter(array $filters, array $default = []): array
+    {
+        $groupByRaw = $filters['group_by'] ?? $default;
         if (is_string($groupByRaw) && str_contains($groupByRaw, ',')) {
             $groupBy = array_values(array_filter(explode(',', $groupByRaw)));
         } elseif (is_string($groupByRaw) && $groupByRaw !== '') {
@@ -25,10 +74,18 @@ class ReportService
         } else {
             $groupBy = [];
         }
-        if (empty($groupBy)) {
-            $groupBy = ['month'];
-        }
 
+        return empty($groupBy) ? $default : $groupBy;
+    }
+
+    /**
+     * Build SELECT, GROUP BY, and ORDER BY expressions for call type summary.
+     *
+     * @param array<string> $groupBy
+     * @return array{0: array<\Illuminate\Contracts\Database\Query\Expression|string>, 1: array<\Illuminate\Contracts\Database\Query\Expression|string>, 2: array<\Illuminate\Contracts\Database\Query\Expression|string>}
+     */
+    private function getCallTypeSummaryExpressions(array $groupBy): array
+    {
         $selects = [];
         $groupByFields = [];
         $orderByFields = [];
@@ -72,149 +129,44 @@ class ReportService
         $selects[] = DB::raw('0 as ivr');
         $selects[] = DB::raw('COUNT(*) as total_calls_received');
 
-        $query = Call::query()
-            ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
-            ->select($selects);
+        return [$selects, $groupByFields, $orderByFields];
+    }
 
-        foreach ($groupByFields as $field) {
-            $query->groupBy($field);
+    /**
+     * Build 24-hour skeleton for hourly call type summary.
+     *
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildHourlyCallTypeSkeleton(array $rows): array
+    {
+        $skeleton = [];
+        for ($h = 0; $h < 24; $h++) {
+            $formattedHour = str_pad((string)$h, 2, '0', STR_PAD_LEFT) . ':00 - ' . str_pad((string)(($h + 1) % 24), 2, '0', STR_PAD_LEFT) . ':00';
+            $skeleton[$h] = [
+                'month' => '',
+                'date' => '',
+                'time' => $formattedHour,
+                'emergency' => 0,
+                'information' => 0,
+                'general_help' => 0,
+                'complaint' => 0,
+                'junk' => 0,
+                'total_voice_calls' => 0,
+                'ivr' => 0,
+                'total_calls_received' => 0,
+            ];
         }
 
-        foreach ($orderByFields as $field) {
-            $query->orderBy($field);
-        }
-
-        $this->applyFilters($query, $filters);
-        $rows = $query->get()->toArray();
-
+        $indexed = collect($rows)->keyBy('hour_num');
         $result = [];
-
-        // Dynamic single-group skeleton layouts for elegant zero-state dashboards
-        if (count($groupBy) === 1) {
-            $singleGroup = $groupBy[0];
-            if ($singleGroup === 'time') {
-                $skeleton = [];
-                for ($h = 0; $h < 24; $h++) {
-                    $formattedHour = str_pad($h, 2, '0', STR_PAD_LEFT) . ':00 - ' . str_pad(($h + 1) % 24, 2, '0', STR_PAD_LEFT) . ':00';
-                    $skeleton[$h] = [
-                        'month' => '',
-                        'date' => '',
-                        'time' => $formattedHour,
-                        'emergency' => 0,
-                        'information' => 0,
-                        'general_help' => 0,
-                        'complaint' => 0,
-                        'junk' => 0,
-                        'total_voice_calls' => 0,
-                        'ivr' => 0,
-                        'total_calls_received' => 0,
-                    ];
-                }
-
-                $indexed = collect($rows)->keyBy('hour_num');
-                foreach ($skeleton as $h => $defaultRow) {
-                    $row = $indexed->get($h);
-                    if ($row) {
-                        $result[] = [
-                            'month' => '',
-                            'date' => '',
-                            'time' => $defaultRow['time'],
-                            'emergency' => (int)$row['emergency'],
-                            'information' => (int)$row['information'],
-                            'general_help' => (int)$row['general_help'],
-                            'complaint' => (int)$row['complaint'],
-                            'junk' => (int)$row['junk'],
-                            'total_voice_calls' => (int)$row['total_voice_calls'],
-                            'ivr' => 0,
-                            'total_calls_received' => (int)$row['total_calls_received'],
-                        ];
-                    } else {
-                        $result[] = $defaultRow;
-                    }
-                }
-            } elseif ($singleGroup === 'date') {
-                $dateFrom = $filters['date_from'] ?? now()->toDateString();
-                $dateTo = $filters['date_to'] ?? now()->toDateString();
-
-                try {
-                    $period = new \DatePeriod(
-                        new \DateTime($dateFrom),
-                        new \DateInterval('P1D'),
-                        (new \DateTime($dateTo))->modify('+1 day')
-                    );
-
-                    $skeleton = [];
-                    foreach ($period as $date) {
-                        $skeleton[$date->format('Y-m-d')] = [
-                            'month' => '',
-                            'date' => $date->format('d-M-Y'),
-                            'time' => '',
-                            'emergency' => 0,
-                            'information' => 0,
-                            'general_help' => 0,
-                            'complaint' => 0,
-                            'junk' => 0,
-                            'total_voice_calls' => 0,
-                            'ivr' => 0,
-                            'total_calls_received' => 0,
-                        ];
-                    }
-                } catch (\Exception $e) {
-                    $skeleton = [];
-                }
-
-                $indexed = collect($rows)->keyBy('date_val');
-                foreach ($skeleton as $dateKey => $defaultRow) {
-                    $row = $indexed->get($dateKey);
-                    if ($row) {
-                        $result[] = [
-                            'month' => '',
-                            'date' => $defaultRow['date'],
-                            'time' => '',
-                            'emergency' => (int)$row['emergency'],
-                            'information' => (int)$row['information'],
-                            'general_help' => (int)$row['general_help'],
-                            'complaint' => (int)$row['complaint'],
-                            'junk' => (int)$row['junk'],
-                            'total_voice_calls' => (int)$row['total_voice_calls'],
-                            'ivr' => 0,
-                            'total_calls_received' => (int)$row['total_calls_received'],
-                        ];
-                    } else {
-                        $result[] = $defaultRow;
-                    }
-                }
-            } else {
-                $months = [
-                    1 => 'January', 2 => 'February', 3 => 'March', 4 => 'April',
-                    5 => 'May', 6 => 'June', 7 => 'July', 8 => 'August',
-                    9 => 'September', 10 => 'October', 11 => 'November', 12 => 'December',
-                ];
-                $indexed = collect($rows)->keyBy('month_num');
-                foreach ($months as $num => $name) {
-                    $row = $indexed->get($num);
-                    $result[] = [
-                        'month' => $name,
-                        'date' => '',
-                        'time' => '',
-                        'emergency' => $row['emergency'] ?? 0,
-                        'information' => $row['information'] ?? 0,
-                        'general_help' => $row['general_help'] ?? 0,
-                        'complaint' => $row['complaint'] ?? 0,
-                        'junk' => $row['junk'] ?? 0,
-                        'total_voice_calls' => $row['total_voice_calls'] ?? 0,
-                        'ivr' => 0,
-                        'total_calls_received' => $row['total_calls_received'] ?? 0,
-                    ];
-                }
-            }
-        } else {
-            // Multi-grouping combinations
-            foreach ($rows as $row) {
+        foreach ($skeleton as $h => $defaultRow) {
+            $row = $indexed->get($h);
+            if ($row) {
                 $result[] = [
-                    'month' => $row['month'] ?: '',
-                    'date' => $row['date'] ?: '',
-                    'time' => $row['time'] ?: '',
+                    'month' => '',
+                    'date' => '',
+                    'time' => $defaultRow['time'],
                     'emergency' => (int)$row['emergency'],
                     'information' => (int)$row['information'],
                     'general_help' => (int)$row['general_help'],
@@ -224,23 +176,166 @@ class ReportService
                     'ivr' => 0,
                     'total_calls_received' => (int)$row['total_calls_received'],
                 ];
+            } else {
+                $result[] = $defaultRow;
             }
         }
 
-        // Calculate Totals
-        if (!empty($result)) {
+        return $result;
+    }
+
+    /**
+     * Build date period skeleton for daily call type summary.
+     *
+     * @param array<int, array<string, mixed>> $rows
+     * @param array<string, mixed> $filters
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildDateCallTypeSkeleton(array $rows, array $filters): array
+    {
+        $dateFrom = $filters['date_from'] ?? now()->toDateString();
+        $dateTo = $filters['date_to'] ?? now()->toDateString();
+
+        try {
+            $period = new \DatePeriod(
+                new \DateTime($dateFrom),
+                new \DateInterval('P1D'),
+                (new \DateTime($dateTo))->modify('+1 day')
+            );
+
+            $skeleton = [];
+            foreach ($period as $date) {
+                $skeleton[$date->format('Y-m-d')] = [
+                    'month' => '',
+                    'date' => $date->format('d-M-Y'),
+                    'time' => '',
+                    'emergency' => 0,
+                    'information' => 0,
+                    'general_help' => 0,
+                    'complaint' => 0,
+                    'junk' => 0,
+                    'total_voice_calls' => 0,
+                    'ivr' => 0,
+                    'total_calls_received' => 0,
+                ];
+            }
+        } catch (\Exception $e) {
+            $skeleton = [];
+        }
+
+        $indexed = collect($rows)->keyBy('date_val');
+        $result = [];
+        foreach ($skeleton as $dateKey => $defaultRow) {
+            $row = $indexed->get($dateKey);
+            if ($row) {
+                $result[] = [
+                    'month' => '',
+                    'date' => $defaultRow['date'],
+                    'time' => '',
+                    'emergency' => (int)$row['emergency'],
+                    'information' => (int)$row['information'],
+                    'general_help' => (int)$row['general_help'],
+                    'complaint' => (int)$row['complaint'],
+                    'junk' => (int)$row['junk'],
+                    'total_voice_calls' => (int)$row['total_voice_calls'],
+                    'ivr' => 0,
+                    'total_calls_received' => (int)$row['total_calls_received'],
+                ];
+            } else {
+                $result[] = $defaultRow;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Build 12-month skeleton for monthly call type summary.
+     *
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildMonthlyCallTypeSkeleton(array $rows): array
+    {
+        $months = [
+            1 => 'January', 2 => 'February', 3 => 'March', 4 => 'April',
+            5 => 'May', 6 => 'June', 7 => 'July', 8 => 'August',
+            9 => 'September', 10 => 'October', 11 => 'November', 12 => 'December',
+        ];
+
+        $indexed = collect($rows)->keyBy('month_num');
+        $result = [];
+        foreach ($months as $num => $name) {
+            $row = $indexed->get($num);
             $result[] = [
-                'month' => 'Total',
-                'emergency' => array_sum(array_column($result, 'emergency')),
-                'information' => array_sum(array_column($result, 'information')),
-                'general_help' => array_sum(array_column($result, 'general_help')),
-                'complaint' => array_sum(array_column($result, 'complaint')),
-                'junk' => array_sum(array_column($result, 'junk')),
-                'total_voice_calls' => array_sum(array_column($result, 'total_voice_calls')),
+                'month' => $name,
+                'date' => '',
+                'time' => '',
+                'emergency' => (int)($row['emergency'] ?? 0),
+                'information' => (int)($row['information'] ?? 0),
+                'general_help' => (int)($row['general_help'] ?? 0),
+                'complaint' => (int)($row['complaint'] ?? 0),
+                'junk' => (int)($row['junk'] ?? 0),
+                'total_voice_calls' => (int)($row['total_voice_calls'] ?? 0),
                 'ivr' => 0,
-                'total_calls_received' => array_sum(array_column($result, 'total_calls_received')),
+                'total_calls_received' => (int)($row['total_calls_received'] ?? 0),
             ];
         }
+
+        return $result;
+    }
+
+    /**
+     * Format multi-grouped call type summary rows.
+     *
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function formatMultiGroupCallTypeRows(array $rows): array
+    {
+        $result = [];
+        foreach ($rows as $row) {
+            $result[] = [
+                'month' => (string)($row['month'] ?: ''),
+                'date' => (string)($row['date'] ?: ''),
+                'time' => (string)($row['time'] ?: ''),
+                'emergency' => (int)$row['emergency'],
+                'information' => (int)$row['information'],
+                'general_help' => (int)$row['general_help'],
+                'complaint' => (int)$row['complaint'],
+                'junk' => (int)$row['junk'],
+                'total_voice_calls' => (int)$row['total_voice_calls'],
+                'ivr' => 0,
+                'total_calls_received' => (int)$row['total_calls_received'],
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Append total aggregation row to call type summary results.
+     *
+     * @param array<int, array<string, mixed>> $result
+     * @return array<int, array<string, mixed>>
+     */
+    private function appendCallTypeTotalsRow(array $result): array
+    {
+        if (empty($result)) {
+            return $result;
+        }
+
+        $result[] = [
+            'month' => 'Total',
+            'emergency' => (int)array_sum(array_column($result, 'emergency')),
+            'information' => (int)array_sum(array_column($result, 'information')),
+            'general_help' => (int)array_sum(array_column($result, 'general_help')),
+            'complaint' => (int)array_sum(array_column($result, 'complaint')),
+            'junk' => (int)array_sum(array_column($result, 'junk')),
+            'total_voice_calls' => (int)array_sum(array_column($result, 'total_voice_calls')),
+            'ivr' => 0,
+            'total_calls_received' => (int)array_sum(array_column($result, 'total_calls_received')),
+        ];
 
         return $result;
     }
@@ -266,16 +361,7 @@ class ReportService
      */
     public function agentPerformance(array $filters): array
     {
-        $groupByRaw = $filters['group_by'] ?? [];
-        if (is_string($groupByRaw) && str_contains($groupByRaw, ',')) {
-            $groupBy = array_values(array_filter(explode(',', $groupByRaw)));
-        } elseif (is_string($groupByRaw) && $groupByRaw !== '') {
-            $groupBy = [$groupByRaw];
-        } elseif (is_array($groupByRaw)) {
-            $groupBy = array_values(array_filter($groupByRaw));
-        } else {
-            $groupBy = [];
-        }
+        $groupBy = $this->parseGroupByFilter($filters, []);
 
         $selects = [];
         $groupByFields = [];
@@ -474,19 +560,7 @@ class ReportService
      */
     public function junkCallsFrequency(array $filters, bool $paginate = false, int $perPage = 10)
     {
-        $groupByRaw = $filters['group_by'] ?? ['date'];
-        if (is_string($groupByRaw) && str_contains($groupByRaw, ',')) {
-            $groupBy = array_values(array_filter(explode(',', $groupByRaw)));
-        } elseif (is_string($groupByRaw) && $groupByRaw !== '') {
-            $groupBy = [$groupByRaw];
-        } elseif (is_array($groupByRaw)) {
-            $groupBy = array_values(array_filter($groupByRaw));
-        } else {
-            $groupBy = [];
-        }
-        if (empty($groupBy)) {
-            $groupBy = ['date'];
-        }
+        $groupBy = $this->parseGroupByFilter($filters, ['date']);
 
         $selects = [];
         $groupByFields = [];
@@ -555,14 +629,20 @@ class ReportService
     public function helpResponseTimeReport(array $filters, bool $paginate = false, int $perPage = 25)
     {
         $query = Call::query()
+            ->select([
+                'id', 'uuid', 'call_number', 'created_at', 'call_start_time', 'inprogress_at',
+                'tiger_reached_at', 'completed_at', 'tiger_response_time_sec',
+                'assistance_duration_sec', 'resolution_time_sec', 'status',
+                'office_id', 'call_type_id', 'call_sub_type_id', 'caller_name',
+                'caller_number', 'tiger_id', 'patrol_officer_id',
+                'inprogress_remarks', 'tiger_reached_remarks', 'completed_remarks', 'details'
+            ])
             ->with([
-                'office.parent.parent',
-                'callType',
-                'callSubType',
-                'agent',
-                'tigerReachedBy',
-                'completedStatusBy',
-                'inprogressStatusBy',
+                'office:id,name,type,parent_id',
+                'office.parent:id,name,type,parent_id',
+                'office.parent.parent:id,name,type',
+                'callType:id,name,category',
+                'callSubType:id,name',
             ]);
 
         $this->applyHelpResponseTimeFilters($query, $filters);
@@ -584,15 +664,15 @@ class ReportService
 
         if ($paginate) {
             $paginator = $query->paginate($perPage);
-            $paginator->getCollection()->transform(function ($call) {
+            $paginator->getCollection()->transform(function (Call $call) {
                 return $this->formatHelpResponseTimeRow($call);
             });
             return $paginator;
         }
 
-        return $query->get()->map(function ($call) {
-            return $this->formatHelpResponseTimeRow($call);
-        })->toArray();
+        /** @var \Illuminate\Database\Eloquent\Collection<int, Call> $calls */
+        $calls = $query->get();
+        return $calls->map(fn(Call $call) => $this->formatHelpResponseTimeRow($call))->toArray();
     }
 
     /**
@@ -762,7 +842,7 @@ class ReportService
     /**
      * Apply comprehensive filters for Help Response-Time report.
      */
-    private function applyHelpResponseTimeFilters($query, array $filters): void
+    private function applyHelpResponseTimeFilters(Builder $query, array $filters): void
     {
         $this->applyFilters($query, $filters);
 
@@ -803,23 +883,25 @@ class ReportService
             });
         }
 
-        // Free-text Search
+        // Free-text Search with index fast path
         if (!empty($filters['search'])) {
-            $s = strtolower($filters['search']);
-            $query->where(function($q) use ($s) {
-                $q->where('calls.call_number', 'like', "%$s%")
-                  ->orWhere('calls.caller_number', 'like', "%$s%")
-                  ->orWhere('calls.caller_name', 'like', "%$s%")
-                  ->orWhere('calls.vehicle_no', 'like', "%$s%")
-                  ->orWhere('calls.details', 'like', "%$s%")
-                  ->orWhere('calls.inprogress_remarks', 'like', "%$s%")
-                  ->orWhere('calls.tiger_reached_remarks', 'like', "%$s%")
-                  ->orWhere('calls.completed_remarks', 'like', "%$s%");
-            });
+            $s = trim(strtolower($filters['search']));
+            if (str_starts_with($s, 'crm-') || str_starts_with($s, 'crm_')) {
+                $query->where('calls.call_number', $s);
+            } elseif (preg_match('/^03[0-9]{2,}$/', $s)) {
+                $query->where('calls.caller_number', 'like', "{$s}%");
+            } else {
+                $query->where(function($q) use ($s) {
+                    $q->where('calls.call_number', 'like', "%$s%")
+                      ->orWhere('calls.caller_number', 'like', "%$s%")
+                      ->orWhere('calls.caller_name', 'like', "%$s%")
+                      ->orWhere('calls.vehicle_no', 'like', "%$s%");
+                });
+            }
         }
     }
 
-    private function applyFilters($query, array $filters)
+    private function applyFilters(Builder $query, array $filters): void
     {
         // 1. Date & Time Range Filter
         $dateFrom = !empty($filters['date_from']) ? $filters['date_from'] : null;
@@ -838,7 +920,7 @@ class ReportService
                 if ($timeFrom) {
                     $query->where('calls.created_at', '>=', \Carbon\Carbon::parse($dateFrom . ' ' . $timeFrom));
                 } else {
-                    $query->whereDate('calls.created_at', '>=', $dateFrom);
+                    $query->where('calls.created_at', '>=', \Carbon\Carbon::parse($dateFrom)->startOfDay());
                 }
             }
 
@@ -846,7 +928,7 @@ class ReportService
                 if ($timeTo) {
                     $query->where('calls.created_at', '<=', \Carbon\Carbon::parse($dateTo . ' ' . $timeTo));
                 } else {
-                    $query->whereDate('calls.created_at', '<=', $dateTo);
+                    $query->where('calls.created_at', '<=', \Carbon\Carbon::parse($dateTo)->endOfDay());
                 }
             }
         }
@@ -872,9 +954,8 @@ class ReportService
 
         // 5. Call Category (Primary/Secondary)
         if (!empty($filters['call_type'])) {
-            $query->whereHas('callType', function($q) use ($filters) {
-                $q->where('category', $filters['call_type']);
-            });
+            $callTypeIds = \App\Models\CallType::where('category', $filters['call_type'])->pluck('id');
+            $query->whereIn('calls.call_type_id', $callTypeIds);
         }
     }
 }

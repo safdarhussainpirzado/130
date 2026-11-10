@@ -58,6 +58,7 @@ input:focus, textarea:focus, button:focus-visible {
         {{-- Hidden inputs --}}
         <input type="hidden" name="caller_number" x-model="caller.number">
         <input type="hidden" name="caller_name" x-model="caller.name">
+        <input type="hidden" name="caller_gender" x-model="caller.gender">
         <input type="hidden" name="vehicle_no" x-model="caller.vehicle_no">
         <input type="hidden" name="geospatial_marker_id" x-model="spatial.geospatial_marker_id">
         <input type="hidden" name="carriageway_id" x-model="spatial.carriageway_id">
@@ -125,6 +126,40 @@ input:focus, textarea:focus, button:focus-visible {
                             <i class="fa-solid fa-user absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs group-focus-within:text-blue-500 transition-colors"></i>
                             <input type="text" x-model="caller.name"
                                    class="w-full pl-8 pr-2.5 py-1.5 bg-white/60 border border-slate-200/80 rounded-xl text-[11px] text-slate-700 outline-none transition-all focus:border-blue-400/80 focus:bg-white/80 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.08)] hover:border-slate-300/80">
+                        </div>
+                    </div>
+
+                    {{-- Caller Gender Chips --}}
+                    <div class="shrink-0">
+                        <label class="block text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500 mb-1">Caller Gender</label>
+                        <div class="grid grid-cols-3 gap-1.5">
+                            <button type="button"
+                                    @click="caller.gender = 'male'"
+                                    :class="caller.gender === 'male'
+                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-200 -translate-y-0.5'
+                                        : 'bg-white/60 text-slate-600 border-slate-200/80 hover:bg-white/90 hover:border-blue-300 hover:text-blue-700'"
+                                    class="py-1 px-2 rounded-xl border text-[10px] font-bold uppercase transition-all duration-150 flex items-center justify-center gap-1.5 select-none active:!translate-y-[2px] cursor-pointer">
+                                <i class="fa-solid fa-mars text-xs"></i>
+                                <span>Male</span>
+                            </button>
+                            <button type="button"
+                                    @click="caller.gender = 'female'"
+                                    :class="caller.gender === 'female'
+                                        ? 'bg-rose-600 text-white border-rose-600 shadow-sm shadow-rose-200 -translate-y-0.5'
+                                        : 'bg-white/60 text-slate-600 border-slate-200/80 hover:bg-white/90 hover:border-rose-300 hover:text-rose-700'"
+                                    class="py-1 px-2 rounded-xl border text-[10px] font-bold uppercase transition-all duration-150 flex items-center justify-center gap-1.5 select-none active:!translate-y-[2px] cursor-pointer">
+                                <i class="fa-solid fa-venus text-xs"></i>
+                                <span>Female</span>
+                            </button>
+                            <button type="button"
+                                    @click="caller.gender = 'other'"
+                                    :class="caller.gender === 'other'
+                                        ? 'bg-purple-600 text-white border-purple-600 shadow-sm shadow-purple-200 -translate-y-0.5'
+                                        : 'bg-white/60 text-slate-600 border-slate-200/80 hover:bg-white/90 hover:border-purple-300 hover:text-purple-700'"
+                                    class="py-1 px-2 rounded-xl border text-[10px] font-bold uppercase transition-all duration-150 flex items-center justify-center gap-1.5 select-none active:!translate-y-[2px] cursor-pointer">
+                                <i class="fa-solid fa-genderless text-xs"></i>
+                                <span>Other</span>
+                            </button>
                         </div>
                     </div>
 
@@ -267,7 +302,7 @@ input:focus, textarea:focus, button:focus-visible {
                     <div class="shrink-0">
                         <label class="block text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500 mb-1.5">Primary Category</label>
                         <div class="grid grid-cols-6 gap-2">
-                            @foreach ($callTypes as $type)
+                            @foreach ($callTypes->reject(fn($t) => in_array($t->id, [7, 10]) || in_array(strtolower($t->name), ['emergency assistance', "women's safety emergency", 'sos'])) as $type)
                                 <button type="button"
                                         @click="onCallTypeChange('{{ $type->id }}')"
                                         :style="selectedCallTypeId == '{{ $type->id }}'
@@ -747,41 +782,61 @@ input:focus, textarea:focus, button:focus-visible {
 @endsection
 
 @push('scripts')
+<script id="intake-bootstrap" type="application/json">
+    {!! json_encode([
+        'caller' => [
+            'number' => old('caller_number', ''),
+            'name' => old('caller_name', ''),
+            'gender' => old('caller_gender', 'male'),
+            'vehicle_no' => old('vehicle_no', ''),
+        ],
+        'spatial' => [
+            'carriageway_id' => old('carriageway_id', ''),
+            'zone_id' => old('zone_id', ''),
+            'sector_id' => old('sector_id', ''),
+            'beat_id' => old('beat_id', ''),
+            'geospatial_marker_id' => old('geospatial_marker_id', ''),
+            'km' => old('km_marker_text', ''),
+            'lat' => old('caller_lat', ''),
+            'lng' => old('caller_lng', ''),
+            'coord_input' => old('caller_lat') ? old('caller_lat') . ', ' . old('caller_lng') : '',
+            'zone_name' => '',
+            'sector_name' => '',
+            'beat_name' => '',
+        ],
+        'priority' => old('priority', '3'),
+        'selectedCallTypeId' => old('call_type_id', ''),
+        'selectedSubType' => old('call_sub_type_id', ''),
+        'selectedVehicleType' => old('vehicle_type_id', ''),
+        'selectedTigerId' => old('tiger_id', ''),
+        'allZones' => $zones,
+        'allSectors' => $sectors,
+        'allBeats' => $beats,
+        'allVehicleTypes' => $vehicleTypes,
+        'allCarriageways' => $carriageways ?? [],
+        'callTypes' => $callTypes->reject(fn($t) => in_array($t->id, [7, 10]) || in_array(strtolower($t->name), ['emergency assistance', "women's safety emergency", 'sos']))->values(),
+        'subTypes' => $callTypes->reject(fn($t) => in_array($t->id, [7, 10]) || in_array(strtolower($t->name), ['emergency assistance', "women's safety emergency", 'sos']))->flatMap(fn($t) => $t->subTypes ?? []),
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}
+</script>
 <script>
 function intakeComponent() {
+    const bootstrap = JSON.parse(document.getElementById('intake-bootstrap').textContent);
     return {
-        caller: {
-            number: '{{ old('caller_number', '') }}',
-            name: '{{ old('caller_name', '') }}',
-            vehicle_no: '{{ old('vehicle_no', '') }}'
-        },
-        spatial: {
-            carriageway_id: '{{ old('carriageway_id', '') }}',
-            zone_id: '{{ old('zone_id', '') }}',
-            sector_id: '{{ old('sector_id', '') }}',
-            beat_id: '{{ old('beat_id', '') }}',
-            geospatial_marker_id: '{{ old('geospatial_marker_id', '') }}',
-            km: '{{ old('km_marker_text', '') }}',
-            lat: '{{ old('caller_lat', '') }}',
-            lng: '{{ old('caller_lng', '') }}',
-            coord_input: '{{ old('caller_lat') ? old('caller_lat') . ', ' . old('caller_lng') : '' }}',
-            zone_name: '',
-            sector_name: '',
-            beat_name: ''
-        },
-        priority: '{{ old('priority', '3') }}',
-        selectedCallTypeId: '{{ old('call_type_id', '') }}',
-        selectedSubType: '{{ old('call_sub_type_id', '') }}',
-        selectedVehicleType: '{{ old('vehicle_type_id', '') }}',
-        selectedTigerId: '{{ old('tiger_id', '') }}',
+        caller: bootstrap.caller,
+        spatial: bootstrap.spatial,
+        priority: bootstrap.priority,
+        selectedCallTypeId: bootstrap.selectedCallTypeId,
+        selectedSubType: bootstrap.selectedSubType,
+        selectedVehicleType: bootstrap.selectedVehicleType,
+        selectedTigerId: bootstrap.selectedTigerId,
         details: '',
-        allZones: @js($zones),
-        allSectors: @js($sectors),
-        allBeats: @js($beats),
-        allVehicleTypes: @js($vehicleTypes),
-        allCarriageways: @js($carriageways ?? []),
-        callTypes: @js($callTypes),
-        subTypes: @js($callTypes->flatMap(fn($t) => $t->subTypes ?? [])),
+        allZones: bootstrap.allZones,
+        allSectors: bootstrap.allSectors,
+        allBeats: bootstrap.allBeats,
+        allVehicleTypes: bootstrap.allVehicleTypes,
+        allCarriageways: bootstrap.allCarriageways,
+        callTypes: bootstrap.callTypes,
+        subTypes: bootstrap.subTypes,
         submitting: false,
         success: false,
         geospatialSuggestions: [],
@@ -1030,6 +1085,9 @@ function intakeComponent() {
                     this.caller.name = data.name;
                     this.caller.vehicle_no = data.vehicle_no || '';
                 }
+                if (data.gender || data.caller_gender) {
+                    this.caller.gender = data.gender || data.caller_gender;
+                }
             } catch (e) {
                 console.error('Caller lookup failed', e);
             }
@@ -1129,6 +1187,9 @@ function intakeComponent() {
                     this.caller.name = data.name;
                     this.caller.vehicle_no = data.vehicle_no || this.caller.vehicle_no;
                 }
+                if (data.gender || data.caller_gender) {
+                    this.caller.gender = data.gender || data.caller_gender;
+                }
                 this.callerHistory = data.calls || [];
                 if (this.callerHistory.length > 0) this.selectedHistoryCall = this.callerHistory[0];
             } catch (e) {
@@ -1147,7 +1208,8 @@ function intakeComponent() {
             
             this.historyLoading = true;
             try {
-                const response = await fetch(`/api/calls/${this.selectedHistoryCall.id}/reminder`, {
+                const callIdentifier = this.selectedHistoryCall.uuid || this.selectedHistoryCall.id;
+                const response = await fetch(`/api/calls/${callIdentifier}/reminder`, {
                     method: 'POST',
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest',
@@ -1165,7 +1227,7 @@ function intakeComponent() {
                     this.selectedHistoryCall.last_reminder_at = result.call.last_reminder_at;
                     
                     // Also find in callerHistory and update
-                    const idx = this.callerHistory.findIndex(h => h.id === result.call.id);
+                    const idx = this.callerHistory.findIndex(h => (result.call.uuid && h.uuid === result.call.uuid) || h.id === result.call.id);
                     if (idx !== -1) {
                         this.callerHistory[idx].call_reminder_count = result.call.call_reminder_count;
                         this.callerHistory[idx].last_reminder_at = result.call.last_reminder_at;

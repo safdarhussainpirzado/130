@@ -29,11 +29,19 @@ class PasswordExpiryAndResetTest extends TestCase
             'scope_level' => 'call_centre',
             'status' => 'active',
         ]);
-        Role::firstOrCreate(['name' => Role::IT_ADMIN], [
+        $itAdmin = Role::firstOrCreate(['name' => Role::IT_ADMIN], [
             'display_name' => 'Operation Manager',
             'scope_level' => 'national',
             'status' => 'active',
         ]);
+        $perm = \App\Models\Permission::firstOrCreate(['name' => 'dashboard.view'], [
+            'display_name' => 'View Dashboard',
+            'module' => 'dashboard',
+            'status' => 'active',
+        ]);
+        $itAdmin->permissions()->syncWithoutDetaching([$perm->id]);
+
+        $this->withoutMiddleware(\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class);
     }
 
     /* ------------------------------------------------------------------ */
@@ -42,7 +50,8 @@ class PasswordExpiryAndResetTest extends TestCase
 
     public function test_user_with_active_password_under_15_days_can_access_system(): void
     {
-        $role = Role::where('name', Role::OPERATOR)->first();
+        $role = Role::where('name', Role::IT_ADMIN)->first();
+        /** @var User $user */
         $user = User::factory()->create([
             'role_id' => $role->id,
             'password_changed_at' => now()->subDays(5),
@@ -56,7 +65,8 @@ class PasswordExpiryAndResetTest extends TestCase
 
     public function test_user_with_expired_password_over_15_days_is_redirected_to_password_expired(): void
     {
-        $role = Role::where('name', Role::OPERATOR)->first();
+        $role = Role::where('name', Role::IT_ADMIN)->first();
+        /** @var User $user */
         $user = User::factory()->create([
             'role_id' => $role->id,
             'password_changed_at' => now()->subDays(16),
@@ -70,7 +80,8 @@ class PasswordExpiryAndResetTest extends TestCase
 
     public function test_ajax_request_receives_403_when_password_is_expired(): void
     {
-        $role = Role::where('name', Role::OPERATOR)->first();
+        $role = Role::where('name', Role::IT_ADMIN)->first();
+        /** @var User $user */
         $user = User::factory()->create([
             'role_id' => $role->id,
             'password_changed_at' => now()->subDays(20),
@@ -88,6 +99,7 @@ class PasswordExpiryAndResetTest extends TestCase
     public function test_user_can_view_password_expired_screen(): void
     {
         $role = Role::where('name', Role::OPERATOR)->first();
+        /** @var User $user */
         $user = User::factory()->create([
             'role_id' => $role->id,
             'password_changed_at' => now()->subDays(16),
@@ -104,6 +116,7 @@ class PasswordExpiryAndResetTest extends TestCase
     public function test_user_can_update_expired_password_and_restores_access(): void
     {
         $role = Role::where('name', Role::OPERATOR)->first();
+        /** @var User $user */
         $user = User::factory()->create([
             'role_id' => $role->id,
             'password' => Hash::make('CurrentValidP@ss123!'),
@@ -129,6 +142,7 @@ class PasswordExpiryAndResetTest extends TestCase
     public function test_user_cannot_reuse_any_of_their_last_5_passwords(): void
     {
         $role = Role::where('name', Role::OPERATOR)->first();
+        /** @var User $user */
         $user = User::factory()->create([
             'role_id' => $role->id,
             'password' => Hash::make('CurrentValidP@ss123!'),
