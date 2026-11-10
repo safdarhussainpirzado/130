@@ -57,3 +57,21 @@ dashboard pre-aggregation, Grafana alerting. No load test is run against the liv
   Rollback: `set server app_nodes/web-octane-1 state maint` + same for -2 (backup nodes then serve); or edit cfg and reload.
 - Ramp: 50/50 new sessions -> web-1 maint -> web-2 maint -> config made permanent. 0 5xx, 0 app exceptions throughout.
 - Known: /calls returns a few 400s on BOTH runtimes (app behaviour, pre-existing).
+
+## Geospatial data release (2026-11-10, ~21:00 PKT) — LIVE
+Source: local dev DB (127.0.0.1:3309). Method: exports compared in an isolated scratch MySQL; nothing deleted on prod.
+- Migrations run (additive): 2026_11_07_220000 (landmarks latitude/longitude + 2 idx), 2026_05_08_000000 (markers idx_lat_lng, idx_side).
+- geospatial_landmarks: 55 rows changed + coordinates for 1016 rows, applied by id (ON DUPLICATE KEY UPDATE), checksum == local.
+- carriageways: 4 new (M11, M16, LEW, LEBP) + 8 renamed/re-pointed (ids 8/9 are different roads than before; no calls referenced any
+  carriageway id on prod). checksum == local.
+- geospatial_markers: 97,479 -> 377,740 rows. Built geospatial_markers_new, verified (count, id range, CRC sum, office count, averages
+  == local), then ATOMIC `RENAME TABLE` swap. ids diverged between environments (only 29,162 shared) so matching was by content.
+- Offices: identical both sides (no change). "Office links" = office_id columns on markers/landmarks.
+- Dashboard centroid cache key `dashboard_beat_centroids` cleared. Median centroid shift 0.81 km; office 132 moved ~103 km
+  (coverage 1,000 -> 26,268 markers).
+### Rollback (all reversible, nothing was deleted)
+- Markers:      RENAME TABLE geospatial_markers TO geospatial_markers_v2_bak, geospatial_markers_legacy_20261110 TO geospatial_markers;
+- Landmarks / carriageways: UPDATE/INSERT from geospatial_landmarks_legacy_20261110 / carriageways_legacy_20261110 (by id).
+- Legacy tables are kept until you explicitly approve dropping them.
+### Phase 2 (not done): merge local features (23 unapplied migrations incl. encryption/blind indexes, call-type deactivation, uuid
+backfills) with prod hotfixes, staging test on a restored copy, then release via Octane rolling update.
