@@ -1071,8 +1071,11 @@ class CallController extends Controller
                 }
             });
 
-        // Scope query to user organizational boundary to prevent data leakage
-        $query = $this->applyScopeVisibility($query);
+        // Call-centre agents handle callbacks for ANY caller, so caller history is shared across agents
+        // (read-only, limited to 5 rows, requires calls.api_lookup). All other roles stay scope-limited.
+        if (Auth::user()?->role?->name !== 'agent') {
+            $query = $this->applyScopeVisibility($query);
+        }
 
         $calls = $query->orderBy('created_at', 'desc')
             ->limit(5)
@@ -1107,6 +1110,8 @@ class CallController extends Controller
                 'beat_name' => ($beat && $beat->type === 'beat') ? $beat->name : ($beat?->name),
                 'agent_name' => $showAgent ? ($c->agent?->full_name ?? 'N/A') : null,
                 'location_details' => $c->location_details,
+                'call_reminder_count' => $c->call_reminder_count,
+                'last_reminder_at' => $c->last_reminder_at,
             ];
         });
 
