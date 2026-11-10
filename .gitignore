@@ -39,3 +39,8 @@ haproxy/certs/
 backups/
 scratch/
 .claude/
+
+# Docker secrets and backup keys — never commit
+/secrets/
+*.enc
+*.key

@@ -8,10 +8,14 @@ services:
       context: .
       dockerfile: Dockerfile.octane
     restart: unless-stopped
+    secrets:
+      - app_key
+      - db_password
+      - aws_secret_access_key
     environment:
       - APP_NAME=${APP_NAME:-130 NHMP Helpline}
       - APP_ENV=${APP_ENV:-production}
-      - APP_KEY=${APP_KEY}
+      - APP_KEY_FILE=/run/secrets/app_key
       - APP_URL=${APP_URL:-https://130.nhmp.gov.pk}
       - FORCE_HTTPS=${FORCE_HTTPS:-true}
       - TRUSTED_PROXIES=${TRUSTED_PROXIES:-*}
@@ -21,14 +25,14 @@ services:
       - DB_PORT=3306
       - DB_DATABASE=${DB_DATABASE:-130_crm_db}
       - DB_USERNAME=${DB_USERNAME:-crm_user}
-      - DB_PASSWORD=${DB_PASSWORD:-crm_password}
+      - DB_PASSWORD_FILE=/run/secrets/db_password
       - REDIS_HOST=redis
       - CACHE_DRIVER=redis
       - SESSION_DRIVER=redis
       - QUEUE_CONNECTION=redis
       - FILESYSTEM_DISK=s3
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-admin}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-password}
+      - AWS_SECRET_ACCESS_KEY_FILE=/run/secrets/aws_secret_access_key
       - AWS_BUCKET=crm-storage
       - AWS_ENDPOINT=http://minio:9000
       - AWS_USE_PATH_STYLE_ENDPOINT=true
@@ -49,3 +53,19 @@ services:
       - app-octane-1
     networks:
       - crm-net
+
+# Docker secrets (file-based; works without Swarm). Files live in ./secrets (mode 700, gitignored)
+# and are mounted read-only at /run/secrets/<name> inside the container only — they do not appear in
+# `docker inspect` environment output. Create them with scripts/create_secrets.sh.
+secrets:
+  app_key:
+    file: ./secrets/app_key
+  db_password:
+    file: ./secrets/db_password
+  aws_secret_access_key:
+    file: ./secrets/aws_secret_access_key
+
+networks:
+  crm-net:
+    external: true
+    name: 130_crm-net

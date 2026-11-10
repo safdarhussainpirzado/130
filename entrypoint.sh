@@ -5,6 +5,23 @@ echo "🔔 Booting NHMP 130 CRM container..."
 
 cd /var/www/html
 
+# ── Docker secrets (*_FILE convention) ──────────────────────────────────────
+# For every VAR_FILE=/run/secrets/x env var, export VAR from the file contents.
+# Backward compatible: does nothing when no *_FILE variables are set, so existing
+# php-fpm nodes that still use plain env vars keep working unchanged.
+for _f in $(env | sed -n 's/^\([A-Z0-9_]*_FILE\)=.*/\1/p'); do
+    _var="${_f%_FILE}"
+    _path="$(printenv "$_f")"
+    if [ -r "$_path" ]; then
+        export "$_var=$(cat "$_path")"
+        unset "$_f"
+    else
+        echo "❌ Secret file for $_var not readable: $_path" >&2
+        exit 1
+    fi
+done
+unset _f _var _path
+
 # Ensure essential directories exist
 mkdir -p storage/framework/sessions \
          storage/framework/views \
