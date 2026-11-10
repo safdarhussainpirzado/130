@@ -219,7 +219,8 @@ return [
     |
     */
 
-    'max_execution_time' => 30,
+    // Must be >= the longest legitimate request (report exports use set_time_limit(300)); RoadRunner kills workers past this.
+    'max_execution_time' => (int) env('OCTANE_MAX_EXECUTION_TIME', 300),
 
     /*
     |--------------------------------------------------------------------------

@@ -49,3 +49,11 @@ dashboard pre-aggregation, Grafana alerting. No load test is run against the liv
   use `docker exec -e MYSQL_PWD="$(cat /root/.mysql_root_password)" ... mysql -uroot`.
   A future recreate picks up the new value from .env. Container health (mysqladmin ping) is unaffected.
 - Rollback: ALTER USER 'root'@'localhost'/'%' back to the previous default; repl_gr stays valid regardless.
+
+## Octane cutover (2026-11-10, ~20:20-20:40 PKT) — LIVE
+- Production now served by Laravel Octane (RoadRunner) on app-octane-1/2 behind web-octane-1/2 (nginx). 12 workers/node,
+  exec_ttl 300s (report exports), max-requests 500. Migrations: none pending for this code (verified `migrate --pretend`).
+- php-fpm nodes (app-1/2, web-1/2) kept RUNNING as `backup` servers in HAProxy (take traffic only if both Octane nodes are down).
+  Rollback: `set server app_nodes/web-octane-1 state maint` + same for -2 (backup nodes then serve); or edit cfg and reload.
+- Ramp: 50/50 new sessions -> web-1 maint -> web-2 maint -> config made permanent. 0 5xx, 0 app exceptions throughout.
+- Known: /calls returns a few 400s on BOTH runtimes (app behaviour, pre-existing).

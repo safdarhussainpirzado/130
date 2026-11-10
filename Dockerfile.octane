@@ -53,5 +53,6 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 USER www-data
 EXPOSE 8000
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-# --max-requests recycles workers to bound any memory growth (report exports raise memory_limit to 1G).
-CMD ["php", "artisan", "octane:start", "--server=roadrunner", "--host=0.0.0.0", "--port=8000", "--rpc-port=6001", "--workers=8", "--max-requests=500"]
+# Workers/recycling come from env so they can be tuned without a rebuild.
+# --max-requests recycles workers to bound memory growth (report exports raise memory_limit to 1G).
+CMD ["sh", "-c", "exec php artisan octane:start --server=roadrunner --host=0.0.0.0 --port=8000 --rpc-port=6001 --workers=${OCTANE_WORKERS:-12} --max-requests=${OCTANE_MAX_REQUESTS:-500}"]
