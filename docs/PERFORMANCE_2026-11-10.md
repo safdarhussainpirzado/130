@@ -1,0 +1,30 @@
+# NHMP 130 performance engineering — measured findings & applied changes (2026-11-10)
+
+## Hardware (measured)
+VMware VM, 16 vCPU (Xeon Gold 6252N @2.3 GHz, 1 NUMA node), 32 GB RAM, 8 GB swap, 500 GB virtual disk (ext4/LVM,
+mq-deadline), 10 Gb/s NIC. **No GPUs** (only VMware SVGA); GPUs would not help Laravel/PHP/MySQL regardless.
+Idle: 88-95% CPU idle, 16 GB RAM available, MySQL Max_used_connections 9/150.
+
+## Measured findings
+- DB is 770 MB total (calls 349 MB incl. indexes). Buffer-pool hit ratio 99.9999%. 8 GB pool is not justified.
+- 56.9M connections in 126 days (one per PHP-FPM request): SET NAMES+USE cost ~10,700 s cumulative -> Octane persistent workers.
+- flush_log_at_trx_commit=2 / sync_binlog=0 weakened durability; fsync is 1.5 ms and commits ~0.1/s, so full durability is ~free.
+- Sort_merge_passes 1.86M (sort_buffer_size 256K). No slow *application* queries; "slow" digests are mysqldump.
+- db-2/db-3 are live GTID replicas (identical row counts) - left untouched.
+- Redis: noeviction (good), no maxmemory, no AOF.
+- Host swappiness 60 with 3.2 GB swapped while 16 GB RAM available.
+
+## Applied (all dynamic, no restarts; backups: /root/deploy_backups/*_enc verified)
+| Change | Before | After | Rollback |
+|---|---|---|---|
+| MySQL innodb_flush_log_at_trx_commit | 2 | 1 | SET PERSIST ... =2 |
+| MySQL sync_binlog | 0 | 1 | SET PERSIST sync_binlog=0 |
+| MySQL sort_buffer_size | 256K | 2M | SET PERSIST sort_buffer_size=262144 |
+| MySQL innodb_buffer_pool_size | 512M | 1536M (online resize) | SET PERSIST ...=536870912 |
+| Redis maxmemory / AOF | none / off | 2gb noeviction / everysec | CONFIG SET |
+| Host vm.swappiness | 60 | 10 (/etc/sysctl.d/99-nhmp-tuning.conf) | sysctl -w vm.swappiness=60 |
+Also: Octane canary (web-octane-1, weight 1 vs 20/20) enabled in HAProxy; Docker secrets; encrypted backups.
+
+## Not done (needs approval / separate staging)
+Load tests at 100-1000 concurrent users, PHP-FPM re-tuning (superseded by Octane), queue worker topology, HTTP/3,
+dashboard pre-aggregation, Grafana alerting. No load test is run against the live helpline without explicit approval.
