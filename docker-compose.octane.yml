@@ -4,7 +4,7 @@
 # --no-deps + explicit service names guarantee existing services are not recreated.
 services:
   app-octane-1:
-    image: 130-app-octane:phase2-rc2
+    image: 130-app-octane:phase2-rc8
     build:
       context: .
       dockerfile: Dockerfile.octane
@@ -53,7 +53,7 @@ services:
 
 
   app-octane-2:
-    image: 130-app-octane:phase2-rc2
+    image: 130-app-octane:phase2-rc8
     build:
       context: .
       dockerfile: Dockerfile.octane
