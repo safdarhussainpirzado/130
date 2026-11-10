@@ -127,7 +127,7 @@
 
     <!-- Notification & Routing JS -->
     <script defer src="{{ asset('js/notification.js') }}"></script>
-    <script defer src="{{ asset('js/bento-bridge.js') }}?v=1.0.1"></script>
+    <script defer src="{{ asset('js/bento-bridge.js') }}?v=1.0.2"></script>
     
     {{-- Hardened Session Security with Cross-Tab Activity Synchronization --}}
     <script>
