@@ -67,14 +67,14 @@ restart: down up
 bootstrap-db:
 	@echo "Initializing MySQL Group Replication Cluster..."
 	@echo "  -> Preparing db-1..."
-	-docker compose exec db-1 mysql -u root -psecret -e "INSTALL PLUGIN group_replication SONAME 'group_replication.so';"
-	docker compose exec db-1 mysql -u root -psecret -e "SET GLOBAL group_replication_group_name='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'; SET GLOBAL group_replication_local_address='db-1:33061'; SET GLOBAL group_replication_group_seeds='db-1:33061,db-2:33061,db-3:33061'; SET GLOBAL group_replication_single_primary_mode=ON; SET GLOBAL group_replication_enforce_update_everywhere_checks=OFF; SET GLOBAL group_replication_bootstrap_group=ON; START GROUP_REPLICATION; SET GLOBAL group_replication_bootstrap_group=OFF;"
+	-docker compose exec db-1 mysql -u root -p"$$DB_ROOT_PASSWORD" -e "INSTALL PLUGIN group_replication SONAME 'group_replication.so';"
+	docker compose exec db-1 mysql -u root -p"$$DB_ROOT_PASSWORD" -e "SET GLOBAL group_replication_group_name='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'; SET GLOBAL group_replication_local_address='db-1:33061'; SET GLOBAL group_replication_group_seeds='db-1:33061,db-2:33061,db-3:33061'; SET GLOBAL group_replication_single_primary_mode=ON; SET GLOBAL group_replication_enforce_update_everywhere_checks=OFF; SET GLOBAL group_replication_bootstrap_group=ON; START GROUP_REPLICATION; SET GLOBAL group_replication_bootstrap_group=OFF;"
 	@echo "  -> Preparing db-2..."
-	-docker compose exec db-2 mysql -u root -psecret -e "INSTALL PLUGIN group_replication SONAME 'group_replication.so';"
-	docker compose exec db-2 mysql -u root -psecret -e "SET GLOBAL group_replication_group_name='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'; SET GLOBAL group_replication_local_address='db-2:33061'; SET GLOBAL group_replication_group_seeds='db-1:33061,db-2:33061,db-3:33061'; SET GLOBAL group_replication_single_primary_mode=ON; SET GLOBAL group_replication_enforce_update_everywhere_checks=OFF; RESET BINARY LOGS AND GTIDS; START GROUP_REPLICATION;"
+	-docker compose exec db-2 mysql -u root -p"$$DB_ROOT_PASSWORD" -e "INSTALL PLUGIN group_replication SONAME 'group_replication.so';"
+	docker compose exec db-2 mysql -u root -p"$$DB_ROOT_PASSWORD" -e "SET GLOBAL group_replication_group_name='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'; SET GLOBAL group_replication_local_address='db-2:33061'; SET GLOBAL group_replication_group_seeds='db-1:33061,db-2:33061,db-3:33061'; SET GLOBAL group_replication_single_primary_mode=ON; SET GLOBAL group_replication_enforce_update_everywhere_checks=OFF; RESET BINARY LOGS AND GTIDS; START GROUP_REPLICATION;"
 	@echo "  -> Preparing db-3..."
-	-docker compose exec db-3 mysql -u root -psecret -e "INSTALL PLUGIN group_replication SONAME 'group_replication.so';"
-	docker compose exec db-3 mysql -u root -psecret -e "SET GLOBAL group_replication_group_name='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'; SET GLOBAL group_replication_local_address='db-3:33061'; SET GLOBAL group_replication_group_seeds='db-1:33061,db-2:33061,db-3:33061'; SET GLOBAL group_replication_single_primary_mode=ON; SET GLOBAL group_replication_enforce_update_everywhere_checks=OFF; RESET BINARY LOGS AND GTIDS; START GROUP_REPLICATION;"
+	-docker compose exec db-3 mysql -u root -p"$$DB_ROOT_PASSWORD" -e "INSTALL PLUGIN group_replication SONAME 'group_replication.so';"
+	docker compose exec db-3 mysql -u root -p"$$DB_ROOT_PASSWORD" -e "SET GLOBAL group_replication_group_name='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'; SET GLOBAL group_replication_local_address='db-3:33061'; SET GLOBAL group_replication_group_seeds='db-1:33061,db-2:33061,db-3:33061'; SET GLOBAL group_replication_single_primary_mode=ON; SET GLOBAL group_replication_enforce_update_everywhere_checks=OFF; RESET BINARY LOGS AND GTIDS; START GROUP_REPLICATION;"
 	@echo "Cluster initialized!"
 
 # Run DB Migrations & Reset
@@ -131,7 +131,7 @@ migrate-legacy:
 	@perl -i -0777 -pe 's/,\s*\)/\n\)/g' staging_raw.sql
 	
 	@echo "Step 3: Importing legacy data into Staging..."
-	@(echo "SET SESSION sql_mode = ''; SET FOREIGN_KEY_CHECKS=0;"; cat staging_raw.sql) | docker compose exec -T db-1 mysql -f -u root -psecret 130_crm_db
+	@(echo "SET SESSION sql_mode = ''; SET FOREIGN_KEY_CHECKS=0;"; cat staging_raw.sql) | docker compose exec -T db-1 mysql -f -u root -p"$$DB_ROOT_PASSWORD" 130_crm_db
 	@rm staging_raw.sql
 
 	@echo "Step 4: Mapping categories, offices and converting timestamps (GMT -> PKT)..."

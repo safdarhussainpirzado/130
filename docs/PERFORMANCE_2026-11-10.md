@@ -38,3 +38,14 @@ dashboard pre-aggregation, Grafana alerting. No load test is run against the liv
 - Plaintext backups encrypted copies in /root/archived_backups (verified byte-identical); plaintext originals still present.
 - Pending decisions: MySQL root pw (Group Replication recovery uses root@%), MinIO root creds (bucket empty), Grafana admin:admin,
   systemd unit for firewall persistence, deletion of plaintext backups.
+
+## MySQL root rotation (2026-11-10)
+- Group Replication recovery on all 3 nodes now uses dedicated `repl_gr` (TLS required, recovery_use_ssl=ON persisted).
+  db-2 and db-3 rejoin-tested (ONLINE, recovery via db-1 donor, no auth errors). db-1 (primary) configured + persisted but
+  its rejoin path is untested (would need a failover).
+- Least-privilege `backup_user@localhost` (SELECT, SHOW VIEW, TRIGGER, EVENT, SHOW_ROUTINE) used by scripts/backup_encrypted.sh.
+- `root@localhost` and `root@%` rotated (new value only in /root/.mysql_root_password on prod, 0400). Old default rejected on all nodes.
+- Containers still carry the OLD MYSQL_ROOT_PASSWORD env (set at creation). Do not use `$MYSQL_ROOT_PASSWORD` inside them;
+  use `docker exec -e MYSQL_PWD="$(cat /root/.mysql_root_password)" ... mysql -uroot`.
+  A future recreate picks up the new value from .env. Container health (mysqladmin ping) is unaffected.
+- Rollback: ALTER USER 'root'@'localhost'/'%' back to the previous default; repl_gr stays valid regardless.

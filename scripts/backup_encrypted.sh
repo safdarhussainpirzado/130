@@ -7,7 +7,10 @@ KEY_FILE="${KEY_FILE:-/root/.nhmp_backup_key}"
 OUT="${1:-/root/deploy_backups/$(date +%Y%m%d_%H%M%S)_enc}"
 [ -r "$KEY_FILE" ] || { echo "missing key file $KEY_FILE" >&2; exit 1; }
 umask 077; mkdir -p "$OUT"
-ionice -c3 nice -n19 docker exec 130-db-1-1 sh -c 'exec mysqldump -uroot -p"$MYSQL_ROOT_PASSWORD" --single-transaction --quick --routines --triggers --events --set-gtid-purged=OFF --no-tablespaces 130_crm_db' 2>"$OUT/dump.err" \
+# Least-privilege backup_user (SELECT, SHOW VIEW, TRIGGER, EVENT, SHOW_ROUTINE); password in a root-only file, passed via env (not argv).
+DB_PW_FILE="${DB_PW_FILE:-/root/.mysql_backup_password}"
+[ -r "$DB_PW_FILE" ] || { echo "missing $DB_PW_FILE" >&2; exit 1; }
+ionice -c3 nice -n19 docker exec -e MYSQL_PWD="$(cat "$DB_PW_FILE")" 130-db-1-1 mysqldump -ubackup_user --single-transaction --quick --routines --triggers --events --set-gtid-purged=OFF --no-tablespaces 130_crm_db 2>"$OUT/dump.err" \
   | gzip -6 | openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -pass "file:$KEY_FILE" > "$OUT/db.sql.gz.enc"
 sha256sum "$OUT/db.sql.gz.enc" > "$OUT/SHA256SUMS"
 # Verify: decrypt + gzip integrity + dump trailer

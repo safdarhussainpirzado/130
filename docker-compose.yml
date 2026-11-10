@@ -95,7 +95,7 @@ services:
       - MYSQL_DATABASE=${DB_DATABASE:-130_crm_db}
       - MYSQL_USER=${DB_USERNAME:-crm_user}
       - MYSQL_PASSWORD=${DB_PASSWORD:-crm_password}
-      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-secret}
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD must be set in .env}
     ports:
       - "3309:3306"
       - "0.0.0.0:3306:3306"
@@ -103,7 +103,7 @@ services:
       - dbdata-1:/var/lib/mysql
       - ./mysql/my.cnf:/etc/mysql/conf.d/my.cnf:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-p${DB_ROOT_PASSWORD:-secret}"]
+      test: ["CMD", "mysqladmin", "ping", "-p${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD must be set in .env}"]
     networks:
       - crm-net
 
@@ -114,7 +114,7 @@ services:
       - MYSQL_DATABASE=${DB_DATABASE:-130_crm_db}
       - MYSQL_USER=${DB_USERNAME:-crm_user}
       - MYSQL_PASSWORD=${DB_PASSWORD:-crm_password}
-      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-secret}
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD must be set in .env}
     ports:
       - "3310:3306"
     volumes:
@@ -130,7 +130,7 @@ services:
       - MYSQL_DATABASE=${DB_DATABASE:-130_crm_db}
       - MYSQL_USER=${DB_USERNAME:-crm_user}
       - MYSQL_PASSWORD=${DB_PASSWORD:-crm_password}
-      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-secret}
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD must be set in .env}
     ports:
       - "3311:3306"
     volumes:
@@ -218,7 +218,7 @@ services:
   mysql-exporter:
     image: prom/mysqld-exporter:latest
     environment:
-      - DATA_SOURCE_NAME=root:secret@(db-1:3306)/
+      - DATA_SOURCE_NAME=root:${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD must be set in .env}@(db-1:3306)/
     networks:
       - crm-net
 
