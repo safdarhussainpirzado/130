@@ -26,6 +26,8 @@ RUN apk add --no-cache icu-dev libzip-dev zip unzip autoconf g++ gcc libc-dev ma
     && docker-php-ext-install -j$(nproc) pdo_mysql opcache zip pcntl intl sockets \
     && pecl install redis && docker-php-ext-enable redis
 COPY --from=vendor /app/vendor /vendor
+# composer 'files' autoload expects /app/Helpers relative to /vendor when rr boots the autoloader
+COPY app/Helpers /app/Helpers
 # rr get-binary picks the RoadRunner build that matches the installed Octane/roadrunner-cli.
 RUN cd / && mkdir -p /rr && cd /rr && php /vendor/bin/rr get-binary --location /rr --no-interaction
 
