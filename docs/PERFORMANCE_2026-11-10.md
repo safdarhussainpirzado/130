@@ -28,3 +28,13 @@ Also: Octane canary (web-octane-1, weight 1 vs 20/20) enabled in HAProxy; Docker
 ## Not done (needs approval / separate staging)
 Load tests at 100-1000 concurrent users, PHP-FPM re-tuning (superseded by Octane), queue worker topology, HTTP/3,
 dashboard pre-aggregation, Grafana alerting. No load test is run against the live helpline without explicit approval.
+
+## Security hardening (2026-11-10)
+- DOCKER-USER firewall (scripts: `nhmp-firewall.sh`, repo `scripts/`): MySQL 3306/3309/3310/3311, Redis 6379, MinIO 9000
+  reachable only from Docker, loopback, Tailscale, WireGuard. Verified with a synthetic external source (blocked) and
+  internal app->db/redis/minio (OK). NOT yet persistent across reboot (needs the systemd unit in docs below).
+- HAProxy stats password rotated (file /root/.haproxy_stats_password on prod, root-only). Repo copy has a placeholder:
+  do NOT rsync haproxy/haproxy.cfg over prod.
+- Plaintext backups encrypted copies in /root/archived_backups (verified byte-identical); plaintext originals still present.
+- Pending decisions: MySQL root pw (Group Replication recovery uses root@%), MinIO root creds (bucket empty), Grafana admin:admin,
+  systemd unit for firewall persistence, deletion of plaintext backups.
