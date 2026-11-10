@@ -44,6 +44,9 @@ class StepUpAuthenticationService
             'transfer_approval',
             'transfer_source_verification',
             'transfer_destination_confirmation',
+            // Same supervisory/management policy for the contexts the services actually use (owner-approved 2026-11-10):
+            'transfer_pipeline_verification',  // OrganizationalTransferService::processPipelineStep (approve / reject)
+            'immediate_account_lock',          // AccountSecuritySupportService lock action ('account_block' was never called)
             'account_unblock',
             'account_unlock',
             'account_block',
