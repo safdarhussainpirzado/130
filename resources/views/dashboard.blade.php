@@ -995,8 +995,9 @@
                     <button onclick="setHmRange('month',this)">Monthly</button>
                 </div>
             </div>
-            <div style="height: 190px; max-height: 190px; position: relative; width: 100%; min-height: 0;">
-                <canvas id="shiftChart" role="img" aria-label="Bar chart tigers per unit" style="height: 190px !important; width: 100% !important; display: block;">Zone Wise Activity chart.</canvas>
+            {{-- Fills the card height (cards in this grid row are equal height); 190px is the minimum. --}}
+            <div style="flex: 1 1 190px; min-height: 190px; position: relative; width: 100%;">
+                <canvas id="shiftChart" role="img" aria-label="Bar chart tigers per unit" style="position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important; display: block;">Zone Wise Activity chart.</canvas>
             </div>
         </div>
 
