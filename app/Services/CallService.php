@@ -64,8 +64,23 @@ class CallService
                 try {
                     $call = Call::create($data);
                     break;
-                } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
-                    \Illuminate\Support\Facades\Log::warning("Call number collision on attempt {$attempt}/{$maxAttempts} for {$data['call_number']}: {$e->getMessage()}");
+                } catch (\Illuminate\Database\UniqueConstraintViolationException|\Illuminate\Database\QueryException $e) {
+                    $isCollision = ($e instanceof \Illuminate\Database\UniqueConstraintViolationException) ||
+                        (isset($e->errorInfo[1]) && $e->errorInfo[1] === 1062);
+
+                    if (!$isCollision) {
+                        throw $e;
+                    }
+
+                    // Self-healing: Real-time alignment with MAX(call_number) in table
+                    $year = (int) date('Y');
+                    $maxSeq = (int) DB::table('calls')
+                        ->where('call_number', 'like', "CRM-{$year}-%")
+                        ->selectRaw("MAX(CAST(SUBSTRING_INDEX(call_number, '-', -1) AS UNSIGNED)) as max_seq")
+                        ->value('max_seq');
+                    DB::table('call_sequences')->updateOrInsert(['year' => $year], ['current_seq' => $maxSeq]);
+
+                    \Illuminate\Support\Facades\Log::warning("Call number collision on attempt {$attempt}/{$maxAttempts} for {$data['call_number']}. Resynchronized call_sequences to {$maxSeq}.");
                     if ($attempt === $maxAttempts) {
                         throw $e;
                     }
@@ -80,6 +95,13 @@ class CallService
                 'changed_by' => $agent->id,
                 'remarks' => $isAutomated ? 'Automated completion for ' . $type->category . ' call' : 'Help inserted',
             ]);
+
+            // Transactional Outbox Event for High-Speed Analytics Rollups
+            try {
+                app(\App\Services\Analytics\CallRollupService::class)->recordOutboxEvent($call, 'call_created');
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning("Outbox recording failed on createCall for {$call->id}: " . $e->getMessage());
+            }
 
             // Fire events
             event(new CallLogged($call->id, $call->call_number, $call->call_type_id, $call->priority));
@@ -111,7 +133,7 @@ class CallService
                 $updateData['inprogress_remarks'] = $data['remarks'] ?? null;
 
                 if ($call->call_start_time ?? $call->created_at) {
-                    $updateData['response_time_sec'] = (int) ($call->call_start_time ?? $call->created_at)->diffInSeconds(now());
+                    $updateData['response_time_sec'] = max(0, (int) ($call->call_start_time ?? $call->created_at)->diffInSeconds(now()));
                 }
 
                 if (isset($data['tiger_id']) && $data['tiger_id'] !== '') {
@@ -135,9 +157,9 @@ class CallService
 
                 // Tiger Response Time = Tiger Reached Time - Help Initiated Time
                 if ($call->inprogress_at) {
-                    $updateData['tiger_response_time_sec'] = (int) $call->inprogress_at->diffInSeconds(now());
+                    $updateData['tiger_response_time_sec'] = max(0, (int) $call->inprogress_at->diffInSeconds(now()));
                 } elseif ($call->call_start_time ?? $call->created_at) {
-                    $updateData['tiger_response_time_sec'] = (int) ($call->call_start_time ?? $call->created_at)->diffInSeconds(now());
+                    $updateData['tiger_response_time_sec'] = max(0, (int) ($call->call_start_time ?? $call->created_at)->diffInSeconds(now()));
                 }
                 $updateData['response_time_sec'] = $updateData['tiger_response_time_sec'] ?? null;
 
@@ -158,7 +180,7 @@ class CallService
                 // If tiger_reached_at was never marked, but directly completed from in_progress
                 if (!$call->tiger_reached_at && $call->inprogress_at) {
                     $updateData['tiger_reached_at'] = now();
-                    $updateData['tiger_response_time_sec'] = (int) $call->inprogress_at->diffInSeconds(now());
+                    $updateData['tiger_response_time_sec'] = max(0, (int) $call->inprogress_at->diffInSeconds(now()));
                     $updateData['response_time_sec'] = $updateData['tiger_response_time_sec'];
                 } elseif ($call->tiger_response_time_sec && !$call->response_time_sec) {
                     $updateData['response_time_sec'] = $call->tiger_response_time_sec;
@@ -188,6 +210,18 @@ class CallService
                 'changed_by' => $changedBy->id,
                 'remarks' => $data['remarks'] ?? null,
             ]);
+
+            // Transactional Outbox Event for Analytics Rollup Delta
+            try {
+                $freshCall = $call->fresh();
+                app(\App\Services\Analytics\CallRollupService::class)->recordOutboxEvent(
+                    $freshCall,
+                    'status_changed',
+                    ['status' => $oldStatus, 'office_id' => $call->office_id]
+                );
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning("Outbox recording failed on updateStatus for {$call->id}: " . $e->getMessage());
+            }
 
             return $call->fresh();
         });

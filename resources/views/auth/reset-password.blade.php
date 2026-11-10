@@ -1,3 +1,6 @@
+@php
+    /** @var \Illuminate\Support\ViewErrorBag $errors */
+@endphp
 <x-guest-layout>
     <div class="login-page {{ $errors->any() ? 'has-login-errors' : '' }}" id="nhmp-login">
         <div class="ambient-orb ambient-orb-blue" aria-hidden="true"></div>
@@ -54,6 +57,21 @@
                                    autofocus 
                                    autocomplete="username" 
                                    placeholder="officer@nhmp.gov.pk">
+                        </div>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="cnic">Official National CNIC (13 Digits)</label>
+                        <div class="input-wrap">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M15 8h2m-2 4h2m-8 4h8"/></svg>
+                            <input id="cnic" 
+                                   name="cnic" 
+                                   type="text" 
+                                   value="{{ old('cnic') }}" 
+                                   required 
+                                   autocomplete="off" 
+                                   maxlength="15"
+                                   placeholder="e.g. 35202-1234567-1 or 3520212345671">
                         </div>
                     </div>
 

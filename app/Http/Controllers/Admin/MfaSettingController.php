@@ -28,22 +28,30 @@ class MfaSettingController extends Controller
     {
         $this->authorizeAccess();
 
-        // 1. Role-based enforcement matrix
-        $roles = Role::orderBy('id')->get();
+        // 1. Role-based enforcement matrix — Pre-aggregate user counts to prevent N+1 queries
+        $roles = Role::select(['id', 'name', 'display_name', 'scope_level'])->orderBy('id')->get();
         $policies = $this->policyResolver->getAllPoliciesMatrix();
+
+        $activeUserCounts = User::where('is_active', true)
+            ->groupBy('role_id')
+            ->selectRaw('role_id, count(*) as count')
+            ->pluck('count', 'role_id');
+
+        $enrolledUserCounts = User::where('is_active', true)
+            ->where(function ($q) {
+                $q->whereNotNull('totp_secret')
+                  ->orWhereHas('webAuthnCredentials', fn($w) => $w->whereNull('revoked_at'));
+            })
+            ->groupBy('role_id')
+            ->selectRaw('role_id, count(*) as count')
+            ->pluck('count', 'role_id');
 
         $roleData = [];
         foreach ($roles as $role) {
             $policy = $policies[$role->id] ?? null;
 
-            $activeUsersCount = $role->users()->where('is_active', true)->count();
-            $enrolledUsersCount = $role->users()
-                ->where('is_active', true)
-                ->where(function ($q) {
-                    $q->whereNotNull('totp_secret')
-                      ->orWhereHas('webAuthnCredentials', fn($w) => $w->whereNull('revoked_at'));
-                })
-                ->count();
+            $activeUsersCount = (int) ($activeUserCounts[$role->id] ?? 0);
+            $enrolledUsersCount = (int) ($enrolledUserCounts[$role->id] ?? 0);
 
             $isEligible = $this->policyResolver->isRoleEligibleForExemption($role);
 
@@ -68,7 +76,19 @@ class MfaSettingController extends Controller
         $roleFilter = (int) $request->input('role_id', 0);
         $statusFilter = (string) $request->input('status', 'all');
 
-        $usersQuery = User::with(['role', 'designation', 'webAuthnCredentials', 'activeScopes.office'])
+        $userSelectCols = [
+            'id', 'username', 'full_name', 'email', 'cnic', 'mobile_no',
+            'role_id', 'designation_id', 'is_active', 'mfa_required', 'totp_secret'
+        ];
+
+        $usersQuery = User::select($userSelectCols)
+            ->with([
+                'role:id,name,display_name',
+                'designation:id,name',
+                'webAuthnCredentials:id,user_id,revoked_at',
+                'activeScopes:id,user_id,office_id,is_active',
+                'activeScopes.office:id,name,type'
+            ])
             ->where('is_active', true);
 
         if ($search !== '') {
@@ -99,7 +119,14 @@ class MfaSettingController extends Controller
         $users = $usersQuery->orderBy('username')->paginate(15)->withQueryString();
 
         // 3. Full staff collection for client-side reactive manager (Table & Grid Views)
-        $allStaffUsers = User::with(['role', 'designation', 'webAuthnCredentials', 'activeScopes.office'])
+        $allStaffUsers = User::select($userSelectCols)
+            ->with([
+                'role:id,name,display_name',
+                'designation:id,name',
+                'webAuthnCredentials:id,user_id,revoked_at',
+                'activeScopes:id,user_id,office_id,is_active',
+                'activeScopes.office:id,name,type'
+            ])
             ->where('is_active', true)
             ->get();
 

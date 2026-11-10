@@ -20,10 +20,18 @@ class GeospatialLandmark extends Model
         'sector_name',
         'beat_name',
         'location_name',
+        'latitude',
+        'longitude',
         'nearby_cities',
         'fuel_station',
         'agent_prompt',
         'contact_numbers',
+    ];
+
+    protected $casts = [
+        'latitude'   => 'float',
+        'longitude'  => 'float',
+        'km_numeric' => 'float',
     ];
 
     /**
@@ -32,6 +40,16 @@ class GeospatialLandmark extends Model
     public function office(): BelongsTo
     {
         return $this->belongsTo(Office::class, 'office_id');
+    }
+
+    /**
+     * Resolve the Carriageway (Highway/Motorway) for this Landmark.
+     */
+    public function carriageway(): ?Carriageway
+    {
+        return Carriageway::where('road_short', $this->road_name)
+            ->orWhere('road', $this->road_name)
+            ->first() ?? $this->office?->carriageway();
     }
 
     public function getZoneAttribute()

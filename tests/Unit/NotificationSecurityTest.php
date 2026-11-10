@@ -12,10 +12,17 @@ class NotificationSecurityTest extends TestCase
      */
     public function test_notifications_poll_does_not_leak_stack_trace(): void
     {
-        $user = User::first();
+        try {
+            $user = User::whereHas('role.permissions', fn($q) => $q->where('name', 'calls.api_lookup'))->first() ?? User::first();
+        } catch (\Throwable $e) {
+            $this->markTestSkipped('Database not available for notification security check: ' . $e->getMessage());
+        }
+
         if (! $user) {
             $this->markTestSkipped('No user found');
         }
+
+        \Illuminate\Support\Facades\Gate::define('calls.api_lookup', fn () => true);
 
         $response = $this->actingAs($user)->getJson('/api/notifications/poll?since=invalid-date-malformed-input');
 

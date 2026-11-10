@@ -60,7 +60,7 @@ class TwoFactorConcurrencyTest extends TestCase
             'mobile_no' => '0399'.mt_rand(1000000, 9999999),
             'username' => "conc.user.{$unique}",
             'password' => 'TestPassword!130',
-            'role_id' => 7, // agent
+            'role_id' => Role::where('name', 'agent')->value('id') ?? Role::firstOrCreate(['name' => 'agent'], ['display_name' => 'Agent'])->id,
             'is_active' => true,
             'mfa_required' => true,
             'mfa_assurance_level' => 'totp',
@@ -148,18 +148,19 @@ class TwoFactorConcurrencyTest extends TestCase
      */
     public function test_mysql_role_policy_multiple_roles_precedence(): void
     {
-        // Role 5 is beat_operator (initially exempt)
-        // Role 7 is agent (mandatory)
-        $user = $this->createMySqlUser(['role_id' => 5]);
+        $beatRole = Role::where('name', 'beat_operator')->first() ?? Role::firstOrCreate(['name' => 'beat_operator'], ['display_name' => 'Beat Operator']);
+        $agentRole = Role::where('name', 'agent')->first() ?? Role::firstOrCreate(['name' => 'agent'], ['display_name' => 'Agent']);
+
+        $user = $this->createMySqlUser(['role_id' => $beatRole->id]);
 
         // Baseline: Beat operator role alone is exempt
-        $policy5 = MfaRolePolicy::where('role_id', 5)->first();
+        $policy5 = MfaRolePolicy::where('role_id', $beatRole->id)->first();
         if ($policy5) {
             $this->assertFalse($policy5->mfa_required, 'Beat operator baseline is exempt');
         }
 
         // Test precedence: If account has an enforced primary role or secondary assignment
-        $enforcedUser = $this->createMySqlUser(['role_id' => 7]); // agent
+        $enforcedUser = $this->createMySqlUser(['role_id' => $agentRole->id]); // agent
         $this->assertTrue($this->policyResolver->isMfaRequiredForUser($enforcedUser), 'Agent role is mandatory');
 
         // Privileged account is always enforced regardless of operational role assignments
@@ -224,7 +225,7 @@ class TwoFactorConcurrencyTest extends TestCase
     public function test_cross_node_policy_cache_invalidation(): void
     {
         $admin = User::where('role_id', 1)->first() ?? $this->createMySqlUser(['role_id' => 1]);
-        $targetRole = Role::where('name', 'beat_operator')->first();
+        $targetRole = Role::where('name', 'beat_operator')->first() ?? Role::firstOrCreate(['name' => 'beat_operator'], ['display_name' => 'Beat Operator']);
         $this->assertNotNull($targetRole);
 
         // Pre-populate cache

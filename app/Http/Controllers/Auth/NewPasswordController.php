@@ -32,14 +32,31 @@ class NewPasswordController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'token' => ['required'],
-            'email' => ['required', 'email'],
+            'token'    => ['required'],
+            'email'    => ['required', 'email'],
+            'cnic'     => ['required', 'string'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
-        // Here we will attempt to reset the user's password. If it is successful we
-        // will update the password on an actual user model and persist it to the
-        // database. Otherwise we will parse the error and return the response.
+        $token = trim((string) $request->input('token'));
+        $email = trim((string) $request->input('email'));
+        $cnic = trim((string) $request->input('cnic'));
+
+        // 1. Check for single-use high-entropy recovery token (64 hex characters)
+        if (strlen($token) === 64 && ctype_xdigit($token)) {
+            $recoveryService = app(\App\Services\Support\AccountSecuritySupportService::class);
+            try {
+                $recoveryService->resetPasswordWithToken($token, (string) $request->input('password'), $email, $cnic);
+
+                return redirect()->route('login')
+                    ->with('status', 'Your password has been successfully established and your account credentials updated. You may now log in.');
+            } catch (ValidationException $e) {
+                return back()->withInput($request->only('email', 'cnic'))
+                    ->withErrors($e->errors());
+            }
+        }
+
+        // 2. Standard Laravel password broker fallback
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
             function (User $user) use ($request) {
@@ -53,9 +70,6 @@ class NewPasswordController extends Controller
             }
         );
 
-        // If the password was successfully reset, we will redirect the user back to
-        // the application's home authenticated view. If there is an error we can
-        // redirect them back to where they came from with their error message.
         return $status == Password::PASSWORD_RESET
                     ? redirect()->route('login')->with('status', __($status))
                     : back()->withInput($request->only('email'))

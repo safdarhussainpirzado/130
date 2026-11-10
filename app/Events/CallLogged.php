@@ -15,15 +15,15 @@ class CallLogged implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public $callId;
-    public $callNumber;
-    public $type;
-    public $priority;
+    public int|string $callId;
+    public string $callNumber;
+    public string $type;
+    public string $priority;
 
     /**
      * Create a new event instance.
      */
-    public function __construct($callId, $callNumber, $type, $priority)
+    public function __construct(int|string $callId, string $callNumber, string $type, string $priority)
     {
         $this->callId = $callId;
         $this->callNumber = $callNumber;
@@ -34,7 +34,7 @@ class CallLogged implements ShouldBroadcast
     /**
      * Get the channels the event should broadcast on.
      *
-     * @return array<int, \Illuminate\Broadcasting\Channel>
+     * @return array<int, Channel>
      */
     public function broadcastOn(): array
     {

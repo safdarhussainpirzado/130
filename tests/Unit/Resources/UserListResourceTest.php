@@ -115,4 +115,75 @@ class UserListResourceTest extends TestCase
         $this->assertEquals(['id' => 12, 'name' => 'Head Constable', 'short_code' => 'HC', 'bps' => 9], $result['designation']);
         $this->assertEquals('beat_operator', $result['role_name']);
     }
+
+    /**
+     * Regression Test: Call Center agent and supervisor without field office scope
+     * must serialize with scope_unit_type_raw = 'call_centre', scope_unit_type = 'Call Center',
+     * and scope_unit_name = 'Helpline 130' (resolving the 481-count vs 0-displayed defect).
+     */
+    public function test_call_center_agent_and_supervisor_classified_as_call_centre_scope(): void
+    {
+        // 1. Agent
+        $agentUser = new User;
+        $agentUser->id = 101;
+        $agentUser->username = 'agent101';
+        $agentRole = new Role([
+            'name' => 'agent',
+            'display_name' => 'Call Agent',
+            'scope_level' => 'call_centre',
+        ]);
+        $agentUser->setRelation('role', $agentRole);
+        $agentUser->setRelation('activeScopes', collect());
+
+        $agentResource = new UserListResource($agentUser);
+        $agentResult = $agentResource->toArray(Request::create('/mgmt/users'));
+
+        $this->assertEquals('call_centre', $agentResult['scope_unit_type_raw']);
+        $this->assertEquals('Call Center', $agentResult['scope_unit_type']);
+        $this->assertEquals('Helpline 130', $agentResult['scope_unit_name']);
+
+        // 2. Agent Supervisor
+        $supUser = new User;
+        $supUser->id = 102;
+        $supUser->username = 'supervisor102';
+        $supRole = new Role([
+            'name' => 'agent_supervisor',
+            'display_name' => 'Agent Supervisor',
+            'scope_level' => 'call_centre',
+        ]);
+        $supUser->setRelation('role', $supRole);
+        $supUser->setRelation('activeScopes', collect());
+
+        $supResource = new UserListResource($supUser);
+        $supResult = $supResource->toArray(Request::create('/mgmt/users'));
+
+        $this->assertEquals('call_centre', $supResult['scope_unit_type_raw']);
+        $this->assertEquals('Call Center', $supResult['scope_unit_type']);
+        $this->assertEquals('Helpline 130', $supResult['scope_unit_name']);
+    }
+
+    /**
+     * Field operational user without scope defaults to National/Master.
+     */
+    public function test_field_role_without_office_scope_defaults_to_national(): void
+    {
+        $fieldUser = new User;
+        $fieldUser->id = 103;
+        $fieldUser->username = 'operator103';
+        $fieldRole = new Role([
+            'name' => 'beat_operator',
+            'display_name' => 'Beat Operator',
+            'scope_level' => 'beat',
+        ]);
+        $fieldUser->setRelation('role', $fieldRole);
+        $fieldUser->setRelation('activeScopes', collect());
+
+        $resource = new UserListResource($fieldUser);
+        $result = $resource->toArray(Request::create('/mgmt/users'));
+
+        $this->assertEquals('national', $result['scope_unit_type_raw']);
+        $this->assertEquals('National', $result['scope_unit_type']);
+        $this->assertEquals('National', $result['scope_unit_name']);
+    }
 }
+

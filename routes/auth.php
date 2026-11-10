@@ -17,13 +17,14 @@ use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
 // NOTE: Public self-registration is DISABLED.
-// User accounts are created exclusively by admin via /admin/users.
-Route::middleware('guest')->group(function () {
+$authThrottle = env('AUTH_THROTTLE_LIMIT', '10000,1');
+
+Route::middleware('guest')->group(function () use ($authThrottle) {
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');
 
     Route::post('login', [AuthenticatedSessionController::class, 'store'])
-        ->middleware('throttle:30,1')
+        ->middleware("throttle:{$authThrottle}")
         ->name('login.store');
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
@@ -39,14 +40,21 @@ Route::middleware('guest')->group(function () {
     Route::post('reset-password', [NewPasswordController::class, 'store'])
         ->middleware('throttle:6,1')
         ->name('password.store');
+
+    Route::get('account/unblock', [\App\Http\Controllers\Auth\AccountUnblockController::class, 'show'])
+        ->name('account.unblock');
+
+    Route::post('account/unblock/verify', [\App\Http\Controllers\Auth\AccountUnblockController::class, 'verify'])
+        ->middleware('throttle:6,1')
+        ->name('account.unblock.verify');
 });
 
 // ── Multi-Factor Authentication: Pre-Authentication State Machine Routes ──
-Route::prefix('2fa')->group(function () {
+Route::prefix('2fa')->group(function () use ($authThrottle) {
     // State 2: MFA Challenge routes
     Route::get('challenge', [TwoFactorAuthenticatedController::class, 'showChallenge'])->name('2fa.challenge');
     Route::post('challenge', [TwoFactorAuthenticatedController::class, 'verifyTotp'])
-        ->middleware('throttle:30,1')
+        ->middleware("throttle:{$authThrottle}")
         ->name('2fa.challenge.totp');
 
     // WebAuthn Assertion challenge

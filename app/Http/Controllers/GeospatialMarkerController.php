@@ -308,35 +308,45 @@ class GeospatialMarkerController extends Controller
      */
     public static function getOfficeHierarchy(): array
     {
-        $cached = Cache::get('geospatial_office_hierarchy_v9');
+        $cached = Cache::get('geospatial_office_hierarchy_v11');
         if (is_array($cached)) {
             return $cached;
         }
 
         $beatStats = DB::table('geospatial_markers')
-                ->selectRaw('office_id, count(*) as count, MIN(lat) as min_lat, MAX(lat) as max_lat, MIN(lng) as min_lng, MAX(lng) as max_lng')
-                ->groupBy('office_id')
-                ->get()
-                ->keyBy('office_id');
+            ->selectRaw('office_id, count(*) as count, MIN(km) as min_km, MAX(km) as max_km, MIN(lat) as min_lat, MAX(lat) as max_lat, MIN(lng) as min_lng, MAX(lng) as max_lng')
+            ->groupBy('office_id')
+            ->get()
+            ->keyBy('office_id');
+
+        $beatGeometries = self::extractBeatGeometries();
 
         $zones   = Office::where('type', 'zone')->select(['id', 'name'])->orderBy('name')->get();
         $sectors = Office::where('type', 'sector')->select(['id', 'name', 'parent_id'])->orderBy('name')->get();
         $beats   = Office::where('type', 'beat')->select(['id', 'name', 'parent_id'])->orderBy('name')->get();
 
-        $sectorMap    = $sectors->keyBy('id');
-        $zoneBounds   = [];
-        $sectorBounds = [];
+        $zoneMap   = $zones->keyBy('id');
+        $sectorMap = $sectors->keyBy('id');
+        $zoneBounds    = [];
+        $sectorBounds  = [];
+        $sectorBeatIds = [];
+        $zoneSectorIds = [];
+        $zoneBeatIds   = [];
 
         $formattedBeats = [];
         foreach ($beats as $b) {
             $stat   = $beatStats->get($b->id);
             $sec    = $sectorMap->get($b->parent_id);
             $zoneId = $sec?->parent_id;
+            $zone   = $zoneId ? $zoneMap->get($zoneId) : null;
+            $geom   = $beatGeometries[$b->id] ?? null;
 
             $minLat = $stat ? (float) $stat->min_lat : null;
             $maxLat = $stat ? (float) $stat->max_lat : null;
             $minLng = $stat ? (float) $stat->min_lng : null;
             $maxLng = $stat ? (float) $stat->max_lng : null;
+            $minKm  = $stat ? (float) $stat->min_km : null;
+            $maxKm  = $stat ? (float) $stat->max_km : null;
             $count  = $stat ? (int) $stat->count : 0;
 
             $bounds = ($minLat !== null && $maxLat !== null)
@@ -344,19 +354,30 @@ class GeospatialMarkerController extends Controller
                 : null;
 
             $formattedBeats[] = [
-                'id'        => $b->id,
-                'name'      => $b->name,
-                'sector_id' => $b->parent_id,
-                'zone_id'   => $zoneId,
-                'count'     => $count,
-                'bounds'    => $bounds,
+                'id'          => $b->id,
+                'name'        => $b->name,
+                'sector_id'   => $b->parent_id,
+                'parent_id'   => $b->parent_id,
+                'sector_name' => $sec?->name ?? '',
+                'zone_id'     => $zoneId,
+                'zone_name'   => $zone?->name ?? '',
+                'count'       => $count,
+                'km_min'      => $minKm,
+                'km_max'      => $maxKm,
+                'km_range'    => ($minKm !== null && $maxKm !== null) ? ('KM ' . number_format($minKm, 2) . ' - ' . number_format($maxKm, 2)) : '',
+                'start_point' => $geom['start_point'] ?? null,
+                'end_point'   => $geom['end_point'] ?? null,
+                'polyline'    => $geom['polyline'] ?? [],
+                'bounds'      => $bounds,
             ];
 
             if ($stat && $b->parent_id) {
+                $sectorBeatIds[$b->parent_id][] = $b->id;
                 if (!isset($sectorBounds[$b->parent_id])) {
                     $sectorBounds[$b->parent_id] = [
                         'min_lat' => $minLat, 'max_lat' => $maxLat,
                         'min_lng' => $minLng, 'max_lng' => $maxLng,
+                        'min_km'  => $minKm,  'max_km'  => $maxKm,
                         'count'   => 0,
                     ];
                 } else {
@@ -364,11 +385,14 @@ class GeospatialMarkerController extends Controller
                     $sectorBounds[$b->parent_id]['max_lat'] = max($sectorBounds[$b->parent_id]['max_lat'], $maxLat);
                     $sectorBounds[$b->parent_id]['min_lng'] = min($sectorBounds[$b->parent_id]['min_lng'], $minLng);
                     $sectorBounds[$b->parent_id]['max_lng'] = max($sectorBounds[$b->parent_id]['max_lng'], $maxLng);
+                    if ($minKm !== null) $sectorBounds[$b->parent_id]['min_km'] = min($sectorBounds[$b->parent_id]['min_km'] ?? $minKm, $minKm);
+                    if ($maxKm !== null) $sectorBounds[$b->parent_id]['max_km'] = max($sectorBounds[$b->parent_id]['max_km'] ?? $maxKm, $maxKm);
                 }
                 $sectorBounds[$b->parent_id]['count'] += $count;
             }
 
             if ($stat && $zoneId) {
+                $zoneBeatIds[$zoneId][] = $b->id;
                 if (!isset($zoneBounds[$zoneId])) {
                     $zoneBounds[$zoneId] = [
                         'min_lat' => $minLat, 'max_lat' => $maxLat,
@@ -389,11 +413,24 @@ class GeospatialMarkerController extends Controller
         foreach ($sectors as $s) {
             $sb     = $sectorBounds[$s->id] ?? null;
             $bounds = $sb ? [[(float) $sb['min_lat'], (float) $sb['min_lng']], [(float) $sb['max_lat'], (float) $sb['max_lng']]] : null;
+            $zone   = $s->parent_id ? $zoneMap->get($s->parent_id) : null;
+            if ($s->parent_id) {
+                $zoneSectorIds[$s->parent_id][] = $s->id;
+            }
+            $sMinKm = $sb['min_km'] ?? null;
+            $sMaxKm = $sb['max_km'] ?? null;
+
             $formattedSectors[] = [
                 'id'        => $s->id,
                 'name'      => $s->name,
+                'parent_id' => $s->parent_id,
                 'zone_id'   => $s->parent_id,
+                'zone_name' => $zone?->name ?? '',
+                'beat_ids'  => $sectorBeatIds[$s->id] ?? [],
                 'count'     => $sb ? (int) $sb['count'] : 0,
+                'km_min'    => $sMinKm,
+                'km_max'    => $sMaxKm,
+                'km_range'  => ($sMinKm !== null && $sMaxKm !== null) ? ('KM ' . number_format($sMinKm, 2) . ' - ' . number_format($sMaxKm, 2)) : '',
                 'bounds'    => $bounds,
             ];
         }
@@ -403,14 +440,80 @@ class GeospatialMarkerController extends Controller
             $zb     = $zoneBounds[$z->id] ?? null;
             $bounds = $zb ? [[(float) $zb['min_lat'], (float) $zb['min_lng']], [(float) $zb['max_lat'], (float) $zb['max_lng']]] : null;
             $formattedZones[] = [
-                'id'     => $z->id,
-                'name'   => $z->name,
-                'count'  => $zb ? (int) $zb['count'] : 0,
-                'bounds' => $bounds,
+                'id'         => $z->id,
+                'name'       => $z->name,
+                'sector_ids' => array_values(array_unique($zoneSectorIds[$z->id] ?? [])),
+                'beat_ids'   => array_values(array_unique($zoneBeatIds[$z->id] ?? [])),
+                'count'      => $zb ? (int) $zb['count'] : 0,
+                'bounds'     => $bounds,
             ];
         }
 
-        // Road / Highway Registry mapping
+        $formattedRoads = self::buildRoadRegistry($sectors, $beats, $beatStats);
+
+        $result = [
+            'roads'   => $formattedRoads,
+            'zones'   => $formattedZones,
+            'sectors' => $formattedSectors,
+            'beats'   => $formattedBeats,
+        ];
+
+        Cache::put('geospatial_office_hierarchy_v11', $result, 86400);
+
+        return $result;
+    }
+
+    /**
+     * Extract high-resolution centerline geometries and start/end milestones for every beat.
+     *
+     * @return array<int|string, array<string, mixed>>
+     */
+    private static function extractBeatGeometries(): array
+    {
+        $rawPts = DB::table('geospatial_markers')
+            ->where(function ($q) {
+                $q->where('side', 'N')->orWhereNull('side');
+            })
+            ->orderBy('office_id')
+            ->orderBy('km', 'asc')
+            ->select(['office_id', 'km', 'lat', 'lng'])
+            ->get()
+            ->groupBy('office_id');
+
+        $beatGeometries = [];
+        foreach ($rawPts as $bId => $pts) {
+            $total = count($pts);
+            $first = $pts->first();
+            $last  = $pts->last();
+
+            $corridor = [];
+            $step = max(1, (int) round($total / 30));
+            foreach ($pts as $idx => $p) {
+                if ($idx % $step === 0 || $idx === $total - 1) {
+                    $corridor[] = [(float) $p->lat, (float) $p->lng];
+                }
+            }
+
+            $beatGeometries[$bId] = [
+                'start_point' => ['km' => (float) $first->km, 'lat' => (float) $first->lat, 'lng' => (float) $first->lng],
+                'end_point'   => ['km' => (float) $last->km, 'lat' => (float) $last->lat, 'lng' => (float) $last->lng],
+                'polyline'    => $corridor,
+            ];
+        }
+
+        return $beatGeometries;
+    }
+
+    /**
+     * Build the active highway/motorway registry with corridors and boundaries.
+     *
+     * @param  \Illuminate\Support\Collection  $sectors
+     * @param  \Illuminate\Support\Collection  $beats
+     * @param  \Illuminate\Support\Collection  $beatStats
+     * @return array<int, array<string, mixed>>
+     */
+    private static function buildRoadRegistry($sectors, $beats, $beatStats): array
+    {
         $carriageways = Carriageway::where('status', 'active')->orderBy('road')->get();
         $formattedRoads = [];
 
@@ -439,16 +542,17 @@ class GeospatialMarkerController extends Controller
                 } elseif ($code === 'E-35' || $clean === 'E35') {
                     return str_contains($name, 'E35');
                 } elseif ($code === 'M-9' || $clean === 'M9') {
-                    return str_contains($name, 'M9');
+                    return $s->id === 34 || $s->id === 42;
                 } elseif ($code === 'M-11' || $clean === 'M11') {
                     return str_contains($name, 'LSM') || str_contains($name, 'M11');
                 } elseif ($code === 'M-16' || str_contains($code, 'SWAT')) {
                     return str_contains($name, 'Swat');
+                } elseif (in_array($code, ['E-75', 'N-75', 'IMDC']) || in_array($clean, ['E75', 'N75', 'IMDC'])) {
+                    return $s->id === 28; // Sector 28 IMDC
                 } elseif ($code === 'N-5' || $clean === 'N5') {
-                    $zName = $s->parent ? $s->parent->name : '';
-                    return str_contains($zName, 'N5') || str_contains($name, 'South4');
+                    return in_array($s->id, [25, 26, 27, 29, 30, 31, 32, 33, 34]);
                 } elseif ($code === 'N-55' || $clean === 'N55') {
-                    return str_contains($name, 'N55');
+                    return in_array($s->id, [35, 40]);
                 } elseif ($code === 'N-25' || $clean === 'N25') {
                     return str_contains($name, 'N-25') || str_contains($name, 'N25');
                 } elseif ($code === 'N-10' || $clean === 'N10') {
@@ -464,15 +568,27 @@ class GeospatialMarkerController extends Controller
             $sectorIds = $matchingSectors->pluck('id')->values()->all();
             $matchingBeats = $beats->whereIn('parent_id', $sectorIds);
 
-            // Isolate beats to their dedicated expressways/motorways
+            // Isolate beats to their dedicated expressways/motorways/highways
             if ($code === 'LEW' || $clean === 'LEW') {
                 $matchingBeats = $matchingBeats->where('id', 122);
             } elseif ($code === 'LEBP' || $clean === 'LEBP') {
                 $matchingBeats = $matchingBeats->where('id', 141);
+            } elseif ($code === 'M-9' || $clean === 'M9') {
+                $matchingBeats = $matchingBeats->whereIn('id', [119, 120, 121]);
             } elseif ($code === 'M-11' || $clean === 'M11') {
                 $matchingBeats = $matchingBeats->whereIn('id', [70, 71]);
+            } elseif (in_array($code, ['E-75', 'N-75', 'IMDC']) || in_array($clean, ['E75', 'N75', 'IMDC'])) {
+                $matchingBeats = $matchingBeats->where('id', 97);
+            } elseif ($code === 'N-55' || $clean === 'N55') {
+                $matchingBeats = $matchingBeats->whereIn('id', [123, 124, 125, 126, 127, 128]);
+            } elseif ($code === 'N-5' || $clean === 'N5') {
+                $matchingBeats = $matchingBeats->whereIn('id', [
+                    86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96,
+                    98, 99, 100, 101, 102, 103, 104, 105, 106,
+                    107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118
+                ]);
             } else {
-                $matchingBeats = $matchingBeats->whereNotIn('id', [122, 141]);
+                $matchingBeats = $matchingBeats->whereNotIn('id', [97, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 141]);
             }
 
             $beatIds = $matchingBeats->pluck('id')->values()->all();
@@ -552,15 +668,6 @@ class GeospatialMarkerController extends Controller
             ];
         }
 
-        $result = [
-            'roads'   => $formattedRoads,
-            'zones'   => $formattedZones,
-            'sectors' => $formattedSectors,
-            'beats'   => $formattedBeats,
-        ];
-
-        Cache::put('geospatial_office_hierarchy_v9', $result, 86400);
-
-        return $result;
+        return $formattedRoads;
     }
 }

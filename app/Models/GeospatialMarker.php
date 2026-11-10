@@ -25,4 +25,12 @@ class GeospatialMarker extends Model
     {
         return $this->belongsTo(Office::class);
     }
+
+    /**
+     * Resolve the Carriageway (Highway/Motorway) for this Marker.
+     */
+    public function carriageway(): ?Carriageway
+    {
+        return $this->office?->carriageway();
+    }
 }

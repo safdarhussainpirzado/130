@@ -220,6 +220,22 @@ class Office extends Model
             if ($this->id === 141 || str_contains($this->name, 'LEBP')) {
                 return Carriageway::where('road', 'LEBP')->first();
             }
+            if (in_array($this->id, [119, 120, 121])) {
+                return Carriageway::where('road', 'M9')->orWhere('road_short', 'M-9')->first();
+            }
+            if ($this->id === 97 || str_contains($this->name, 'IMDC')) {
+                return Carriageway::where('road_short', 'E-75')
+                    ->orWhere('road_short', 'N-75')
+                    ->orWhere('road', 'E75')
+                    ->orWhere('road', 'N75')
+                    ->first();
+            }
+            if (in_array($this->id, [123, 124, 125, 126, 127, 128])) {
+                return Carriageway::where('road_short', 'N-55')->orWhere('road', 'N55')->first();
+            }
+            if (in_array($this->id, [70, 71])) {
+                return Carriageway::where('road', 'M11')->orWhere('road_short', 'M-11')->first();
+            }
             if ($this->parent) {
                 return $this->parent->carriageway;
             }
@@ -227,6 +243,19 @@ class Office extends Model
 
         if ($this->type === 'sector') {
             $name = $this->name;
+            if ($this->id === 28 || str_contains($name, 'IMDC')) {
+                return Carriageway::where('road_short', 'E-75')
+                    ->orWhere('road_short', 'N-75')
+                    ->orWhere('road', 'E75')
+                    ->orWhere('road', 'N75')
+                    ->first();
+            }
+            if (in_array($this->id, [35, 40]) || str_contains($name, 'N55')) {
+                return Carriageway::where('road_short', 'N-55')->orWhere('road', 'N55')->first();
+            }
+            if ($this->id === 42 || str_contains($name, 'South4')) {
+                return Carriageway::where('road', 'M9')->orWhere('road_short', 'M-9')->first();
+            }
             if (str_contains($name, 'M14')) return Carriageway::where('road', 'M14')->first();
             if (str_contains($name, 'M1'))  return Carriageway::where('road', 'M1')->first();
             if (str_contains($name, 'M2'))  return Carriageway::where('road', 'M2')->first();
@@ -237,7 +266,6 @@ class Office extends Model
             if (str_contains($name, 'M9'))  return Carriageway::where('road', 'M9')->first();
             if (str_contains($name, 'E35')) return Carriageway::where('road', 'E35')->first();
             if (str_contains($name, 'Swat')) return Carriageway::where('road', 'M16')->orWhere('road_name', 'like', '%Swat%')->first();
-            if (str_contains($name, 'N55')) return Carriageway::where('road', 'N55')->first();
             if (str_contains($name, 'N-25') || str_contains($name, 'N25')) return Carriageway::where('road', 'N25')->first();
             if (str_contains($name, 'N10')) return Carriageway::where('road', 'N-10')->first();
             if (str_contains($name, 'N50')) return Carriageway::where('road', 'N50')->first();
@@ -245,7 +273,7 @@ class Office extends Model
 
             $zoneName = $this->parent?->name ?? '';
             if (str_contains($zoneName, 'N5')) {
-                return Carriageway::where('road', 'N5')->first();
+                return Carriageway::where('road', 'N5')->orWhere('road_short', 'N-5')->first();
             }
         }
 

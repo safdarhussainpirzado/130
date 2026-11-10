@@ -99,7 +99,11 @@ return [
 
     'cipher' => 'AES-256-CBC',
 
-    'key' => env('APP_KEY'),
+    'key' => function_exists('docker_secret') ? docker_secret('app_key', env('APP_KEY')) : env('APP_KEY'),
+
+    'bidx_salt' => function_exists('docker_secret') ? docker_secret('bidx_salt', env('BIDX_SALT')) : env('BIDX_SALT'),
+
+    'audit_salt' => function_exists('docker_secret') ? docker_secret('audit_salt', env('AUDIT_SALT', 'nhmp_130_audit_salt')) : env('AUDIT_SALT', 'nhmp_130_audit_salt'),
 
     'previous_keys' => [
         ...array_filter(

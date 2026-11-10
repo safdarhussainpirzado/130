@@ -9,6 +9,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\View;
 
@@ -16,7 +17,7 @@ class ReportController extends Controller
 {
     use AuthorizesRequests;
 
-    protected $reportService;
+    protected ReportService $reportService;
 
     public function __construct(ReportService $reportService)
     {
@@ -101,7 +102,9 @@ class ReportController extends Controller
         $data = $isInitial ? [] : $this->reportService->callTypeSummary($request->all());
 
         if ($request->has('export')) {
-            $data = $this->reportService->callTypeSummary($request->all());
+            if (empty($data)) {
+                $data = $this->reportService->callTypeSummary($request->all());
+            }
             $title = 'Calls Summary Report';
             $subtitle = $this->getSubtitle($request);
             
@@ -179,20 +182,13 @@ class ReportController extends Controller
     public function agentWise(Request $request)
     {
         $request->merge($this->resolveFilters($request, 'agent_wise'));
-        abort_if(!auth()->user()->hasPermission('reports.view'), 403, 'Unauthorized access to agent reports module');
+        /** @var \App\Models\User|null $currentUser */
+        $currentUser = Auth::user();
+        abort_if(!$currentUser || !$currentUser->hasPermission('reports.view'), 403, 'Unauthorized access to agent reports module');
         set_time_limit(300);
         ini_set('memory_limit', '1024M');
 
-        $groupByRaw = $request->input('group_by', []);
-        if (is_string($groupByRaw) && str_contains($groupByRaw, ',')) {
-            $groupBy = array_values(array_filter(explode(',', $groupByRaw)));
-        } elseif (is_string($groupByRaw) && $groupByRaw !== '') {
-            $groupBy = [$groupByRaw];
-        } elseif (is_array($groupByRaw)) {
-            $groupBy = array_values(array_filter($groupByRaw));
-        } else {
-            $groupBy = [];
-        }
+        $groupBy = $this->parseReportGroupBy($request, []);
         $request->merge(['group_by' => $groupBy]);
 
         $isInitial = !$request->has('date_from') && !$request->has('export');
@@ -226,6 +222,38 @@ class ReportController extends Controller
         }
         $visibleColumns = $orderedVisibleColumns;
 
+        $dateFormatted = \Carbon\Carbon::parse($request->input('date_from', now()->toDateString()))->format('d-m-Y');
+        $title = 'Agent Wise Calls Progress';
+        $subtitle = $this->buildAgentReportSubtitle($request, $dateFormatted);
+
+        if ($request->has('export')) {
+            return $this->exportAgentWise($request, $data, $visibleColumns, $groupBy, $title, $subtitle);
+        }
+
+        return view('reports.agent-wise', array_merge(
+            compact('data', 'availableColumns', 'visibleColumns', 'title', 'subtitle', 'isInitial', 'groupBy'),
+            $this->getFilterData()
+        ));
+    }
+
+    private function parseReportGroupBy(Request $request, array $default = []): array
+    {
+        $groupByRaw = $request->input('group_by', $default);
+        if (is_string($groupByRaw) && str_contains($groupByRaw, ',')) {
+            $groupBy = array_values(array_filter(explode(',', $groupByRaw)));
+        } elseif (is_string($groupByRaw) && $groupByRaw !== '') {
+            $groupBy = [$groupByRaw];
+        } elseif (is_array($groupByRaw)) {
+            $groupBy = array_values(array_filter($groupByRaw));
+        } else {
+            $groupBy = [];
+        }
+
+        return empty($groupBy) ? $default : $groupBy;
+    }
+
+    private function buildAgentReportSubtitle(Request $request, string $dateFormatted): string
+    {
         $timeFrom = $request->input('time_from');
         $timeTo = $request->input('time_to');
         
@@ -245,31 +273,22 @@ class ReportController extends Controller
             'SI Nida Naz' => '3rd Shift',
         ];
 
-        $matchedShift = null;
         if ($incharge) {
             foreach ($inchargeShiftMapping as $name => $shift) {
                 if (strcasecmp(trim($incharge), trim($name)) === 0) {
-                    $matchedShift = $shift;
+                    $shiftName = $shift;
                     break;
                 }
             }
-            if ($matchedShift) {
-                $shiftName = $matchedShift;
-            }
         }
-        
-        $dateFormatted = \Carbon\Carbon::parse($request->input('date_from', now()->toDateString()))->format('d-m-Y');
-        $title = 'Agent Wise Calls Progress';
 
         $subtitleSegments = ["Helpline 130"];
-        
-        if (auth()->check() && auth()->user()->role?->name === 'agent_supervisor') {
-            $currentIncharge = $incharge ?: (auth()->user()->full_name ?: auth()->user()->username);
-            if ($shiftName) {
-                $subtitleSegments[] = "Incharge {$shiftName}: {$currentIncharge}";
-            } else {
-                $subtitleSegments[] = "Incharge: {$currentIncharge}";
-            }
+        /** @var \App\Models\User|null $user */
+        $user = Auth::user();
+
+        if (Auth::check() && $user?->role?->name === 'agent_supervisor') {
+            $currentIncharge = $incharge ?: ($user?->full_name ?: $user?->username);
+            $subtitleSegments[] = $shiftName ? "Incharge {$shiftName}: {$currentIncharge}" : "Incharge: {$currentIncharge}";
         } elseif ($shiftName) {
             $subtitleSegments[] = "Shift: {$shiftName}";
         }
@@ -282,99 +301,90 @@ class ReportController extends Controller
         }
         $subtitleSegments[] = "Date: {$dateFormatted}{$timeSegment}";
         
-        $subtitle = implode(' | ', $subtitleSegments);
+        return implode(' | ', $subtitleSegments);
+    }
 
-        if ($request->has('export')) {
-            // Prepend Sr. No. column for exports only
-            $exportVisibleColumns = array_merge(['sr_no' => 'Sr. No.'], $visibleColumns);
+    private function exportAgentWise(Request $request, array $data, array $visibleColumns, array $groupBy, string $title, string $subtitle)
+    {
+        // Prepend Sr. No. column for exports only
+        $exportVisibleColumns = array_merge(['sr_no' => 'Sr. No.'], $visibleColumns);
 
-            // Compute column totals
-            $numericKeys = ['junk', 'info', 'help', 'complaint', 'emergency', 'total'];
-            $colTotals = [];
+        // Compute column totals
+        $numericKeys = ['junk', 'info', 'help', 'complaint', 'emergency', 'total'];
+        $colTotals = [];
+        foreach ($numericKeys as $k) {
+            $colTotals[$k] = array_sum(array_map(fn($r) => is_array($r) ? ($r[$k] ?? 0) : ($r->{$k} ?? 0), $data));
+        }
+
+        // Build flat rows for Excel with sequential Sr. No.
+        $filteredData = [];
+        $rowNum = 1;
+        foreach ($data as $row) {
+            $filteredRow = [];
+            foreach ($exportVisibleColumns as $colKey => $colLabel) {
+                if ($colKey === 'sr_no') {
+                    $filteredRow[] = $rowNum;
+                } else {
+                    $val = is_array($row) ? ($row[$colKey] ?? '') : ($row->{$colKey} ?? '');
+                    if ($colKey === 'username') {
+                        $fullName = is_array($row) ? ($row['full_name'] ?? '') : ($row->full_name ?? '');
+                        if ($fullName !== '') $val = $fullName;
+                    }
+                    $filteredRow[] = $val;
+                }
+            }
+            $filteredData[] = $filteredRow;
+            $rowNum++;
+        }
+
+        if (!empty($data)) {
+            $totalFlatRow = [];
+            foreach ($exportVisibleColumns as $colKey => $colLabel) {
+                if ($colKey === 'sr_no') {
+                    $totalFlatRow[] = '-';
+                } elseif (in_array($colKey, ['month', 'date', 'time'])) {
+                    $totalFlatRow[] = '-';
+                } elseif ($colKey === 'username') {
+                    $totalFlatRow[] = 'TOTAL';
+                } else {
+                    $totalFlatRow[] = $colTotals[$colKey] ?? '';
+                }
+            }
+            $filteredData[] = $totalFlatRow;
+        }
+
+        // Build data + total row for PDF with sequential Sr. No.
+        $pdfData = [];
+        $rowNum = 1;
+        foreach (array_values($data) as $row) {
+            $arr = is_array($row) ? $row : (array) $row;
+            $arr['sr_no'] = $rowNum++;
+            $pdfData[] = $arr;
+        }
+        if (!empty($data)) {
+            $pdfTotalRow = [
+                '_is_total' => true,
+                'sr_no'     => '-',
+                'month'     => in_array('month', $groupBy) ? '-' : '',
+                'date'      => in_array('date', $groupBy)  ? '-' : '',
+                'time'      => in_array('time', $groupBy)  ? '-' : '',
+                'username'  => 'TOTAL',
+                'full_name' => '',
+            ];
             foreach ($numericKeys as $k) {
-                $colTotals[$k] = array_sum(array_map(fn($r) => is_array($r) ? ($r[$k] ?? 0) : ($r->{$k} ?? 0), $data));
+                $pdfTotalRow[$k] = $colTotals[$k];
             }
-
-            // Build flat rows for Excel with sequential Sr. No.
-            $filteredData = [];
-            $rowNum = 1;
-            foreach ($data as $row) {
-                $filteredRow = [];
-                foreach ($exportVisibleColumns as $colKey => $colLabel) {
-                    if ($colKey === 'sr_no') {
-                        $filteredRow[] = $rowNum;
-                    } else {
-                        $val = is_array($row) ? ($row[$colKey] ?? '') : ($row->{$colKey} ?? '');
-                        if ($colKey === 'username') {
-                            $fullName = is_array($row) ? ($row['full_name'] ?? '') : ($row->full_name ?? '');
-                            if ($fullName !== '') $val = $fullName;
-                        }
-                        $filteredRow[] = $val;
-                    }
-                }
-                $filteredData[] = $filteredRow;
-                $rowNum++;
-            }
-
-            if (!empty($data)) {
-                $totalFlatRow = [];
-                foreach ($exportVisibleColumns as $colKey => $colLabel) {
-                    if ($colKey === 'sr_no') {
-                        $totalFlatRow[] = '-';
-                    } elseif (in_array($colKey, ['month', 'date', 'time'])) {
-                        $totalFlatRow[] = '-';
-                    } elseif ($colKey === 'username') {
-                        $totalFlatRow[] = 'TOTAL';
-                    } else {
-                        $totalFlatRow[] = $colTotals[$colKey] ?? '';
-                    }
-                }
-                $filteredData[] = $totalFlatRow;
-            }
-
-            // Build data + total row for PDF with sequential Sr. No.
-            $pdfData = [];
-            $rowNum = 1;
-            foreach (array_values($data) as $row) {
-                $arr = is_array($row) ? $row : (array) $row;
-                $arr['sr_no'] = $rowNum++;
-                $pdfData[] = $arr;
-            }
-            if (!empty($data)) {
-                $pdfTotalRow = [
-                    '_is_total' => true,
-                    'sr_no'     => '-',
-                    'month'     => in_array('month', $groupBy) ? '-' : '',
-                    'date'      => in_array('date', $groupBy)  ? '-' : '',
-                    'time'      => in_array('time', $groupBy)  ? '-' : '',
-                    'username'  => 'TOTAL',
-                    'full_name' => '',
-                ];
-                foreach ($numericKeys as $k) {
-                    $pdfTotalRow[$k] = $colTotals[$k];
-                }
-                $pdfData[] = $pdfTotalRow;
-            }
-
-            if ($request->export === 'excel') {
-                return Excel::download(new CustomFormattedExport($title, $subtitle, array_values($exportVisibleColumns), $filteredData, true), 'agent_performance.xlsx');
-            }
-            if ($request->export === 'pdf') {
-                return Pdf::loadView('reports.pdf.generic', ['data' => collect($pdfData)->take(1001), 'visibleColumns' => $exportVisibleColumns, 'title' => $title, 'subtitle' => $subtitle])->download('agent_performance.pdf');
-            }
+            $pdfData[] = $pdfTotalRow;
         }
 
-        if ($request->ajax()) {
-            return view('reports.agent-wise', array_merge(
-                compact('data', 'availableColumns', 'visibleColumns', 'title', 'subtitle', 'isInitial', 'groupBy'),
-                $this->getFilterData()
-            ));
+        if ($request->export === 'excel') {
+            return Excel::download(new CustomFormattedExport($title, $subtitle, array_values($exportVisibleColumns), $filteredData, true), 'agent_performance.xlsx');
+        }
+        if ($request->export === 'pdf') {
+            return Pdf::loadView('reports.pdf.generic', ['data' => collect($pdfData)->take(1001), 'visibleColumns' => $exportVisibleColumns, 'title' => $title, 'subtitle' => $subtitle])->download('agent_performance.pdf');
         }
 
-        return view('reports.agent-wise', array_merge(
-            compact('data', 'availableColumns', 'visibleColumns', 'title', 'subtitle', 'isInitial', 'groupBy'),
-            $this->getFilterData()
-        ));
+        return redirect()->back();
     }
 
     public function slaCompliance(Request $request)
@@ -606,7 +616,9 @@ class ReportController extends Controller
     public function helpResponseTime(Request $request)
     {
         $request->merge($this->resolveFilters($request, 'help_response_time'));
-        abort_if(!auth()->user()->hasPermission('reports.view'), 403, 'Unauthorized access to help response time report module');
+        /** @var \App\Models\User|null $currentUser */
+        $currentUser = Auth::user();
+        abort_if(!$currentUser || !$currentUser->hasPermission('reports.view'), 403, 'Unauthorized access to help response time report module');
         set_time_limit(300);
         ini_set('memory_limit', '1024M');
 
@@ -760,7 +772,9 @@ class ReportController extends Controller
 
     private function isRestrictedUser(): bool
     {
-        $role = auth()->user()?->role?->name;
+        /** @var \App\Models\User|null $user */
+        $user = Auth::user();
+        $role = $user?->role?->name;
         return in_array($role, ['zone_admin', 'sector_admin', 'beat_operator']);
     }
 

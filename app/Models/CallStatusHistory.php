@@ -18,4 +18,5 @@ class CallStatusHistory extends Model
 
     public function call() { return $this->belongsTo(Call::class); }
     public function changedBy() { return $this->belongsTo(User::class, 'changed_by'); }
+    public function user() { return $this->belongsTo(User::class, 'changed_by'); }
 }
