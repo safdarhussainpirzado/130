@@ -4,7 +4,7 @@
 # --no-deps + explicit service names guarantee existing services are not recreated.
 services:
   app-octane-1:
-    image: 130-app-octane:2026-11-10b
+    image: 130-app-octane:phase2-rc2
     build:
       context: .
       dockerfile: Dockerfile.octane
@@ -13,6 +13,8 @@ services:
       - app_key
       - db_password
       - aws_secret_access_key
+      - bidx_salt
+      - audit_salt
     environment:
       - APP_NAME=${APP_NAME:-130 NHMP Helpline}
       - APP_ENV=${APP_ENV:-production}
@@ -36,6 +38,8 @@ services:
       - FILESYSTEM_DISK=s3
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-admin}
       - AWS_SECRET_ACCESS_KEY_FILE=/run/secrets/aws_secret_access_key
+      - BIDX_SALT_FILE=/run/secrets/bidx_salt
+      - AUDIT_SALT_FILE=/run/secrets/audit_salt
       - AWS_BUCKET=crm-storage
       - AWS_ENDPOINT=http://minio:9000
       - AWS_USE_PATH_STYLE_ENDPOINT=true
@@ -49,7 +53,7 @@ services:
 
 
   app-octane-2:
-    image: 130-app-octane:2026-11-10b
+    image: 130-app-octane:phase2-rc2
     build:
       context: .
       dockerfile: Dockerfile.octane
@@ -58,6 +62,8 @@ services:
       - app_key
       - db_password
       - aws_secret_access_key
+      - bidx_salt
+      - audit_salt
     environment:
       - APP_NAME=${APP_NAME:-130 NHMP Helpline}
       - APP_ENV=${APP_ENV:-production}
@@ -81,6 +87,8 @@ services:
       - FILESYSTEM_DISK=s3
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-admin}
       - AWS_SECRET_ACCESS_KEY_FILE=/run/secrets/aws_secret_access_key
+      - BIDX_SALT_FILE=/run/secrets/bidx_salt
+      - AUDIT_SALT_FILE=/run/secrets/audit_salt
       - AWS_BUCKET=crm-storage
       - AWS_ENDPOINT=http://minio:9000
       - AWS_USE_PATH_STYLE_ENDPOINT=true
@@ -126,6 +134,10 @@ secrets:
     file: ./secrets/db_password
   aws_secret_access_key:
     file: ./secrets/aws_secret_access_key
+  bidx_salt:
+    file: ./secrets/bidx_salt
+  audit_salt:
+    file: ./secrets/audit_salt
 
 networks:
   crm-net:

@@ -75,3 +75,22 @@ Source: local dev DB (127.0.0.1:3309). Method: exports compared in an isolated s
 - Legacy tables are kept until you explicitly approve dropping them.
 ### Phase 2 (not done): merge local features (23 unapplied migrations incl. encryption/blind indexes, call-type deactivation, uuid
 backfills) with prod hotfixes, staging test on a restored copy, then release via Octane rolling update.
+
+## PHASE 2 RELEASE — Laravel 13 + 22 migrations (2026-11-10 ~21:15-21:45 PKT) — LIVE
+Production now runs the merged code (local feature branch + prod hotfixes) on Laravel 13.40.0, RoadRunner-only with the
+user's validated isolating worker (app/Octane/roadrunner_worker.php), config `.rr.prod.yaml` (12 workers, 768MB cap, exec_ttl 300s,
+static served by RR). Image `130-app-octane:phase2-rc2` (rc1 had no security.ini -> 128MB limit crashed /ops/travel-advisory/create).
+Rolled node-by-node through HAProxy drain; php-fpm nodes (old code) remain as `backup`.
+### Database (backup first: /root/deploy_backups/20261110_211631_enc)
+- Timing probe on a scratch copy: COPY rebuild of calls = 50.7s. Real run: ONE combined ALTER (enum + caller_number/name widen +
+  hamsafar columns + 2 FKs) = 53.4s, writes queued (max 5 waiting), none failed; 759,916 rows before and after.
+- Remaining 21 migrations online (UUID backfill 5m16s). 0 pending. Replicas identical, Group Replication ONLINE x3.
+- Call-type deactivation (7/10) was a no-op on prod (no such rows).
+### Encryption state
+- New calls: GCM-encrypted caller_number + blind index + uuid (verified on real rows). Legacy rows remain plaintext until
+  `crypto:migrate-gcm` (dry-run first; NOT yet run for real). Secrets: bidx_salt, audit_salt (never change; escrow in
+  /root/archived_backups/app_secrets_20261110.tar.enc).
+### ROLLBACK NOTES
+- Old images kept: 130-app-octane:2026-11-10b (L12). Schema is forward-compatible with old code.
+- CAUTION: calls created since the swap have ENCRYPTED caller_number; old code would show ciphertext for those rows.
+  HAProxy: set web-octane-1/2 maint -> php-fpm backup nodes (old code) take over automatically.

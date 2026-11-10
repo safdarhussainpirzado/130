@@ -6,17 +6,17 @@ FROM composer:2.7 AS vendor
 WORKDIR /app
 COPY composer.json composer.lock* ./
 COPY database/ database/
-RUN for i in 1 2 3; do \
+RUN ok=0; for i in 1 2 3; do \
         composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader \
-            --ignore-platform-reqs --no-scripts && break \
+            --ignore-platform-reqs --no-scripts && ok=1 && break \
         || { echo "composer attempt $i failed, retrying..."; sleep 15; }; \
-    done
+    done; [ "$ok" = 1 ]
 
 # STAGE 2: Frontend assets
 FROM node:20-alpine AS assets
 WORKDIR /app
 COPY package*.json ./
-RUN for i in 1 2 3; do npm ci && break || { echo "npm attempt $i failed"; sleep 15; }; done
+RUN ok=0; for i in 1 2 3; do npm ci && ok=1 && break || { echo "npm attempt $i failed"; sleep 15; }; done; [ "$ok" = 1 ]
 COPY . .
 RUN npm run build
 
@@ -47,12 +47,16 @@ COPY --chown=www-data:www-data . .
 COPY --from=vendor --chown=www-data:www-data /app/vendor/ vendor/
 COPY --from=assets --chown=www-data:www-data /app/public/build public/build
 COPY --from=assets --chown=www-data:www-data /app/public/build /var/www/build_cache
+# PHP hardening from the validated local image (memory_limit 512M, strict sessions, no display_errors, upload limits).
+COPY docker/php/security.ini /usr/local/etc/php/conf.d/security.ini
+# RoadRunner workers are long-lived CLI processes; ini max_execution_time counts accumulated CPU time there and would kill
+# healthy workers. The per-request cap is rr http.pool.supervisor.exec_ttl (300s) in .rr.prod.yaml.
+RUN printf "max_execution_time=0\n" > /usr/local/etc/php/conf.d/zz-rr-worker.ini
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 USER www-data
 EXPOSE 8000
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-# Workers/recycling come from env so they can be tuned without a rebuild.
-# --max-requests recycles workers to bound memory growth (report exports raise memory_limit to 1G).
-CMD ["sh", "-c", "exec php artisan octane:start --server=roadrunner --host=0.0.0.0 --port=8000 --rpc-port=6001 --workers=${OCTANE_WORKERS:-12} --max-requests=${OCTANE_MAX_REQUESTS:-500}"]
+# RoadRunner-only runtime (user-validated isolating worker app/Octane/roadrunner_worker.php) with production tuning.
+CMD ["rr", "serve", "-c", ".rr.prod.yaml"]
