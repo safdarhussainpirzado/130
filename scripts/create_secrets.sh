@@ -9,7 +9,7 @@ get() { grep -E "^$1=" .env | head -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$/
 mk() {  # mk <file> <value>
     if [ -s "secrets/$1" ]; then echo "keep   secrets/$1 (exists)"; return; fi
     [ -n "$2" ] || { echo "ERROR: no value for $1" >&2; exit 1; }
-    printf '%s' "$2" > "secrets/$1"; chmod 400 "secrets/$1"
+    printf '%s' "$2" > "secrets/$1"; chmod 444 "secrets/$1"  # container runs as www-data; host access is restricted by the 700 secrets/ dir
     echo "create secrets/$1 (len=$(printf '%s' "$2" | wc -c))"
 }
 mk app_key "$(get APP_KEY)"
