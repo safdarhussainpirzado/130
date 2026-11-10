@@ -1695,9 +1695,10 @@ window.geospatialGridManager = function() {
             // Put zoom control cleanly at bottom-right to avoid any collision with top floating toolbar
             L.control.zoom({ position: 'bottomright' }).addTo(this.map);
 
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OpenStreetMap contributors | NHMP 130 Geospatial Grid',
-                maxZoom: 18
+            // Esri World Street Map (same provider as the dashboard map). OSM's public tile servers block heavy/shared use (403 "Access blocked").
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri | NHMP 130 Geospatial Grid',
+                maxZoom: 19
             }).addTo(this.map);
 
             this.roadPolylineGroup = L.layerGroup().addTo(this.map);

@@ -1909,8 +1909,8 @@
             });
 
             // Standard high-reliability OpenStreetMap tile layer without watermark
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors | NHMP 130',
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri',
                 subdomains: 'abc',
                 maxZoom: 19
             }).addTo(mapInstance);
