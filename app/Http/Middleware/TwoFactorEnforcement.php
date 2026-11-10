@@ -143,9 +143,12 @@ class TwoFactorEnforcement
 
         // 7. Human Inactivity Timeout (30 Minutes default)
         $lastActivity = (int) $request->session()->get('last_activity_at', 0);
-        $isBackground = in_array($currentRouteName, self::BACKGROUND_ROUTES, true)
+        $isHeartbeatActive = $request->is('auth/heartbeat*') && $request->boolean('active');
+        $isBackground = ! $isHeartbeatActive && (
+            in_array($currentRouteName, self::BACKGROUND_ROUTES, true)
             || $request->is('api/notifications/poll*')
-            || $request->is('auth/heartbeat*');
+            || $request->is('auth/heartbeat*')
+        );
 
         if ($lastActivity > 0 && (now()->timestamp - $lastActivity) > 1800) { // 30 minutes
             Auth::guard('web')->logout();

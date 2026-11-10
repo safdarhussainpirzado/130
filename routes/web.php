@@ -84,7 +84,15 @@ Route::get('/up', function () {
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('can:dashboard.view');
     Route::get('/dashboard/chart-data', [DashboardController::class, 'chartData'])->name('dashboard.chart-data')->middleware('can:dashboard.view');
-    Route::get('/auth/heartbeat', function() { return response()->noContent(); })->name('auth.heartbeat');
+    Route::get('/auth/heartbeat', function(\Illuminate\Http\Request $request) {
+        if ($request->boolean('active')) {
+            $request->session()->put('last_activity_at', now()->timestamp);
+        }
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json(['status' => 'ok']);
+        }
+        return response()->noContent();
+    })->name('auth.heartbeat');
     
     Route::get('/calls/pending', [CallController::class, 'pending'])->name('calls.pending');
     Route::get('/calls/inprogress', [CallController::class, 'inprogress'])->name('calls.inprogress');
@@ -107,8 +115,8 @@ Route::middleware('auth')->group(function () {
     Route::prefix('mgmt')->name('admin.')->group(function() {
         Route::middleware('can:users.view')->group(function() {
             Route::resource('users', UserController::class);
-            Route::post('users/{user}/toggle-status',  [UserController::class, 'toggleStatus'])->name('users.toggleStatus')->middleware(['can:users.manage_status', 'mfa.fresh:user_status_toggle']);
-            Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.resetPassword')->middleware(['can:users.manage_password', 'mfa.fresh:user_password_reset']);
+            Route::post('users/{user}/toggle-status',  [UserController::class, 'toggleStatus'])->name('users.toggleStatus')->middleware('can:users.manage_status');
+            Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.resetPassword')->middleware('can:users.manage_password');
 
             // Password reset requests management
             Route::get('password-requests',                        [UserController::class, 'getPasswordRequests'])->name('users.passwordRequests.index');
@@ -116,16 +124,16 @@ Route::middleware('auth')->group(function () {
 
             // Dynamic multi-scope management
             Route::get('users/{user}/scopes',                    [UserController::class, 'getScopes'])->name('users.scopes.index')->middleware('can:users.manage_scopes');
-            Route::post('users/{user}/scopes',                   [UserController::class, 'addScope'])->name('users.scopes.add')->middleware(['can:users.manage_scopes', 'mfa.fresh:user_scopes_modify']);
-            Route::patch('users/{user}/scopes/{scope}',          [UserController::class, 'updateScope'])->name('users.scopes.update')->middleware(['can:users.manage_scopes', 'mfa.fresh:user_scopes_modify']);
-            Route::delete('users/{user}/scopes/{scope}',         [UserController::class, 'removeScope'])->name('users.scopes.remove')->middleware(['can:users.manage_scopes', 'mfa.fresh:user_scopes_modify']);
+            Route::post('users/{user}/scopes',                   [UserController::class, 'addScope'])->name('users.scopes.add')->middleware('can:users.manage_scopes');
+            Route::patch('users/{user}/scopes/{scope}',          [UserController::class, 'updateScope'])->name('users.scopes.update')->middleware('can:users.manage_scopes');
+            Route::delete('users/{user}/scopes/{scope}',         [UserController::class, 'removeScope'])->name('users.scopes.remove')->middleware('can:users.manage_scopes');
         });
 
         Route::middleware('can:roles.view')->group(function() {
             Route::resource('roles', RoleController::class);
-            Route::post('roles/{role}/toggle-status', [RoleController::class, 'toggleStatus'])->name('roles.toggleStatus')->middleware('mfa.fresh:role_status_toggle');
+            Route::post('roles/{role}/toggle-status', [RoleController::class, 'toggleStatus'])->name('roles.toggleStatus');
             Route::resource('permissions', \App\Http\Controllers\PermissionController::class)->middleware('can:permissions.view');
-            Route::post('permissions/{permission}/toggle-status', [\App\Http\Controllers\PermissionController::class, 'toggleStatus'])->name('permissions.toggleStatus')->middleware('mfa.fresh:permission_status_toggle');
+            Route::post('permissions/{permission}/toggle-status', [\App\Http\Controllers\PermissionController::class, 'toggleStatus'])->name('permissions.toggleStatus');
             Route::get('audit', [AuditController::class, 'index'])->name('audit.index')->middleware('can:system.audit_view');
             Route::resource('tts-scripts', TtsScriptController::class)->except(['show', 'edit', 'update'])->middleware('can:system.tts_scripts.manage');
         });
