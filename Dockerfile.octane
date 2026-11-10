@@ -1,0 +1,55 @@
+# Laravel Octane (RoadRunner) runtime image — runs BESIDE the php-fpm image (Dockerfile).
+# Same PHP version and extensions as production php-fpm so behaviour is identical.
+
+# STAGE 1: PHP dependencies (includes laravel/octane + spiral/roadrunner-*)
+FROM composer:2.7 AS vendor
+WORKDIR /app
+COPY composer.json composer.lock* ./
+COPY database/ database/
+RUN for i in 1 2 3; do \
+        composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader \
+            --ignore-platform-reqs --no-scripts && break \
+        || { echo "composer attempt $i failed, retrying..."; sleep 15; }; \
+    done
+
+# STAGE 2: Frontend assets
+FROM node:20-alpine AS assets
+WORKDIR /app
+COPY package*.json ./
+RUN for i in 1 2 3; do npm ci && break || { echo "npm attempt $i failed"; sleep 15; }; done
+COPY . .
+RUN npm run build
+
+# STAGE 3: Extensions + RoadRunner binary
+FROM php:8.3.36-cli-alpine AS builder
+RUN apk add --no-cache icu-dev libzip-dev zip unzip autoconf g++ gcc libc-dev make linux-headers \
+    && docker-php-ext-install -j$(nproc) pdo_mysql opcache zip pcntl intl sockets \
+    && pecl install redis && docker-php-ext-enable redis
+COPY --from=vendor /app/vendor /vendor
+# rr get-binary picks the RoadRunner build that matches the installed Octane/roadrunner-cli.
+RUN cd / && mkdir -p /rr && cd /rr && php /vendor/bin/rr get-binary --location /rr --no-interaction
+
+# STAGE 4: Runtime
+FROM php:8.3.36-cli-alpine
+WORKDIR /var/www/html
+RUN apk add --no-cache icu-libs libzip zip unzip
+COPY --from=builder /usr/local/lib/php/extensions /usr/local/lib/php/extensions
+COPY --from=builder /usr/local/etc/php/conf.d /usr/local/etc/php/conf.d
+COPY --from=builder /rr/rr /usr/local/bin/rr
+
+# Same OPcache/JIT policy as php-fpm. Long-lived workers keep opcache hot.
+RUN printf "opcache.enable=1\nopcache.enable_cli=1\nopcache.jit_buffer_size=100M\nopcache.jit=tracing\nopcache.memory_consumption=256\nopcache.max_accelerated_files=20000\nopcache.validate_timestamps=0\nopcache.interned_strings_buffer=16\n" \
+    > /usr/local/etc/php/conf.d/docker-php-ext-opcache.ini
+
+COPY --chown=www-data:www-data . .
+COPY --from=vendor --chown=www-data:www-data /app/vendor/ vendor/
+COPY --from=assets --chown=www-data:www-data /app/public/build public/build
+COPY --from=assets --chown=www-data:www-data /app/public/build /var/www/build_cache
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+USER www-data
+EXPOSE 8000
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+# --max-requests recycles workers to bound any memory growth (report exports raise memory_limit to 1G).
+CMD ["php", "artisan", "octane:start", "--server=roadrunner", "--host=0.0.0.0", "--port=8000", "--rpc-port=6001", "--workers=8", "--max-requests=500"]
