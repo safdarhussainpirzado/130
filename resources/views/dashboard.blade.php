@@ -701,8 +701,6 @@
                 </div>
             </div>
 
-            {{-- Floating Tooltip --}}
-            <div id="dm-tooltip" style="display: none; position: fixed; pointer-events: none; transition: opacity 0.1s ease;"></div>
         </div>
 
     </div>
@@ -1048,6 +1046,8 @@
 </div>{{-- /x-data --}}
     {{-- Global Heatmap Tooltip --}}
     <div id="hm-tooltip" style="display: none; position: fixed; pointer-events: none; transition: opacity 0.1s ease;"></div>
+    {{-- Density-matrix tooltip: must live OUTSIDE the .bc card (overflow:hidden + hover transform would clip/relocate a position:fixed child) --}}
+    <div id="dm-tooltip" style="display: none; position: fixed; pointer-events: none; transition: opacity 0.1s ease;"></div>
 @endsection
 
 @push('scripts')
