@@ -44,3 +44,8 @@ scratch/
 /secrets/
 *.enc
 *.key
+
+# Docker secrets (local dev + escrow) — never commit
+/docker/secrets/
+*.key
+.nhmp_backup_key
