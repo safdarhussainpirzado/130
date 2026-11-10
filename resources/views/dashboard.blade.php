@@ -480,7 +480,7 @@
             </div>
         </div>
 
-        <a href="{{ route('admin.users.index') }}" class="kc kc-em block">
+        <div class="kc kc-em">
             <div class="kc-bg-ico"><i class="fa-solid fa-user-shield"></i></div>
             <div class="relative z-10">
                 <span class="kc-badge"><i class="fa-solid fa-shield-halved" style="font-size:.55rem"></i> Active Force</span>
@@ -488,7 +488,7 @@
                 <div class="kc-lbl">Authorized Sentinels</div>
                 <div class="kc-delta">{{ $totalSystemUsers - $activeSentinelsCount }} users currently offline</div>
             </div>
-        </a>
+        </div>
 
         <div class="kc kc-vio">
             <div class="kc-bg-ico"><i class="fa-solid fa-chart-pie"></i></div>
