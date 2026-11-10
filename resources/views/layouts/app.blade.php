@@ -823,7 +823,7 @@
                         </a>
                     @endcanany
 
-                    <!-- TRAVEL ADVISORY -->
+                    {{-- TRAVEL ADVISORY links disabled (2026-11-10): hidden from the sidebar until the feature is released.
                     <div class="nav-section">Travel Advisory</div>
                     <div class="nav-section-divider"></div>
 
@@ -847,6 +847,7 @@
                         <span class="nav-label">Commuter Portal</span>
                         <span class="nav-tooltip">Humsafar Public View</span>
                     </a>
+                    --}}
 
                     <!-- SUPPORT MANAGEMENT -->
                     @canany(['support.view', 'support.manage', 'support.analytics', 'support.transfer_verify_source', 'support.transfer_confirm_destination', 'support.transfer_approve'])
