@@ -40,3 +40,33 @@ storage/logs/*.log
 # Files to keep
 !/public/build
 !.gitignore
+
+# ── Never bake data, backups, secrets or tooling into runtime images ──
+.claude
+secrets
+backups
+scratch
+venv
+docs
+laravel
+sedVmV4qw
+TEST_FILE_FROM_HOST
+.deploy_config.sh
+.env.*
+!.env.example
+*.sql
+*.sql.gz
+*.sq
+*.tar.gz
+*.xlsx
+*.csv
+sheet_*.json
+export_*
+deploy.sh
+deploy.ps1
+boot.sh
+setup-firewall.sh
+setup_ssl.sh
+*Zone.Identifier
+docker-compose*.yml
+Dockerfile*

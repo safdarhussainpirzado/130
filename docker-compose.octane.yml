@@ -1,9 +1,10 @@
 # Octane canary stack. Runs BESIDE the existing php-fpm nodes and takes NO traffic until
 # HAProxy is told to use it. Start with:
-#   docker compose -p 130 -f docker-compose.yml -f docker-compose.octane.yml up -d --no-deps --build app-octane-1 web-octane-1
+#   docker compose -p 130 -f docker-compose.yml -f docker-compose.octane.yml up -d --no-deps --no-build app-octane-1 web-octane-1   # image pre-loaded; never build on the live server
 # --no-deps + explicit service names guarantee existing services are not recreated.
 services:
   app-octane-1:
+    image: 130-app-octane:2026-11-10
     build:
       context: .
       dockerfile: Dockerfile.octane
