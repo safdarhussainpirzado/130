@@ -1,0 +1,16 @@
+$kind: http-request
+name: "5.3 Ticker"
+description: Live alert ticker feed.
+url: "{{base_url}}/api/v1/travel-advisory/ticker"
+method: GET
+headers:
+  Accept: application/json
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('HTTP 200', () => pm.response.to.have.status(200));
+      pm.test('JSON response', () => pm.response.to.be.json);
+      pm.test('Responds under 5s (cold local cache)', () => pm.expect(pm.response.responseTime).to.be.below(5000));
+      const j = pm.response.json(); pm.test('Has ticker_items array and count', () => { pm.expect(j.ticker_items).to.be.an('array'); pm.expect(j.count).to.be.a('number'); });
+    language: text/javascript
+order: 3000

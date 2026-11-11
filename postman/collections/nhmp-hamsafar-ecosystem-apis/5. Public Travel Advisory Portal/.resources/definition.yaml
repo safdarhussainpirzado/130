@@ -1,0 +1,3 @@
+$kind: collection
+description: Public, unauthenticated read-only APIs behind the nhmp.gov.pk/travel-advisory portal (routes, query, ticker, geojson, landmarks).
+order: 5000
