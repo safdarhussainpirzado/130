@@ -1,0 +1,30 @@
+$kind: http-request
+name: "1.2 Auth: Email Registration"
+description: Standard self-service registration for commuters using email & password.
+url: "{{base_url}}/api/v1/auth/commuter/register"
+method: POST
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "full_name": "Zainab Bibi",
+      "email": "zainab.bibi@example.com",
+      "password": "SecurePassword123!",
+      "password_confirmation": "SecurePassword123!",
+      "device_fcm_token": "fcm_token_optional_string"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      if (pm.response.code === 201) {
+          var json = pm.response.json();
+          if (json.access_token) {
+              pm.environment.set('commuter_token', json.access_token);
+              console.log('Commuter Token saved to environment.');
+          }
+      }
+    language: text/javascript
+order: 2000

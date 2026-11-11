@@ -1,0 +1,25 @@
+$kind: http-request
+name: "2.5 Duty: Screen 03 GPS Telemetry Stream (Redis Buffer)"
+description: "Screen 03: High-frequency vehicle GPS updates. Buffered in Redis GEOADD and rolled up to MySQL."
+url: "{{base_url}}/api/v1/patrol/duty/telemetry"
+method: POST
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "duty_session_id": "{{duty_session_id}}",
+      "latitude": 32.7915,
+      "longitude": 72.7142,
+      "speed_kph": 78.5,
+      "bearing_degrees": 185.0,
+      "carriageway": "Southbound (Lahore Bound)",
+      "accuracy_meters": 3.2
+    }
+auth:
+  type: bearer
+  credentials:
+    token: "{{staff_token}}"
+order: 5000

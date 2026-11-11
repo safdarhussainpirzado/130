@@ -1,0 +1,36 @@
+$kind: http-request
+name: "1.5 Profile: Complete / Update Safety Profile"
+description: Completes the commuter safety profile (mobile, gender, CNIC, emergency contacts).
+url: "{{base_url}}/api/v1/commuter/profile"
+method: PUT
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "mobile_no": "03001234567",
+      "gender": "female",
+      "cnic": "37405-1234567-2",
+      "blood_group": "B+",
+      "preferred_language": "ur",
+      "emergency_contacts": [
+        {
+          "name": "Guardian / Next of Kin",
+          "phone": "03007654321",
+          "relationship": "parent"
+        }
+      ],
+      "primary_vehicle": {
+        "registration_no": "ICT-LE-921",
+        "make_model": "Toyota Corolla",
+        "color": "white",
+        "type": "car"
+      }
+    }
+auth:
+  type: bearer
+  credentials:
+    token: "{{commuter_token}}"
+order: 5000

@@ -16,13 +16,16 @@ mkdir -p "$TARGET_ASSETS_DIR"
 # 1. Create a temporary container from the newly built release image
 TEMP_CID=$(docker create "$IMAGE_NAME")
 
+TEMP_DIR="$PROJECT_ROOT/.release_asset_staging_$$"
+mkdir -p "$TEMP_DIR"
+
 cleanup() {
     docker rm -f "$TEMP_CID" >/dev/null 2>&1 || true
+    rm -rf "$TEMP_DIR" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
 # 2. Extract versioned assets into temporary folder
-TEMP_DIR=$(mktemp -d)
 docker cp "$TEMP_CID:/var/www/html/public/build/assets/." "$TEMP_DIR/"
 
 # 3. Copy non-destructively: add new hashes while strictly preserving older hashed assets

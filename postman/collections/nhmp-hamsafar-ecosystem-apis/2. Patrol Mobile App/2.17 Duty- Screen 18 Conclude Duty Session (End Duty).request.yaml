@@ -1,0 +1,12 @@
+$kind: http-request
+name: "2.17 Duty: Screen 18 Conclude Duty Session (End Duty)"
+description: "Screen 18: Concludes duty session. Marks officer OFF DUTY."
+url: "{{base_url}}/api/v1/patrol/duty/end"
+method: POST
+headers:
+  Accept: application/json
+auth:
+  type: bearer
+  credentials:
+    token: "{{staff_token}}"
+order: 17000

@@ -1,0 +1,27 @@
+$kind: http-request
+name: "1.1 Auth: 1-Tap Google Sign-In"
+description: Authenticates or registers a commuter using their Google Account (1-tap Gmail OAuth ID Token).
+url: "{{base_url}}/api/v1/auth/commuter/google"
+method: POST
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "id_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6Ij...YOUR_GOOGLE_ID_TOKEN_HERE",
+      "device_fcm_token": "fcm_push_token_optional"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      if (pm.response.code === 200 || pm.response.code === 201) {
+          var json = pm.response.json();
+          if (json.access_token) {
+              pm.environment.set('commuter_token', json.access_token);
+              console.log('Commuter Token saved to environment.');
+          }
+      }
+    language: text/javascript
+order: 1000

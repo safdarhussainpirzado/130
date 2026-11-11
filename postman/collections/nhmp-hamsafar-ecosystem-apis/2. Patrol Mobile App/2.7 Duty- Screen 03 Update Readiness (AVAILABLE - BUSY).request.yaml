@@ -1,0 +1,19 @@
+$kind: http-request
+name: "2.7 Duty: Screen 03 Update Readiness (AVAILABLE / BUSY)"
+description: "Screen 03: Officer toggles readiness status."
+url: "{{base_url}}/api/v1/patrol/duty/status"
+method: PUT
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "AVAILABLE"
+    }
+auth:
+  type: bearer
+  credentials:
+    token: "{{staff_token}}"
+order: 7000
