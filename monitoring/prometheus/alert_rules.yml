@@ -1,0 +1,65 @@
+groups:
+  - name: nhmp_130_operational_alerts
+    rules:
+      - alert: ServiceInstanceDown
+        expr: up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Monitored service or exporter instance {{ $labels.instance }} is down"
+          description: "Service or exporter {{ $labels.job }} at {{ $labels.instance }} has been unreachable for > 30 seconds."
+
+      - alert: CriticalEmergencyQueueBacklog
+        expr: nhmp_queue_depth{queue=~"emergency_telephony|emergency_dispatch"} > 50
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Emergency queue backlog critical on {{ $labels.queue }}"
+          description: "Queue {{ $labels.queue }} has {{ $value }} unconsumed jobs, violating emergency dispatch SLA."
+
+      - alert: MySQLReplicationLagHigh
+        expr: mysql_slave_status_seconds_behind_master > 2
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "MySQL Replica lag exceeded 2 seconds"
+          description: "Replica {{ $labels.instance }} is {{ $value }}s behind primary, causing potential stale reads."
+
+      - alert: DatabaseConnectionSaturation
+        expr: (mysql_global_status_threads_connected / mysql_global_variables_max_connections) * 100 > 80
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MySQL connection pool nearly exhausted ({{ $value }}%)"
+          description: "Active database threads connected reached 80% of max_connections limit."
+
+      - alert: HighApiLatencyP95
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 0.300
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API p95 latency exceeded 300ms SLA target"
+          description: "Current p95 API latency is {{ $value }}s under heavy traffic."
+
+      - alert: ElevatedErrorRate
+        expr: (sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))) * 100 > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API 5xx error rate exceeded 0.1% tolerance threshold"
+          description: "Current 5xx error rate is {{ $value }}%."
+
+      - alert: HostMemoryPressure
+        expr: (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Host available RAM below 10%"
+          description: "Host available RAM dropped to {{ $value }}%."

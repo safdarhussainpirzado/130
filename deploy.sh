@@ -2,7 +2,12 @@
 # 🚀 High Availability Zero-Downtime Deployment Script
 # This script implements the Atomic Symlink Deployment strategy for PHP-FPM nodes.
 
-set -e
+# Strict Production/Staging Safety Guard: Block accidental remote executions
+if [ "${CONFIRM_REMOTE_DEPLOY:-no}" != "yes-deploy-remote-legacy" ]; then
+    echo "❌ SAFETY HALT: Legacy remote deployment is disabled by default."
+    echo "   For local development/testbed, use ./scripts/execute_final_rolling_deploy.sh"
+    exit 1
+fi
 
 # --- Configuration ---
 if [ -f .deploy_config.sh ]; then
