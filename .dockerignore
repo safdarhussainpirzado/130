@@ -4,12 +4,13 @@
 .gitattributes
 
 # Environment and Secrets
-.env
+.env*
 *.key
 storage/*.key
 
 # Dependencies
 vendor
+vendor_old
 node_modules
 
 # Build artifacts and caches
@@ -27,11 +28,31 @@ bootstrap/cache/*.php
 docker-compose*.yml
 Dockerfile*
 Makefile
+make
 README.md
 
-# Documentation and Tests
-tests
+# Large data, dumps, backups, guides and tests
+backups
+test-results
+scratch
+screenshots_2fa
+artifacts
+reports
 docs
+ansible
+mysql
+haproxy
+monitoring
+scripts
+*.sql
+*.pdf
+*.html
+*.xlsx
+*.csv
+sedVmV4qw
+*.png
+*.jpg
+*.jpeg
 
 # Logs
 *.log

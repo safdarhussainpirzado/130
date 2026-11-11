@@ -1,8 +1,9 @@
 *.log
+*.bak
 .DS_Store
 .env
-.env.backup
-.env.production
+.env.*
+!.env.example
 .phpactor.json
 .phpunit.result.cache
 /.fleet
@@ -17,6 +18,7 @@
 /public/hot
 /public/storage
 /storage/*.key
+/storage/keys/
 /storage/pail
 /vendor
 /vendor_old
@@ -24,20 +26,30 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 *.xlsx
+*.xls
 *.sql
 *.csv
+sedVmV4*
 *:Zone.Identifier
 *Zone.Identifier
 
-# Keep SSL certificates out of git!
+# Keep SSL certificates and keys out of git
 *.pem
 *.key
 *.crt
+*.p12
+*.pfx
 haproxy/certs/
 
-# Local forensic backups, scratch diagnosis, and editor state
+# Roadrunner & Binary Executables
+/rr
+*.exe
+*.bin
+
+# Local forensic backups, scratch diagnosis, artifacts, and editor state
 backups/
 scratch/
+artifacts/
 .claude/
 
 # Docker secrets and backup keys — never commit
@@ -54,3 +66,40 @@ scratch/
 /haproxy/certs/*.pem
 /sedVmV4qw
 *.pem
+test-results/
+playwright-report/
+screenshots_2fa/
+
+# Generated heavy binary manuals & PDF guides
+*.pdf
+NHMP_130_2FA_User_Guide_*.html
+build_guides.py
+generate_mfa_pdf.php
+generate_official_manuals.py
+
+# Docker Secrets & Keyrings
+docker/secrets/
+.docker/secrets/
+
+# Candidate Edge & Forensic Dumps
+candidate_*
+candidate-edge/
+
+# Test Diagnostic Scripts, Benchmarks, Credentials, and Temporary Files
+scripts/test/*
+!scripts/test/complete_calls_api.py
+!scripts/test/run_browser.sh
+!scripts/test/run_fast.sh
+!scripts/test/run_release.sh
+!scripts/test/run_security.sh
+!scripts/test/simulate_api_calls.py
+!scripts/test/verify_sequence_freeze.sh
+scripts/__pycache__/
+scripts/final_test_results.json
+TEST_FILE_FROM_HOST
+temp*.js
+laravel
+
+# Infrastructure Secrets & Internal Topologies
+ansible/inventory/production.ini
+ansible/inventory/staging.ini
