@@ -1173,7 +1173,10 @@
                     this.isLoadingFilters = true;
 
                     try {
-                        const cached = sessionStorage.getItem('nhmp_calls_filter_options_v2');
+                        // Cache is per-user: a shared workstation/tab must never reuse another user's zone/sector/beat lists.
+                        const FO_KEY = 'nhmp_calls_filter_options_v3_u{{ (int) auth()->id() }}';
+                        try { sessionStorage.removeItem('nhmp_calls_filter_options_v2'); } catch (e) {}
+                        const cached = sessionStorage.getItem(FO_KEY);
                         if (cached) {
                             const data = JSON.parse(cached);
                             this.applyFilterOptionsData(data);
@@ -1190,7 +1193,7 @@
                             const data = await res.json();
                             this.applyFilterOptionsData(data);
                             try {
-                                sessionStorage.setItem('nhmp_calls_filter_options_v2', JSON.stringify(data));
+                                sessionStorage.setItem(FO_KEY, JSON.stringify(data));
                             } catch (e) {}
                             this.filterOptionsLoaded = true;
                         }
