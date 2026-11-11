@@ -4,11 +4,23 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "test": "bash scripts/test/run_fast.sh",
+        "test:fast": "bash scripts/test/run_fast.sh",
+        "test:browser": "bash scripts/test/run_browser.sh",
+        "test:browser:smoke": "npx playwright test tests/Browser/auth.spec.ts tests/Browser/dashboard.spec.ts",
+        "test:browser:full": "npx playwright test",
+        "test:browser:uat": "npx playwright test tests/Browser/calls.spec.ts tests/Browser/reports.spec.ts",
+        "test:browser:data-integrity": "npx playwright test tests/Browser/calls.spec.ts",
+        "test:security": "bash scripts/test/run_security.sh",
+        "test:staging:full": "bash scripts/test/run_release.sh",
+        "test:release": "bash scripts/test/run_release.sh"
     },
     "devDependencies": {
+        "@playwright/test": "^1.64.1",
         "@tailwindcss/forms": "^0.5.2",
         "@tailwindcss/vite": "^4.0.0",
+        "@types/node": "^26.6.6",
         "alpinejs": "^3.4.2",
         "autoprefixer": "^10.4.2",
         "axios": "^1.11.0",

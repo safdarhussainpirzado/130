@@ -5,6 +5,19 @@ echo "🔔 Booting NHMP 130 CRM container..."
 
 cd /var/www/html
 
+# ── Docker Secrets Resolution ───────────────────────────────────────────────
+# Injects secrets from /run/secrets/ into environment variables dynamically
+if [ -d "/run/secrets" ]; then
+    echo "🔒 Resolving Docker Secrets from /run/secrets..."
+    for secret in /run/secrets/*; do
+        if [ -f "$secret" ]; then
+            var_name=$(basename "$secret" | tr '[:lower:]' '[:upper:]')
+            val=$(cat "$secret")
+            export "$var_name"="$val"
+        fi
+    done
+fi
+
 # Ensure essential directories exist
 mkdir -p storage/framework/sessions \
          storage/framework/views \
@@ -59,6 +72,10 @@ php artisan event:cache || echo "⚠️  Failed to cache events"
 php artisan route:cache || echo "⚠️  Failed to cache routes"
 php artisan view:cache || echo "⚠️  Failed to cache views"
 
-echo "🔔 System is highly optimized. Starting PHP-FPM daemon..."
-# Fire up supervisor or php-fpm
+if [ "$1" = "rr" ] || [ "${APP_SERVER}" = "roadrunner" ] || [ "${APP_SERVER}" = "octane" ] || [ "$1" = "php-fpm" ] || [ -z "$1" ]; then
+    echo "⚡ Starting High-Concurrency RoadRunner / Octane HTTP server on port 8000..."
+    exec rr serve -c .rr.yaml
+fi
+
+echo "🔔 Executing CLI command: $@"
 exec "$@"

@@ -21,7 +21,7 @@ export default defineConfig({
     ['json', { outputFile: 'test-results/browser-results.json' }],
   ],
   use: {
-    baseURL: process.env.CANDIDATE_URL || 'http://100.108.239.107:8080',
+    baseURL: process.env.APP_URL || process.env.CANDIDATE_URL || 'http://127.0.0.1:8888',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -30,6 +30,14 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
   },
   projects: [
+    {
+      name: 'Local Chrome',
+      use: {
+        ...devices['Desktop Chrome'],
+        channel: 'chrome',
+        baseURL: process.env.APP_URL || 'http://127.0.0.1:8888',
+      },
+    },
     {
       name: 'setup',
       testMatch: /.*\.setup\.ts/,
@@ -45,3 +53,4 @@ export default defineConfig({
     },
   ],
 });
+

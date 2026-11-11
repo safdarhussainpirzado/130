@@ -1,0 +1,60 @@
+[mysqld]
+# ==============================================================================
+# NHMP 130 — MySQL Configuration: STAGING / CANDIDATE ENVIRONMENT
+# Memory Footprint: ~2.5GB RSS (Buffer Pool: 2GB)
+# Purpose: Performance validation, regression verification, concurrency testing
+# ==============================================================================
+
+user                            = mysql
+pid-file                        = /var/run/mysqld/mysqld.pid
+socket                          = /var/run/mysqld/mysqld.sock
+port                            = 3306
+datadir                         = /var/lib/mysql
+
+# Buffer Pool & Redo Log
+innodb_buffer_pool_size         = 2G
+innodb_buffer_pool_instances     = 2
+innodb_redo_log_capacity        = 256M
+innodb_log_buffer_size          = 16M
+innodb_flush_log_at_trx_commit  = 1
+innodb_file_per_table           = 1
+innodb_stats_on_metadata        = 0
+
+# InnoDB I/O Settings
+innodb_flush_method             = O_DIRECT
+innodb_io_capacity              = 1000
+innodb_io_capacity_max          = 2000
+innodb_read_io_threads          = 4
+innodb_write_io_threads         = 4
+innodb_max_dirty_pages_pct      = 70
+innodb_max_dirty_pages_pct_lwm  = 50
+innodb_flush_neighbors          = 0
+innodb_idle_flush_pct           = 50
+
+# Temporary Tables and Memory Buffers
+tmp_table_size                  = 32M
+max_heap_table_size             = 32M
+join_buffer_size                = 2M
+sort_buffer_size                = 2M
+
+# Connection Settings
+max_connections                 = 150
+max_allowed_packet              = 64M
+thread_cache_size               = 16
+wait_timeout                    = 600
+interactive_timeout             = 600
+
+# Logging & Binary Log
+sync_binlog                     = 1
+log_bin_trust_function_creators = 1
+slow_query_log                  = 1
+slow_query_log_file             = /var/lib/mysql/mysql-slow.log
+long_query_time                 = 1
+log_queries_not_using_indexes   = 0
+
+# Character Sets
+character-set-server            = utf8mb4
+collation-server                 = utf8mb4_unicode_ci
+
+[client]
+default-character-set           = utf8mb4

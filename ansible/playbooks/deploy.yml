@@ -1,0 +1,225 @@
+---
+# ==============================================================================
+# NHMP 130 CRM — High Availability Zero-Downtime Rolling Deployment Playbook
+# ==============================================================================
+# Orchestrates controlled container updates across dual application nodes
+# without dropping active emergency calls, sessions, or TCP ingress traffic.
+# ==============================================================================
+
+- name: Pre-Deployment Verification & Release Guard
+  hosts: localhost
+  gather_facts: false
+  vars:
+    image_tag: "{{ lookup('env', 'IMAGE_TAG') | default('130-app-1:latest', true) }}"
+    drain_timeout_seconds: 30
+    health_timeout_seconds: 40
+    confirm_production: "{{ lookup('env', 'CONFIRM_PRODUCTION') | default('no', true) }}"
+    confirm_staging: "{{ lookup('env', 'CONFIRM_STAGING') | default('no', true) }}"
+  tasks:
+    - name: "1.0a Validate Production Environment Safety Guard"
+      ansible.builtin.fail:
+        msg: "CRITICAL: Deploying to production requires explicit CONFIRM_PRODUCTION=yes-deploy-nhmp-production or deploy-production"
+      when:
+        - inventory_file is search("production")
+        - confirm_production != "yes-deploy-nhmp-production"
+        - confirm_production != "deploy-production"
+
+    - name: "1.0b Validate Staging Environment Safety Guard"
+      ansible.builtin.fail:
+        msg: "CRITICAL: Deploying to staging requires explicit CONFIRM_STAGING=yes-deploy-nhmp-staging or deploy-staging"
+      when:
+        - inventory_file is search("staging")
+        - confirm_staging != "yes-deploy-nhmp-staging"
+        - confirm_staging != "deploy-staging"
+
+    - name: "1.1 Verify Pre-Deployment Health: Both Nodes UP in HAProxy"
+      ansible.builtin.shell: |
+        docker exec 130-haproxy-1 socat stdio /tmp/haproxy.sock <<< "show stat" | awk -F',' '$1=="app_nodes" && ($2=="web-1" || $2=="web-2") {print $2 ":" $18}'
+      register: haproxy_initial_status
+      failed_when:
+        - "'web-1:UP' not in haproxy_initial_status.stdout"
+        - "'web-2:UP' not in haproxy_initial_status.stdout"
+      changed_when: false
+
+    - name: "1.2 Display Cluster Pre-Flight State"
+      ansible.builtin.debug:
+        msg: "HAProxy Pre-Check Verified: Both web-1 and web-2 are active and UP."
+
+    - name: "1.3 Verify Database Non-Destructive Migration Guard"
+      ansible.builtin.command: php scripts/db_migration_guard.php
+      register: db_guard_result
+      failed_when: db_guard_result.rc != 0
+      changed_when: false
+
+    - name: "1.4 Execute Safe Additive Migrations (Single Leader Run)"
+      ansible.builtin.command: docker exec 130-app-1-1 php artisan migrate --force
+      register: migrate_out
+      changed_when: "'Nothing to migrate' not in migrate_out.stdout"
+
+# ------------------------------------------------------------------------------
+# PHASE 1: Controlled Upgrade of Node A (web-1 / app-1)
+# ------------------------------------------------------------------------------
+- name: Controlled Rolling Upgrade — Node A
+  hosts: localhost
+  gather_facts: false
+  vars:
+    srv: "web-1"
+    app: "130-app-1-1"
+    service_name: "app-1"
+  tasks:
+    - name: "2.1 Drain Node A (web-1) in HAProxy"
+      ansible.builtin.shell: |
+        docker exec 130-haproxy-1 socat stdio /tmp/haproxy.sock <<< "set server app_nodes/{{ srv }} state drain"
+      changed_when: true
+
+    - name: "2.2 Wait for In-Flight Connections to Drop to Zero on Node A"
+      ansible.builtin.shell: |
+        docker exec 130-haproxy-1 socat stdio /tmp/haproxy.sock <<< "show stat" | awk -F',' -v srv="{{ srv }}" '$1=="app_nodes" && $2==srv {print $5}'
+      register: node_a_conns
+      until: node_a_conns.stdout == "0"
+      retries: 30
+      delay: 1
+      changed_when: false
+
+    - name: "2.3 Signal Graceful Worker Drain on Node A"
+      ansible.builtin.command: bash scripts/graceful_worker_restart.sh {{ app }}
+      changed_when: true
+
+    - name: "2.4 Recreate Node A Container (Single Container Recreate)"
+      ansible.builtin.command: docker compose up -d --no-deps --force-recreate {{ service_name }}
+      changed_when: true
+
+    - name: "2.5 Wait for Node A Health Probe (/up)"
+      ansible.builtin.shell: |
+        docker exec {{ app }} php -r '
+          require "vendor/autoload.php";
+          $app = require_once "bootstrap/app.php";
+          $kernel = $app->make(Illuminate\Contracts\Http\Kernel::class);
+          $resp = $kernel->handle($req = Illuminate\Http\Request::create("/up", "GET"));
+          exit(($resp->getStatusCode() == 200 || $resp->getStatusCode() == 204) ? 0 : 1);
+        '
+      register: node_a_health
+      until: node_a_health.rc == 0
+      retries: 20
+      delay: 2
+      changed_when: false
+
+    - name: "2.6 Warm Framework Caches on Node A"
+      ansible.builtin.command: docker exec {{ app }} php artisan optimize
+      changed_when: true
+
+    - name: "2.7 Restore Node A (web-1) to Ready in HAProxy"
+      ansible.builtin.shell: |
+        docker exec 130-haproxy-1 socat stdio /tmp/haproxy.sock <<< "set server app_nodes/{{ srv }} state ready"
+      changed_when: true
+
+    - name: "2.8 Confirm Node A Returns to UP State in HAProxy"
+      ansible.builtin.shell: |
+        docker exec 130-haproxy-1 socat stdio /tmp/haproxy.sock <<< "show stat" | awk -F',' -v srv="{{ srv }}" '$1=="app_nodes" && $2==srv {print $18}'
+      register: node_a_status
+      until: node_a_status.stdout == "UP"
+      retries: 15
+      delay: 2
+      changed_when: false
+
+# ------------------------------------------------------------------------------
+# PHASE 2: Controlled Upgrade of Node B (web-2 / app-2)
+# ------------------------------------------------------------------------------
+- name: Controlled Rolling Upgrade — Node B
+  hosts: localhost
+  gather_facts: false
+  vars:
+    srv: "web-2"
+    app: "130-app-2-1"
+    service_name: "app-2"
+  tasks:
+    - name: "3.1 Drain Node B (web-2) in HAProxy"
+      ansible.builtin.shell: |
+        docker exec 130-haproxy-1 socat stdio /tmp/haproxy.sock <<< "set server app_nodes/{{ srv }} state drain"
+      changed_when: true
+
+    - name: "3.2 Wait for In-Flight Connections to Drop to Zero on Node B"
+      ansible.builtin.shell: |
+        docker exec 130-haproxy-1 socat stdio /tmp/haproxy.sock <<< "show stat" | awk -F',' -v srv="{{ srv }}" '$1=="app_nodes" && $2==srv {print $5}'
+      register: node_b_conns
+      until: node_b_conns.stdout == "0"
+      retries: 30
+      delay: 1
+      changed_when: false
+
+    - name: "3.3 Signal Graceful Worker Drain on Node B"
+      ansible.builtin.command: bash scripts/graceful_worker_restart.sh {{ app }}
+      changed_when: true
+
+    - name: "3.4 Recreate Node B Container (Single Container Recreate)"
+      ansible.builtin.command: docker compose up -d --no-deps --force-recreate {{ service_name }}
+      changed_when: true
+
+    - name: "3.5 Wait for Node B Health Probe (/up)"
+      ansible.builtin.shell: |
+        docker exec {{ app }} php -r '
+          require "vendor/autoload.php";
+          $app = require_once "bootstrap/app.php";
+          $kernel = $app->make(Illuminate\Contracts\Http\Kernel::class);
+          $resp = $kernel->handle($req = Illuminate\Http\Request::create("/up", "GET"));
+          exit(($resp->getStatusCode() == 200 || $resp->getStatusCode() == 204) ? 0 : 1);
+        '
+      register: node_b_health
+      until: node_b_health.rc == 0
+      retries: 20
+      delay: 2
+      changed_when: false
+
+    - name: "3.6 Warm Framework Caches on Node B"
+      ansible.builtin.command: docker exec {{ app }} php artisan optimize
+      changed_when: true
+
+    - name: "3.7 Restore Node B (web-2) to Ready in HAProxy"
+      ansible.builtin.shell: |
+        docker exec 130-haproxy-1 socat stdio /tmp/haproxy.sock <<< "set server app_nodes/{{ srv }} state ready"
+      changed_when: true
+
+    - name: "3.8 Confirm Node B Returns to UP State in HAProxy"
+      ansible.builtin.shell: |
+        docker exec 130-haproxy-1 socat stdio /tmp/haproxy.sock <<< "show stat" | awk -F',' -v srv="{{ srv }}" '$1=="app_nodes" && $2==srv {print $18}'
+      register: node_b_status
+      until: node_b_status.stdout == "UP"
+      retries: 15
+      delay: 2
+      changed_when: false
+
+# ------------------------------------------------------------------------------
+# PHASE 3: Post-Deployment Verification & Ingress Smoke Gate
+# ------------------------------------------------------------------------------
+- name: Post-Deployment Smoke Verification Gate
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: "4.1 Verify Ingress Health Check (/healthz)"
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:8085/healthz"
+        status_code: 200
+      register: healthz_res
+      retries: 5
+      delay: 2
+
+    - name: "4.2 Verify Tablet Advisory Core Endpoint"
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:8085/api/v1/advisories"
+        status_code: 200
+      register: advisory_res
+      retries: 5
+      delay: 2
+
+    - name: "4.3 Verify Cluster Balanced Distribution in HAProxy"
+      ansible.builtin.shell: |
+        docker exec 130-haproxy-1 socat stdio /tmp/haproxy.sock <<< "show stat" | awk -F',' '$1=="app_nodes" && ($2=="web-1" || $2=="web-2") {print $2 ": Status=" $18 ", TotalReqs=" $8}'
+      register: cluster_final_status
+      changed_when: false
+
+    - name: "4.4 Display Deployment Summary"
+      ansible.builtin.debug:
+        msg:
+          - "🎉 ZERO-DOWNTIME ROLLING DEPLOYMENT COMPLETED SUCCESSFULLY!"
+          - "Cluster Status: {{ cluster_final_status.stdout_lines }}"
+          - "All Health Endpoints: HTTP 200 OK"

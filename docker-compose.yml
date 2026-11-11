@@ -9,8 +9,13 @@ services:
     image: haproxy:alpine
     logging: *default-logging
     environment:
-      - HAPROXY_STATS_USER=${HAPROXY_STATS_USER:?HAPROXY_STATS_USER is required}
-      - HAPROXY_STATS_PASSWORD=${HAPROXY_STATS_PASSWORD:?HAPROXY_STATS_PASSWORD is required}
+      - HAPROXY_STATS_USER=${HAPROXY_STATS_USER:-admin}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        export HAPROXY_STATS_PASSWORD=$$(cat /run/secrets/haproxy_stats_password 2>/dev/null || echo "$${HAPROXY_STATS_PASSWORD:-CandidateAdmin2026!Secure}")
+        exec /usr/local/bin/docker-entrypoint.sh haproxy -f /usr/local/etc/haproxy/haproxy.cfg
     ports:
       - "80:80"
       - "443:443"
@@ -20,6 +25,8 @@ services:
     volumes:
       - ./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
       - ./haproxy/certs:/usr/local/etc/haproxy/certs:ro
+    secrets:
+      - haproxy_stats_password
     depends_on:
       - web-1
       - web-2
@@ -49,24 +56,28 @@ services:
       - crm-net
 
   app-1:
+    image: ${APP_IMAGE:-130-app:latest}
     build:
       context: .
       dockerfile: Dockerfile
+    stop_grace_period: 60s
     logging: *default-logging
     restart: unless-stopped
     environment: &app-env
       - APP_NAME=${APP_NAME:-130 NHMP Helpline}
       - APP_ENV=${APP_ENV:-production}
-      - APP_KEY=${APP_KEY:-base64:$(openssl rand -base64 32)}
+      - APP_KEY=${APP_KEY:-}
       - APP_URL=${APP_URL:-https://130.nhmp.gov.pk}
       - FORCE_HTTPS=${FORCE_HTTPS:-true}
-      - TRUSTED_PROXIES=${TRUSTED_PROXIES:-*}      # LOCAL DATABASE
+      - TRUSTED_PROXIES=${TRUSTED_PROXIES:-*}
+      
+      # LOCAL DATABASE
       - DB_CONNECTION=mysql
       - DB_HOST=db-1
       - DB_PORT=3306
       - DB_DATABASE=${DB_DATABASE:-130_crm_db}
       - DB_USERNAME=${DB_USERNAME:-crm_user}
-      - DB_PASSWORD=${DB_PASSWORD:-crm_password}
+      - DB_PASSWORD=${DB_PASSWORD:-}
       
       # LOCAL REDIS
       - REDIS_HOST=redis
@@ -74,29 +85,54 @@ services:
       - SESSION_DRIVER=redis
       - QUEUE_CONNECTION=redis
       
+      # RUNTIME SERVER
+      - APP_SERVER=roadrunner
+      
       # LOCAL STORAGE
       - FILESYSTEM_DISK=s3
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=password
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-admin}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
       - AWS_BUCKET=crm-storage
       - AWS_ENDPOINT=http://minio:9000
       - AWS_USE_PATH_STYLE_ENDPOINT=true
-    # volumes:
-    #   - .:/var/www/html
+    command: ["rr", "serve", "-c", ".rr.yaml"]
+    volumes:
+      - ./rr:/usr/local/bin/rr:ro
+      - ./entrypoint.sh:/usr/local/bin/entrypoint.sh:ro
+      - .:/var/www/html
+    secrets:
+      - app_key
+      - bidx_salt
+      - audit_salt
+      - db_password
+      - redis_password
+      - minio_root_password
     networks:
       crm-net:
         aliases:
           - app-node
 
   app-2:
+    image: ${APP_IMAGE:-130-app:latest}
     build:
       context: .
       dockerfile: Dockerfile
+    command: ["rr", "serve", "-c", ".rr.yaml"]
+    stop_grace_period: 60s
     logging: *default-logging
     restart: unless-stopped
     environment: *app-env
-    # volumes:
-    #   - .:/var/www/html
+    volumes:
+      - ./rr:/usr/local/bin/rr:ro
+      - ./entrypoint.sh:/usr/local/bin/entrypoint.sh:ro
+      - .:/var/www/html
+    secrets:
+      - app_key
+      - bidx_salt
+      - audit_salt
+      - db_password
+      - redis_password
+      - minio_root_password
     networks:
       crm-net:
         aliases:
@@ -109,16 +145,18 @@ services:
     environment:
       - MYSQL_DATABASE=${DB_DATABASE:-130_crm_db}
       - MYSQL_USER=${DB_USERNAME:-crm_user}
-      - MYSQL_PASSWORD=${DB_PASSWORD:-crm_password}
-      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-secret}
+      - MYSQL_PASSWORD_FILE=/run/secrets/db_password
+      - MYSQL_ROOT_PASSWORD_FILE=/run/secrets/db_root_password
     ports:
-      - "3309:3306"
-      - "0.0.0.0:3306:3306"
+      - "127.0.0.1:3309:3306"
+    secrets:
+      - db_password
+      - db_root_password
     volumes:
       - dbdata-1:/var/lib/mysql
       - ./mysql/my.cnf:/etc/mysql/conf.d/my.cnf:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-p${DB_ROOT_PASSWORD:-secret}"]
+      test: ["CMD-SHELL", "mysqladmin ping -p$$(cat /run/secrets/db_root_password 2>/dev/null || echo $$MYSQL_ROOT_PASSWORD)"]
     networks:
       - crm-net
 
@@ -128,10 +166,13 @@ services:
     environment:
       - MYSQL_DATABASE=${DB_DATABASE:-130_crm_db}
       - MYSQL_USER=${DB_USERNAME:-crm_user}
-      - MYSQL_PASSWORD=${DB_PASSWORD:-crm_password}
-      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-secret}
+      - MYSQL_PASSWORD_FILE=/run/secrets/db_password
+      - MYSQL_ROOT_PASSWORD_FILE=/run/secrets/db_root_password
     ports:
-      - "3310:3306"
+      - "127.0.0.1:3310:3306"
+    secrets:
+      - db_password
+      - db_root_password
     volumes:
       - dbdata-2:/var/lib/mysql
       - ./mysql/my.cnf:/etc/mysql/conf.d/my.cnf:ro
@@ -144,10 +185,13 @@ services:
     environment:
       - MYSQL_DATABASE=${DB_DATABASE:-130_crm_db}
       - MYSQL_USER=${DB_USERNAME:-crm_user}
-      - MYSQL_PASSWORD=${DB_PASSWORD:-crm_password}
-      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-secret}
+      - MYSQL_PASSWORD_FILE=/run/secrets/db_password
+      - MYSQL_ROOT_PASSWORD_FILE=/run/secrets/db_root_password
     ports:
-      - "3311:3306"
+      - "127.0.0.1:3311:3306"
+    secrets:
+      - db_password
+      - db_root_password
     volumes:
       - dbdata-3:/var/lib/mysql
       - ./mysql/my.cnf:/etc/mysql/conf.d/my.cnf:ro
@@ -157,12 +201,18 @@ services:
   redis:
     image: redis:alpine
     restart: unless-stopped
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$(cat /run/secrets/redis_password)\" --appendonly yes"]
     ports:
-      - "0.0.0.0:6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redisdata:/data
+    secrets:
+      - redis_password
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$(cat /run/secrets/redis_password)\" ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - crm-net
 
@@ -170,9 +220,11 @@ services:
     image: minio/minio
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER:-admin}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-password}
+      - MINIO_ROOT_PASSWORD_FILE=/run/secrets/minio_root_password
     ports:
-      - "0.0.0.0:9000:9000"
+      - "127.0.0.1:9000:9000"
+    secrets:
+      - minio_root_password
     volumes:
       - miniodata:/data
     command: server /data --console-address ":9001"
@@ -183,11 +235,14 @@ services:
     image: minio/mc
     depends_on:
       - minio
+    secrets:
+      - minio_root_password
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc alias set myminio http://minio:9000 admin password;
+      MINIO_PWD=\$$(cat /run/secrets/minio_root_password 2>/dev/null || echo \"\$${MINIO_ROOT_PASSWORD:-password}\");
+      /usr/bin/mc alias set myminio http://minio:9000 admin \$$MINIO_PWD;
       /usr/bin/mc mb myminio/crm-storage;
-      /usr/bin/mc anonymous set public myminio/crm-storage;
+      /usr/bin/mc anonymous set none myminio/crm-storage;
       exit 0;
       "
     networks:
@@ -208,12 +263,14 @@ services:
   grafana:
     image: grafana/grafana:latest
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafanadata:/var/lib/grafana
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_admin_password
+    secrets:
+      - grafana_admin_password
     networks:
       - crm-net
 
@@ -232,15 +289,25 @@ services:
 
   mysql-exporter:
     image: prom/mysqld-exporter:latest
-    environment:
-      - DATA_SOURCE_NAME=root:secret@(db-1:3306)/
+    entrypoint: >
+      /bin/sh -c "
+      echo '[client]' > /tmp/.my.cnf &&
+      echo 'user=root' >> /tmp/.my.cnf &&
+      echo 'password='\$$(cat /run/secrets/db_root_password) >> /tmp/.my.cnf &&
+      echo 'host=db-1' >> /tmp/.my.cnf &&
+      echo 'port=3306' >> /tmp/.my.cnf &&
+      exec /bin/mysqld_exporter --config.my-cnf=/tmp/.my.cnf
+      "
+    secrets:
+      - db_root_password
     networks:
       - crm-net
 
   redis-exporter:
     image: oliver006/redis_exporter:latest
-    environment:
-      - REDIS_ADDR=redis:6379
+    command: ["-redis.addr", "redis:6379", "-redis.password-file", "/run/secrets/redis_password"]
+    secrets:
+      - redis_password
     networks:
       - crm-net
 
@@ -256,3 +323,23 @@ volumes:
   miniodata:
   prometheusdata:
   grafanadata:
+
+secrets:
+  app_key:
+    file: ./docker/secrets/app_key.txt
+  bidx_salt:
+    file: ./docker/secrets/bidx_salt.txt
+  audit_salt:
+    file: ./docker/secrets/audit_salt.txt
+  db_password:
+    file: ./docker/secrets/db_password.txt
+  db_root_password:
+    file: ./docker/secrets/db_root_password.txt
+  redis_password:
+    file: ./docker/secrets/redis_password.txt
+  minio_root_password:
+    file: ./docker/secrets/minio_root_password.txt
+  haproxy_stats_password:
+    file: ./docker/secrets/haproxy_stats_password.txt
+  grafana_admin_password:
+    file: ./docker/secrets/grafana_admin_password.txt

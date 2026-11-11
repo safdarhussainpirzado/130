@@ -90,6 +90,9 @@ opcache.revalidate_freq=2\n\
 opcache.interned_strings_buffer=16\n\
 opcache.fast_shutdown=1" > /usr/local/etc/php/conf.d/docker-php-ext-opcache.ini
 
+# Copy NCERT Security Hardening Configuration (NCA-19.211026)
+COPY docker/php/security.ini /usr/local/etc/php/conf.d/security.ini
+
 # Copy application files with correct ownership
 COPY --chown=www-data:www-data . .
 COPY --from=vendor --chown=www-data:www-data /app/vendor/ vendor/
@@ -100,8 +103,13 @@ COPY --from=assets --chown=www-data:www-data /app/public/build /var/www/build_ca
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
+# Copy RoadRunner binary to PATH
+COPY --chown=www-data:www-data rr /usr/local/bin/rr
+RUN chmod +x /usr/local/bin/rr 2>/dev/null || true
+
 # User Permissions switch safely
 USER www-data
-EXPOSE 9000
+EXPOSE 8000
+STOPSIGNAL SIGTERM
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["php-fpm"]
+CMD ["rr", "serve", "-c", ".rr.yaml"]

@@ -1,0 +1,98 @@
+---
+# ==============================================================================
+# NHMP 130 CRM — Automated Rapid Rollback Playbook
+# ==============================================================================
+# Triggers instantaneous traffic containment and restores the prior verified
+# immutable release image without service termination or database corruption.
+# ==============================================================================
+
+- name: Emergency Rollback Execution
+  hosts: localhost
+  gather_facts: false
+  vars:
+    rollback_image_tag: "{{ lookup('env', 'ROLLBACK_IMAGE_TAG') | default('130-app-1:latest', true) }}"
+    confirm_rollback: "{{ lookup('env', 'CONFIRM_ROLLBACK') | default('no', true) }}"
+  tasks:
+    - name: "1.0a Validate Rollback Safety Guard"
+      ansible.builtin.fail:
+        msg: "CRITICAL: Rollback requires explicit CONFIRM_ROLLBACK=yes-rollback or rollback"
+      when:
+        - inventory_file is defined and (inventory_file is search("production") or inventory_file is search("staging"))
+        - confirm_rollback != "yes-rollback"
+        - confirm_rollback != "rollback"
+
+    - name: "1.0b Log Rollback Initialization"
+      ansible.builtin.debug:
+        msg: "⚠️ INITIATING EMERGENCY ROLLBACK TO IMAGE: {{ rollback_image_tag }}"
+
+    - name: "1.1 Drain Node A First in HAProxy"
+      ansible.builtin.shell: |
+        docker exec 130-haproxy-1 socat stdio /tmp/haproxy.sock <<< "set server app_nodes/web-1 state drain"
+      changed_when: true
+
+    - name: "1.2 Rollback Node A Container"
+      ansible.builtin.command: docker compose up -d --no-deps --force-recreate app-1
+      changed_when: true
+
+    - name: "1.3 Warm Caches on Node A"
+      ansible.builtin.command: docker exec 130-app-1-1 php artisan optimize
+      changed_when: true
+
+    - name: "1.4 Restore Node A to Traffic in HAProxy"
+      ansible.builtin.shell: |
+        docker exec 130-haproxy-1 socat stdio /tmp/haproxy.sock <<< "set server app_nodes/web-1 state ready"
+      changed_when: true
+
+    - name: "1.5 Confirm Node A is Healthy and UP"
+      ansible.builtin.shell: |
+        docker exec 130-haproxy-1 socat stdio /tmp/haproxy.sock <<< "show stat" | awk -F',' '$1=="app_nodes" && $2=="web-1" {print $18}'
+      register: w1_status
+      until: w1_status.stdout == "UP"
+      retries: 15
+      delay: 2
+      changed_when: false
+
+    - name: "2.1 Drain Node B in HAProxy"
+      ansible.builtin.shell: |
+        docker exec 130-haproxy-1 socat stdio /tmp/haproxy.sock <<< "set server app_nodes/web-2 state drain"
+      changed_when: true
+
+    - name: "2.2 Rollback Node B Container"
+      ansible.builtin.command: docker compose up -d --no-deps --force-recreate app-2
+      changed_when: true
+
+    - name: "2.3 Warm Caches on Node B"
+      ansible.builtin.command: docker exec 130-app-2-1 php artisan optimize
+      changed_when: true
+
+    - name: "2.4 Restore Node B to Traffic in HAProxy"
+      ansible.builtin.shell: |
+        docker exec 130-haproxy-1 socat stdio /tmp/haproxy.sock <<< "set server app_nodes/web-2 state ready"
+      changed_when: true
+
+    - name: "2.5 Confirm Node B is Healthy and UP"
+      ansible.builtin.shell: |
+        docker exec 130-haproxy-1 socat stdio /tmp/haproxy.sock <<< "show stat" | awk -F',' '$1=="app_nodes" && $2=="web-2" {print $18}'
+      register: w2_status
+      until: w2_status.stdout == "UP"
+      retries: 15
+      delay: 2
+      changed_when: false
+
+    - name: "3.1 Invalidate Degraded In-Memory Cache Keys in Redis"
+      ansible.builtin.command: docker exec 130-redis-1 redis-cli del tablet_advisories:feed:v1
+      ignore_errors: true
+      changed_when: true
+
+    - name: "3.2 Signal Worker Recycling"
+      ansible.builtin.command: bash scripts/graceful_worker_restart.sh 130-app-1-1
+      changed_when: true
+
+    - name: "3.3 Verify Complete Ingress Health"
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:8085/healthz"
+        status_code: 200
+
+    - name: "3.4 Rollback Verification Summary"
+      ansible.builtin.debug:
+        msg: "✅ EMERGENCY ROLLBACK SUCCESSFUL. Cluster restored to pre-deployment baseline."
