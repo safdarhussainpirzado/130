@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*');
         $middleware->alias([
+            'hamsafar.access' => \App\Http\Middleware\EnsureHamsafarAccess::class,
             'mfa.fresh' => \App\Http\Middleware\RequireFreshMfa::class,
         ]);
         $middleware->priority([

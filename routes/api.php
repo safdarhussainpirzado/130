@@ -127,7 +127,7 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->prefix('v1')->group(funct
     });
 
     // Patrol Officer Identity & Screen 02 Duty Setup
-    Route::prefix('patrol')->group(function () {
+    Route::prefix('patrol')->middleware('hamsafar.access:field')->group(function () {
         Route::get('/me', [\App\Http\Controllers\Api\V1\PatrolAuthController::class, 'me'])
             ->name('api.v1.patrol.me');
 
@@ -156,20 +156,28 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->prefix('v1')->group(funct
     // ==========================================================================
     Route::prefix('cases')->group(function () {
         Route::get('/{uuid}', [\App\Http\Controllers\Api\V1\PatrolCaseController::class, 'show'])
+            ->middleware('hamsafar.access:field')
             ->name('api.v1.cases.show');
         Route::post('/{uuid}/acknowledge', [\App\Http\Controllers\Api\V1\PatrolCaseController::class, 'acknowledge'])
+            ->middleware('hamsafar.access:field')
             ->name('api.v1.cases.acknowledge');
         Route::post('/{uuid}/cannot-respond', [\App\Http\Controllers\Api\V1\PatrolCaseController::class, 'cannotRespond'])
+            ->middleware('hamsafar.access:field')
             ->name('api.v1.cases.cannot-respond');
         Route::post('/{uuid}/start-response', [\App\Http\Controllers\Api\V1\PatrolCaseController::class, 'startResponse'])
+            ->middleware('hamsafar.access:field')
             ->name('api.v1.cases.start-response');
         Route::post('/{uuid}/mark-arrived', [\App\Http\Controllers\Api\V1\PatrolCaseController::class, 'markArrived'])
+            ->middleware('hamsafar.access:field')
             ->name('api.v1.cases.mark-arrived');
         Route::post('/{uuid}/request-support', [\App\Http\Controllers\Api\V1\PatrolCaseController::class, 'requestSupport'])
+            ->middleware('hamsafar.access:field')
             ->name('api.v1.cases.request-support');
         Route::post('/{uuid}/complete-assistance', [\App\Http\Controllers\Api\V1\PatrolCaseController::class, 'completeAssistance'])
+            ->middleware('hamsafar.access:field')
             ->name('api.v1.cases.complete-assistance');
         Route::post('/{uuid}/close-and-release', [\App\Http\Controllers\Api\V1\PatrolCaseController::class, 'closeAndRelease'])
+            ->middleware('hamsafar.access:field')
             ->name('api.v1.cases.close-and-release');
 
         // Screen 08/09: Live Assigned Patrol Tracking
@@ -210,6 +218,7 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->prefix('v1')->group(funct
         Route::post('/{uuid}/safe-arrival', [\App\Http\Controllers\Api\V1\WomensJourneyController::class, 'confirmSafeArrival'])
             ->name('api.v1.womens-journey.safe-arrival');
         Route::get('/desk-queue', [\App\Http\Controllers\Api\V1\WomensJourneyController::class, 'deskQueue'])
+            ->middleware('hamsafar.access:desk')
             ->name('api.v1.womens-journey.desk-queue');
     });
 });
