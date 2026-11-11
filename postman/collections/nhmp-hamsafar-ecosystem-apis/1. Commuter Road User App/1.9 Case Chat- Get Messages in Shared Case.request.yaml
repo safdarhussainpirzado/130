@@ -1,0 +1,12 @@
+$kind: http-request
+name: "1.9 Case Chat: Get Messages in Shared Case"
+description: "Screen 09/10: Retrieves messages in shared case conversation."
+url: "{{base_url}}/api/v1/cases/{{case_uuid}}/messages"
+method: GET
+headers:
+  Accept: application/json
+auth:
+  type: bearer
+  credentials:
+    token: "{{commuter_token}}"
+order: 9000

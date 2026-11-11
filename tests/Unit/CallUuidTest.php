@@ -45,27 +45,39 @@ class CallUuidTest extends TestCase
     }
 
     /**
-     * Test that resolveRouteBinding works with both UUIDv7 and legacy ID.
+     * Test that resolveRouteBinding strictly enforces UUIDv7 and rejects integer ID probing with 404.
      */
-    public function test_resolve_route_binding_supports_uuid_and_id(): void
+    public function test_resolve_route_binding_strictly_enforces_uuid_and_blocks_integer_id(): void
     {
-        $call = Call::first();
+        try {
+            $call = Call::first();
+        } catch (\Throwable $e) {
+            $this->markTestSkipped('Database not available for route binding integration check: ' . $e->getMessage());
+        }
+
         if (! $call) {
             $this->markTestSkipped('No call record found in test database.');
         }
 
         $model = new Call;
 
-        // 1. Resolve by UUID (if assigned)
+        // 1. Resolve by canonical UUID
         if (! empty($call->uuid)) {
             $resolvedByUuid = $model->resolveRouteBinding($call->uuid);
             $this->assertNotNull($resolvedByUuid);
             $this->assertEquals($call->id, $resolvedByUuid->id);
         }
 
-        // 2. Resolve by legacy integer ID
-        $resolvedById = $model->resolveRouteBinding((string) $call->id);
-        $this->assertNotNull($resolvedById);
-        $this->assertEquals($call->id, $resolvedById->id);
+        // 2. Reject integer ID probing: Must abort with 404 Not Found to prevent IDOR / enumeration
+        $integerId = (string) $call->id;
+        $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+        $this->expectExceptionMessage('Call record not found.');
+
+        try {
+            $model->resolveRouteBinding($integerId);
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            $this->assertEquals(404, $e->getStatusCode());
+            throw $e;
+        }
     }
 }

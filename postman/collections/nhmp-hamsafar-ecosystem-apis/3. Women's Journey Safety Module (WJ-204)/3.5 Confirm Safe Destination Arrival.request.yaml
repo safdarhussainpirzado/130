@@ -1,0 +1,18 @@
+$kind: http-request
+description: "Screen W12/W13: Safely concludes journey and terminates location sharing."
+url: "{{base_url}}/api/v1/womens-journey/{{journey_uuid}}/safe-arrival"
+method: POST
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "arrival_stop": "Thokar Niaz Baig Terminal, Lahore"
+    }
+auth:
+  type: bearer
+  credentials:
+    token: "{{commuter_token}}"
+order: 5000

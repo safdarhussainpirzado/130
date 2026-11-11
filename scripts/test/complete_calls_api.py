@@ -40,6 +40,7 @@ def login_master(base_url: str):
     if res.status_code not in (200, 302):
         raise RuntimeError(f"Login failed: HTTP {res.status_code}")
 
+    s.headers["Accept"] = "text/html"
     csrf = get_token(s, f"{base_url}/calls")
     auth_cookies = s.cookies.get_dict()
     auth_headers = {

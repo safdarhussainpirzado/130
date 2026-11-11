@@ -1,0 +1,11 @@
+$kind: http-request
+description: Dedicated monitoring queue for 130 Control Room Female Operators.
+url: "{{base_url}}/api/v1/womens-journey/desk-queue"
+method: GET
+headers:
+  Accept: application/json
+auth:
+  type: bearer
+  credentials:
+    token: "{{staff_token}}"
+order: 6000

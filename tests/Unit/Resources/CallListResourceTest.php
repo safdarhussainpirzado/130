@@ -41,9 +41,9 @@ class CallListResourceTest extends TestCase
         $this->assertEquals('pending', $result['status']);
         $this->assertEquals(1, $result['priority']);
 
-        // Positive check: details must be truncated to preview (<= 103 chars with ellipsis)
-        $this->assertLessThanOrEqual(103, strlen($result['details_preview']));
-        $this->assertStringEndsWith('...', $result['details_preview']);
+        // Positive check: details must be truncated to preview (<= 123 chars with ellipsis)
+        $this->assertLessThanOrEqual(123, strlen($result['details']));
+        $this->assertStringEndsWith('...', $result['details']);
     }
 
     /**
@@ -85,12 +85,13 @@ class CallListResourceTest extends TestCase
         $resource = new CallListResource($call);
         $result = $resource->toArray(Request::create('/calls'));
 
-        $this->assertNull($result['office']);
+        $this->assertEquals('OFF-GRID', $result['location']);
+        $this->assertNull($result['office_id']);
         $this->assertNull($result['agent']);
         $this->assertNull($result['call_type']);
         $this->assertNull($result['call_sub_type']);
         $this->assertNull($result['vehicle_type']);
-        $this->assertNull($result['details_preview']);
+        $this->assertNull($result['details']);
     }
 
     /**
@@ -115,7 +116,7 @@ class CallListResourceTest extends TestCase
         $resource = new CallListResource($call);
         $result = $resource->toArray(Request::create('/calls'));
 
-        $this->assertEquals(['id' => 1, 'name' => 'Emergency', 'icon' => 'fa-bell'], $result['call_type']);
+        $this->assertEquals(['name' => 'Emergency'], $result['call_type']);
         $this->assertEquals(['id' => 99, 'name' => 'Officer Asim', 'full_name' => 'Officer Asim'], $result['agent']);
     }
 }

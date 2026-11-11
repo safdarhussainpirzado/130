@@ -1,0 +1,12 @@
+$kind: http-request
+name: "2.10 Cases: Screen 06 Acknowledge Assignment"
+description: "Screen 06: Officer accepts responsibility. Sets case status to acknowledged."
+url: "{{base_url}}/api/v1/cases/{{case_uuid}}/acknowledge"
+method: POST
+headers:
+  Accept: application/json
+auth:
+  type: bearer
+  credentials:
+    token: "{{staff_token}}"
+order: 10000

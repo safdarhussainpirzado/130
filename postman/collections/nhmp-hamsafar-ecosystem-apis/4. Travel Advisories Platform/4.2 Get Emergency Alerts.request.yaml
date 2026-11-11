@@ -1,0 +1,7 @@
+$kind: http-request
+description: Active critical travel and fog emergency alerts.
+url: "{{base_url}}/api/v1/advisories/emergency-alerts"
+method: GET
+headers:
+  Accept: application/json
+order: 2000

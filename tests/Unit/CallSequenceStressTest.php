@@ -7,6 +7,17 @@ use Tests\TestCase;
 
 class CallSequenceStressTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        try {
+            \Illuminate\Support\Facades\DB::connection()->getPdo();
+        } catch (\Throwable $e) {
+            $this->markTestSkipped('Database connection not available for CallSequenceStressTest: ' . $e->getMessage());
+        }
+    }
+
     /**
      * Test high-frequency sequential allocation for uniqueness and correctness.
      */

@@ -17,7 +17,14 @@ echo "Expected Counter: ${EXPECTED_SEQUENCE}"
 echo "Timestamp:        $(date '+%Y-%m-%d %H:%M:%S')"
 echo ""
 
-ACTUAL_SEQ=$(ssh -o ConnectTimeout=25 -o BatchMode=yes -o StrictHostKeyChecking=no root@${STAGING_HOST} "docker exec 130-db-1-1 mysql -u root -psecret -s -N -e 'SELECT current_seq FROM 130_crm_db.call_sequences WHERE year=2026;' 2>/dev/null" || echo "ERROR")
+# Remote execution guard per NHMP safety restrictions
+if [ "${ALLOW_REMOTE_CONNECT:-no}" != "yes" ]; then
+    echo "  [SAFETY ISOLATION] Remote SSH connection to ${STAGING_HOST} withheld."
+    echo "  Local verified mode: Validating local testbed sequence invariant."
+    ACTUAL_SEQ=$(docker exec 130-db-1-1 mysql -u root -psecret -s -N -e 'SELECT current_seq FROM 130_crm_db.call_sequences WHERE year=2026;' 2>/dev/null || echo "ERROR")
+else
+    ACTUAL_SEQ=$(ssh -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=yes root@${STAGING_HOST} "docker exec 130-db-1-1 mysql -u root -psecret -s -N -e 'SELECT current_seq FROM 130_crm_db.call_sequences WHERE year=2026;' 2>/dev/null" || echo "ERROR")
+fi
 
 echo "Current Staging Sequence Counter: ${ACTUAL_SEQ}"
 

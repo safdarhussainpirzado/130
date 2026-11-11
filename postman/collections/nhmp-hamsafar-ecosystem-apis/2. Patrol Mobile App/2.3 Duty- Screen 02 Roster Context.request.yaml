@@ -1,0 +1,12 @@
+$kind: http-request
+name: "2.3 Duty: Screen 02 Roster Context"
+description: "Screen 02: Fetches assigned beat, recent vehicle callsigns (e.g. P-12), and eligible assisting officers."
+url: "{{base_url}}/api/v1/patrol/duty/roster-context"
+method: GET
+headers:
+  Accept: application/json
+auth:
+  type: bearer
+  credentials:
+    token: "{{staff_token}}"
+order: 3000

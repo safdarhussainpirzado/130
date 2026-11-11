@@ -1,0 +1,28 @@
+$kind: http-request
+name: "2.1 Auth: Official Tactical Login"
+description: "Screen 01: Tactical sign-in for patrolling police staff."
+url: "{{base_url}}/api/v1/auth/patrol/login"
+method: POST
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "username": "{{patrol_username}}",
+      "password": "{{patrol_password}}",
+      "device_uuid": "android_tab_p12_official"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      if (pm.response.code === 200) {
+          var json = pm.response.json();
+          if (json.access_token) {
+              pm.environment.set('staff_token', json.access_token);
+              console.log('Staff Token saved to environment.');
+          }
+      }
+    language: text/javascript
+order: 1000

@@ -1,0 +1,35 @@
+$kind: http-request
+name: "2.4 Duty: Screen 02 Start Duty (P-12 Callsign Binding)"
+description: "Screen 02: Mandatory duty check-in. Binds vehicle callsign P-12, sets status to AVAILABLE."
+url: "{{base_url}}/api/v1/patrol/duty/start"
+method: POST
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "vehicle_callsign": "P-12",
+      "vehicle_reg_no": "NHMP-8821",
+      "beat_office_id": 1,
+      "assisting_officer_id": null,
+      "initial_latitude": 32.78214,
+      "initial_longitude": 72.70512
+    }
+auth:
+  type: bearer
+  credentials:
+    token: "{{staff_token}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      if (pm.response.code === 200 || pm.response.code === 201) {
+          var json = pm.response.json();
+          if (json.duty_session_id) {
+              pm.environment.set('duty_session_id', json.duty_session_id);
+              console.log('Duty Session ID saved: ' + json.duty_session_id);
+          }
+      }
+    language: text/javascript
+order: 4000

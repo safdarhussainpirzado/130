@@ -1,0 +1,9 @@
+# Use this workspace to collaborate
+workspace:
+  id: 64dcd8d8-3595-486e-90d9-6fc73f05cbaa
+
+localResources:
+  collections:
+    - ../public/postman/hamsafar_v1_postman_collection.json
+  environments:
+    - ../public/postman/hamsafar_v1_postman_environment.json

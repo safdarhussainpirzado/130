@@ -1,0 +1,20 @@
+$kind: http-request
+name: "2.14 Cases: Screen 12 Request Support / Handover"
+description: "Screen 12: Requests backup/crane without abandoning case."
+url: "{{base_url}}/api/v1/cases/{{case_uuid}}/request-support"
+method: POST
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "support_type": "recovery_crane",
+      "internal_note": "Heavy axle damage requires hydraulic lift recovery crane."
+    }
+auth:
+  type: bearer
+  credentials:
+    token: "{{staff_token}}"
+order: 14000

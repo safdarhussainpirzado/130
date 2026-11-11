@@ -1,0 +1,12 @@
+$kind: http-request
+name: "2.12 Cases: Screen 08 Start Response (Patrol En-Route)"
+description: "Screen 08: Patrol is moving to scene. Status becomes in_progress; unlocks live tracking."
+url: "{{base_url}}/api/v1/cases/{{case_uuid}}/start-response"
+method: POST
+headers:
+  Accept: application/json
+auth:
+  type: bearer
+  credentials:
+    token: "{{staff_token}}"
+order: 12000
