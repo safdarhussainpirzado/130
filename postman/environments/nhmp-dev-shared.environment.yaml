@@ -1,0 +1,6 @@
+name: NHMP Dev Shared Gateway (public travel-advisory APIs only)
+values:
+  - key: base_url
+    value: "http://192.168.137.196:8480"
+    enabled: true
+    type: default
