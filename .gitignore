@@ -49,3 +49,8 @@ scratch/
 /docker/secrets/
 *.key
 .nhmp_backup_key
+
+# Never track private keys, certificates or DB dumps
+/haproxy/certs/*.pem
+/sedVmV4qw
+*.pem
