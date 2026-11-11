@@ -7,6 +7,7 @@ use App\Services\TwoFactor\MfaPolicyResolver;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Symfony\Component\HttpFoundation\Response;
 
 class TwoFactorEnforcement
@@ -33,6 +34,8 @@ class TwoFactorEnforcement
         'password.store',
         'password.expired',
         'password.expired.update',
+        'account.unblock',
+        'account.unblock.verify',
         'logout',
         '2fa.challenge',
         '2fa.challenge.totp',
@@ -51,6 +54,7 @@ class TwoFactorEnforcement
         '2fa.index',
         '2fa.verify',
         '2fa.setup',
+        'public.travel-advisory',
     ];
 
     public function handle(Request $request, Closure $next): Response
@@ -169,9 +173,12 @@ class TwoFactorEnforcement
             $request->session()->put('last_activity_at', now()->timestamp);
         }
 
-        // 8. Role-based MFA Policy Enforcement
-        $mfaResolver = app(MfaPolicyResolver::class);
-        $mfaRequired = $mfaResolver->isMfaRequiredForUser($user);
+        // 8. Role-based MFA Policy Enforcement (Cached for 10 min per user security version)
+        $secVersion = (int) ($user->security_version ?? 1);
+        $mfaCacheKey = "user_mfa_req_{$user->id}_{$secVersion}";
+        $mfaRequired = (bool) Cache::remember($mfaCacheKey, 600, function () use ($user): mixed {
+            return app(MfaPolicyResolver::class)->isMfaRequiredForUser($user);
+        });
         $authMethod = $request->session()->get('auth_method');
 
         // Allow test fixtures using actingAs() without explicit session method metadata
@@ -196,7 +203,7 @@ class TwoFactorEnforcement
 
         // 9. Assurance Level Enforcement: WebAuthn Required for Privileged Accounts
         // A privileged account requiring WebAuthn must never be satisfied by a TOTP-only or password-only session
-        if ($user->requiresWebAuthn() && ! $request->session()->get('recovery_restricted')) {
+        if ($user->requiresWebAuthn() && ! $request->session()->get('recovery_restricted') && !empty($user->mfa_required)) {
             if ($authMethod !== 'webauthn') {
                 Auth::guard('web')->logout();
                 $request->session()->invalidate();

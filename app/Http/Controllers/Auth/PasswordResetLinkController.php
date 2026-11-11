@@ -49,11 +49,12 @@ class PasswordResetLinkController extends Controller
                 ->withErrors(['identifier' => 'No active user account found matching this username or email. Please verify your credentials or contact the duty Operation Manager.']);
         }
 
-        // 1. Super Admin is strictly prohibited from web-based resets
+        // 1. Super Admin is strictly prohibited from web-based resets.
+        // Internal Note: Root access recovery is strictly restricted to server console / SSH infrastructure commands.
         if ($user->role?->name === Role::SUPER_ADMIN) {
             return back()->withInput()
                 ->withErrors([
-                    'identifier' => 'Super Administrator credentials cannot be reset via web requests. Root access recovery is strictly restricted to server console / SSH infrastructure commands.',
+                    'identifier' => 'Password reset is not permitted for this administrative account via web interface. Please contact system support.',
                 ]);
         }
 
@@ -85,14 +86,23 @@ class PasswordResetLinkController extends Controller
             'ip_address'         => $request->ip(),
         ]);
 
+        // Integrate with Unified Support Management Module
+        $supportService = app(\App\Services\Support\AccountSecuritySupportService::class);
+        $supportResult = $supportService->submitPublicPasswordRecovery(
+            $identifier,
+            $request->input('notes')
+        );
+
+        $publicId = $supportResult['public_id'] ?? "REQ-{$resetReq->id}";
+
         if ($isOpManager) {
             return back()->with('status_op_manager', 
-                "Operation Manager reset request [REQ-{$resetReq->id}] dispatched to peer Operation Managers. Please coordinate with an on-duty Operation Manager for peer authorization."
+                "Operation Manager reset request [{$publicId}] dispatched to peer Operation Managers. Please coordinate with an on-duty Operation Manager for peer authorization."
             );
         }
 
         return back()->with('status_operator', 
-            "Password reset request [REQ-{$resetReq->id}] forwarded to Operation Managers. Please contact the Operations Control Room / Duty Operation Manager to verify and receive your credentials."
+            "Password reset request [{$publicId}] forwarded to Operation Managers. Please contact the Operations Control Room / Duty Operation Manager to verify and receive your credentials."
         );
     }
 }

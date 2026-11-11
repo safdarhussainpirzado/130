@@ -61,7 +61,10 @@ class UserScope extends Model
      */
     public function canWrite(): bool
     {
-        return in_array($this->access_level, ['read_write', 'full']);
+        if (isset($this->is_active) && !$this->is_active) {
+            return false;
+        }
+        return in_array($this->access_level, ['read_write', 'full'], true);
     }
 
     /**
@@ -69,6 +72,9 @@ class UserScope extends Model
      */
     public function canDelete(): bool
     {
+        if (isset($this->is_active) && !$this->is_active) {
+            return false;
+        }
         return $this->access_level === 'full';
     }
 }

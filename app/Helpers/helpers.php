@@ -50,3 +50,58 @@ if (!function_exists('priority_badge')) {
         return $badges[$priority] ?? "<span class='px-2.5 py-1 text-[8px] font-black uppercase rounded-lg bg-slate-100'>P{$priority}</span>";
     }
 }
+
+if (!function_exists('docker_secret')) {
+    /**
+     * Resolves a secret from Docker Secrets (/run/secrets/{name}) with local file and env() fallback.
+     */
+    function docker_secret(string $name, mixed $default = null): mixed
+    {
+        $path = "/run/secrets/{$name}";
+        if (file_exists($path) && is_readable($path)) {
+            $val = trim((string) file_get_contents($path));
+            if ($val !== '') {
+                return $val;
+            }
+        }
+
+        // Host / local development fallback: check docker/secrets/{name}.txt
+        $localSecretPath = function_exists('base_path') ? base_path("docker/secrets/{$name}.txt") : (__DIR__ . "/../../docker/secrets/{$name}.txt");
+        if (file_exists($localSecretPath) && is_readable($localSecretPath)) {
+            $val = trim((string) file_get_contents($localSecretPath));
+            if ($val !== '') {
+                return $val;
+            }
+        }
+
+        return env(strtoupper($name), $default);
+    }
+}
+
+if (!function_exists('phone_blind_index')) {
+    /**
+     * Computes a deterministic HMAC-SHA256 blind index for exact phone lookups.
+     * Preserves sub-10ms CTI search speed without exposing raw caller telephone numbers.
+     */
+    function phone_blind_index(?string $phone): ?string
+    {
+        if (empty($phone)) {
+            return null;
+        }
+        $digits = preg_replace('/[^0-9]/', '', (string)$phone);
+        if ($digits === '') {
+            return null;
+        }
+        // Canonicalize Pakistan dialing formats (03XX, +923XX, 00923XX)
+        if (str_starts_with($digits, '0092')) {
+            $digits = '0' . substr($digits, 4);
+        } elseif (str_starts_with($digits, '92') && strlen($digits) === 12) {
+            $digits = '0' . substr($digits, 2);
+        } elseif (strlen($digits) === 10 && !str_starts_with($digits, '0')) {
+            $digits = '0' . $digits;
+        }
+        $salt = (function_exists('app') && app()->has('config')) ? config('app.bidx_salt') : null;
+        $salt = $salt ?: docker_secret('bidx_salt', 'nhmp_130_sec_bidx_default_salt_2026');
+        return hash_hmac('sha256', $digits, $salt);
+    }
+}

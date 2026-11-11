@@ -26,21 +26,29 @@ class MfaRolePolicyController extends Controller
     {
         $this->authorize('viewRoleMfaPolicies', User::class);
 
-        $roles = Role::orderBy('id')->get();
+        $roles = Role::select(['id', 'name', 'display_name', 'scope_level'])->orderBy('id')->get();
         $policies = $this->policyResolver->getAllPoliciesMatrix();
+
+        $activeUserCounts = User::where('is_active', true)
+            ->groupBy('role_id')
+            ->selectRaw('role_id, count(*) as count')
+            ->pluck('count', 'role_id');
+
+        $enrolledUserCounts = User::where('is_active', true)
+            ->where(function ($q) {
+                $q->whereNotNull('totp_secret')
+                  ->orWhereHas('webAuthnCredentials', fn($w) => $w->whereNull('revoked_at'));
+            })
+            ->groupBy('role_id')
+            ->selectRaw('role_id, count(*) as count')
+            ->pluck('count', 'role_id');
 
         $roleData = [];
         foreach ($roles as $role) {
             $policy = $policies[$role->id] ?? null;
 
-            $activeUsersCount = $role->users()->where('is_active', true)->count();
-            $enrolledUsersCount = $role->users()
-                ->where('is_active', true)
-                ->where(function ($q) {
-                    $q->whereNotNull('totp_secret')
-                      ->orWhereHas('webAuthnCredentials', fn($w) => $w->whereNull('revoked_at'));
-                })
-                ->count();
+            $activeUsersCount = (int) ($activeUserCounts[$role->id] ?? 0);
+            $enrolledUsersCount = (int) ($enrolledUserCounts[$role->id] ?? 0);
 
             $unenrolledUsersCount = max(0, $activeUsersCount - $enrolledUsersCount);
             $isEligible = $this->policyResolver->isRoleEligibleForExemption($role);

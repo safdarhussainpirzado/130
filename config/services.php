@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'freeroute' => [
+        'api_key'  => env('FREEROUTE_API_KEY'),
+        'base_url' => env('FREEROUTE_BASE_URL', 'https://api.maps.freeroute.org'),
+        'timeout'  => 30,
+    ],
+
 ];

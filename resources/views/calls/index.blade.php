@@ -6,9 +6,11 @@
 
 @section('content')
 
-<script>
-    window._indexData = {!! json_encode([
-        'items' => $calls->items(),
+<script id="calls-index-data" type="application/json">
+    {!! json_encode([
+        'items' => \App\Http\Resources\CallListResource::collection($calls->items())->resolve(),
+        'per_page' => $calls->perPage(),
+        'current_page' => $calls->currentPage(),
         'last_page' => $calls->lastPage(),
         'total' => $calls->total(),
         'stats' => $stats,
@@ -18,7 +20,11 @@
         'callTypes' => $callTypes,
         'callSubTypes' => $callSubTypes,
         'agents' => $agents,
-        'status' => request('status', 'all'),
+        'assignment' => request('assignment', in_array(request('status'), ['assigned', 'unassigned']) ? request('status') : ''),
+        'status' => in_array(request('status'), ['assigned', 'unassigned']) ? 'all' : request('status', 'all'),
+        'gender' => request('gender', ''),
+        'sort' => request('sort', 'created_at'),
+        'direction' => request('direction', 'desc'),
         'userRole' => auth()->user()->role?->name,
         'userScope' => auth()->user()->activeScopes->map(fn($s) => [
             'type' => $s->office?->type ?? 'national',
@@ -35,7 +41,10 @@
                 'view' => auth()->user()->hasPermission('reports.view'),
             ]
         ]
-    ]) !!};
+    ]) !!}
+</script>
+<script>
+    window._indexData = JSON.parse(document.getElementById('calls-index-data').textContent);
 </script>
 
 <style>
@@ -49,6 +58,26 @@
     @keyframes pulse {
         0%, 100% { opacity: 1; }
         50% { opacity: .5; }
+    }
+    @keyframes pinkEmergencyBlink {
+        0%, 100% {
+            background-color: rgba(255, 241, 242, 0.95);
+            box-shadow: inset 0 0 15px rgba(244, 63, 94, 0.25), 0 0 15px rgba(244, 63, 94, 0.2);
+            border-left-color: #f43f5e;
+        }
+        50% {
+            background-color: rgba(254, 205, 211, 0.65);
+            box-shadow: inset 0 0 25px rgba(225, 29, 72, 0.5), 0 0 25px rgba(225, 29, 72, 0.4);
+            border-left-color: #e11d48;
+        }
+    }
+    .row-women-pending-blink {
+        animation: pinkEmergencyBlink 1.4s ease-in-out infinite !important;
+        border-left: 5px solid #e11d48 !important;
+    }
+    .card-women-pending-blink {
+        animation: pinkEmergencyBlink 1.4s ease-in-out infinite !important;
+        border: 2px solid #f43f5e !important;
     }
     .custom-scrollbar::-webkit-scrollbar {
         height: 8px;
@@ -71,7 +100,7 @@
      class="space-y-6 relative mt-0 max-w-[1700px] mx-auto" 
      x-cloak>
         <!-- Floating Sidebar Toggle -->
-        <button @click="showSidebar = true" 
+        <button @click="showSidebar = true; loadFilterOptions()" 
             x-show="!showSidebar"
             x-transition:enter="transition ease-out duration-500 delay-100"
             x-transition:enter-start="translate-x-full opacity-0"
@@ -81,80 +110,161 @@
             <span style="writing-mode: vertical-rl;" class="text-[9px] font-black uppercase tracking-[0.3em] rotate-180 drop-shadow-md text-blue-50">Help Filters</span>
         </button>
 
-
+        <!-- EMERGENCY WOMEN SAFETY ALERT BANNER -->
+        <div x-show="hasPendingWomen()"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 -translate-y-4"
+             x-transition:enter-end="opacity-100 translate-y-0"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100 translate-y-0"
+             x-transition:leave-end="opacity-0 -translate-y-4"
+             class="bg-gradient-to-r from-rose-600 via-pink-600 to-rose-700 text-white rounded-2xl xl:rounded-3xl p-4 sm:p-5 shadow-[0_15px_35px_rgba(225,29,72,0.35)] border-2 border-rose-400 flex flex-wrap items-center justify-between gap-4 animate-pulse relative overflow-hidden"
+             id="women-emergency-alert-banner">
+            <div class="flex items-center gap-3.5 relative z-10">
+                <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shrink-0 shadow-lg">
+                    <i class="fa-solid fa-person-dress text-2xl text-rose-100 animate-bounce"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-0.5 rounded-full bg-white text-rose-700 text-[10px] font-black tracking-widest uppercase shadow-sm">Critical Attention</span>
+                        <h3 class="text-sm sm:text-base font-black tracking-tight text-white uppercase">
+                            Pending Women Safety Emergency Awaiting Initialization
+                        </h3>
+                    </div>
+                    <p class="text-xs text-rose-100 font-medium mt-0.5">
+                        Continuous pink beacon and voice command alerting beat, sector & zone operators until call is initialized.
+                    </p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2.5 relative z-10">
+                <button @click="toggleAlarmMute()" 
+                        type="button"
+                        class="px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 backdrop-blur-md text-white font-extrabold text-xs flex items-center gap-2 border border-white/30 transition-all cursor-pointer shadow-sm">
+                    <i class="fa-solid" :class="alarmMuted ? 'fa-volume-xmark text-rose-200' : 'fa-volume-high text-emerald-300 animate-pulse'"></i>
+                    <span x-text="alarmMuted ? 'Unmute Audio Alarm' : 'Audio Alarm Active'"></span>
+                </button>
+                <button @click="filterGender = 'female'; filterStatus = 'pending'; page = 1; triggerFetch()" 
+                        type="button"
+                        class="px-4 py-2 rounded-xl bg-white text-rose-700 hover:bg-rose-50 active:scale-95 font-black text-xs shadow-lg transition-all cursor-pointer flex items-center gap-2">
+                    <i class="fa-solid fa-bolt text-rose-600"></i>
+                    <span>Focus Pending Calls</span>
+                </button>
+            </div>
+        </div>
 
         <!-- STATS CARDS -->
-        <!-- STATUS STATS -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-6 pt-6">
-            <div @click="filterStatus = 'all'; filterType = ''; triggerFetch()" :class="filterStatus === 'all' && !filterType ? 'card-3d-active blue' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group">
-                <div class="absolute -top-4 left-6 h-12 w-12 grid place-items-center rounded-xl bg-blue-600 shadow-[0_8px_16px_rgba(37,99,235,0.2)] z-10">
-                    <i class="fa-solid fa-layer-group text-sm text-white"></i>
+        <!-- STATUS STATS — STRICT SINGLE ROW (6 COLUMNS) -->
+        <div class="grid grid-cols-6 gap-2.5 sm:gap-3 xl:gap-4 pt-6 w-full" style="grid-template-columns: repeat(6, minmax(0, 1fr));">
+            <!-- 1. ASSIGNED CALLS CARD -->
+            <div @click="filterAssignment = (filterAssignment === 'assigned' ? '' : 'assigned'); filterStatus = 'all'; page = 1; triggerFetch()" 
+                 :class="filterAssignment === 'assigned' ? 'card-3d-active blue' : ''" 
+                 class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group"
+                 id="btn-filter-assigned">
+                <div class="absolute -top-3 sm:-top-4 left-3 sm:left-6 h-8 w-8 sm:h-10 sm:w-10 xl:h-12 xl:w-12 grid place-items-center rounded-xl bg-blue-600 shadow-[0_8px_16px_rgba(37,99,235,0.2)] z-10">
+                    <i class="fa-solid fa-map-location-dot text-xs sm:text-sm text-white"></i>
                 </div>
-                <div class="p-4 text-right pt-2 relative">
-                    <p class="text-[9px] font-black tracking-widest text-slate-400 uppercase">Total Directory</p>
-                    <div class="flex items-baseline justify-end gap-2 mt-1">
-                        <h4 class="text-3xl font-extrabold text-blue-900" x-text="stats.total"></h4>
+                <div class="p-2.5 sm:p-3 xl:p-4 text-right pt-2 relative">
+                    <p class="text-[8px] sm:text-[9px] font-black tracking-widest text-blue-600 uppercase truncate">Assigned</p>
+                    <div class="flex items-center justify-end gap-1.5 sm:gap-2 mt-1">
+                        <span class="text-[8px] sm:text-[10px] font-black text-white bg-blue-600 px-1.5 sm:px-2 py-0.5 rounded-full shadow-sm shrink-0" x-text="(stats.assigned_percent || 0) + '%'"></span>
+                        <h4 class="text-lg sm:text-2xl xl:text-3xl font-extrabold text-blue-900 truncate" x-text="stats.assigned || 0"></h4>
                     </div>
                 </div>
             </div>
 
-            <div @click="filterStatus = 'pending'; filterType = ''; triggerFetch()" :class="filterStatus === 'pending' ? 'card-3d-active rose' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group">
-                <div class="absolute -top-4 left-6 h-12 w-12 grid place-items-center rounded-xl bg-rose-600 shadow-[0_8px_16px_rgba(225,29,72,0.2)] z-10">
-                    <i class="fa-solid fa-hourglass-start text-sm text-white"></i>
+            <!-- 2. WOMEN SAFETY CARD -->
+            <div @click="filterGender = (filterGender === 'female' ? '' : 'female'); page = 1; triggerFetch()" 
+                 :class="filterGender === 'female' ? 'card-3d-active rose' : ''" 
+                 class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group"
+                 id="btn-filter-women">
+                <div class="absolute -top-3 sm:-top-4 left-3 sm:left-6 h-8 w-8 sm:h-10 sm:w-10 xl:h-12 xl:w-12 grid place-items-center rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 shadow-[0_8px_16px_rgba(244,63,94,0.25)] z-10">
+                    <i class="fa-solid fa-person-dress text-xs sm:text-base text-white"></i>
                 </div>
-                <div class="p-4 text-right pt-2 relative">
-                    <p class="text-[9px] font-black tracking-widest text-rose-500 uppercase">Pending Ops</p>
-                    <div class="flex items-center justify-end gap-2 mt-1">
-                        <span class="text-[10px] font-black text-white bg-rose-600 px-2 py-0.5 rounded-full shadow-sm" x-text="stats.pending_percent + '%'"></span>
-                        <h4 class="text-3xl font-extrabold text-blue-900" x-text="stats.pending"></h4>
+                <div class="p-2.5 sm:p-3 xl:p-4 text-right pt-2 relative">
+                    <p class="text-[8px] sm:text-[9px] font-black tracking-widest text-rose-600 uppercase truncate">Women Safety</p>
+                    <div class="flex items-center justify-end gap-1.5 sm:gap-2 mt-1">
+                        <template x-if="stats.pending_women > 0">
+                            <span class="text-[8px] sm:text-[9px] font-black text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-full animate-pulse shrink-0" x-text="stats.pending_women + ' PENDING'"></span>
+                        </template>
+                        <span class="text-[8px] sm:text-[10px] font-black text-white bg-rose-600 px-1.5 sm:px-2 py-0.5 rounded-full shadow-sm shrink-0" x-text="(stats.women_calls_percent || 0) + '%'"></span>
+                        <h4 class="text-lg sm:text-2xl xl:text-3xl font-extrabold text-blue-900 truncate" x-text="stats.women_calls || 0"></h4>
                     </div>
                 </div>
             </div>
 
-            <div @click="filterStatus = 'in_progress'; filterType = ''; triggerFetch()" :class="filterStatus === 'in_progress' ? 'card-3d-active amber' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group">
-                <div class="absolute -top-4 left-6 h-12 w-12 grid place-items-center rounded-xl bg-amber-500 shadow-[0_8px_16px_rgba(245,158,11,0.2)] z-10">
-                    <i class="fa-solid fa-person-running text-sm text-white"></i>
+            <!-- 3. PENDING OPS CARD -->
+            <div @click="filterStatus = (filterStatus === 'pending' ? 'all' : 'pending'); page = 1; triggerFetch()" 
+                 :class="filterStatus === 'pending' ? 'card-3d-active rose' : ''" 
+                 class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group"
+                 id="btn-filter-pending">
+                <div class="absolute -top-3 sm:-top-4 left-3 sm:left-6 h-8 w-8 sm:h-10 sm:w-10 xl:h-12 xl:w-12 grid place-items-center rounded-xl bg-rose-600 shadow-[0_8px_16px_rgba(225,29,72,0.2)] z-10">
+                    <i class="fa-solid fa-hourglass-start text-xs sm:text-sm text-white"></i>
                 </div>
-                <div class="p-4 text-right pt-2 relative">
-                    <p class="text-[9px] font-black tracking-widest text-amber-500 uppercase">Active Field</p>
-                    <div class="flex items-center justify-end gap-2 mt-1">
-                        <span class="text-[10px] font-black text-white bg-amber-500 px-2 py-0.5 rounded-full shadow-sm" x-text="stats.in_progress_percent + '%'"></span>
-                        <h4 class="text-3xl font-extrabold text-blue-900" x-text="stats.in_progress"></h4>
+                <div class="p-2.5 sm:p-3 xl:p-4 text-right pt-2 relative">
+                    <p class="text-[8px] sm:text-[9px] font-black tracking-widest text-rose-500 uppercase truncate">Pending</p>
+                    <div class="flex items-center justify-end gap-1.5 sm:gap-2 mt-1">
+                        <span class="text-[8px] sm:text-[10px] font-black text-white bg-rose-600 px-1.5 sm:px-2 py-0.5 rounded-full shadow-sm shrink-0" x-text="stats.pending_percent + '%'"></span>
+                        <h4 class="text-lg sm:text-2xl xl:text-3xl font-extrabold text-blue-900 truncate" x-text="stats.pending"></h4>
                     </div>
                 </div>
             </div>
 
-            <div @click="filterStatus = 'tiger_reached'; filterType = ''; triggerFetch()" :class="filterStatus === 'tiger_reached' ? 'card-3d-active sky' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group">
-                <div class="absolute -top-4 left-6 h-12 w-12 grid place-items-center rounded-xl bg-sky-500 shadow-[0_8px_16px_rgba(14,165,233,0.25)] z-10">
-                    <i class="fa-solid fa-location-dot text-sm text-white"></i>
+            <!-- 4. ACTIVE FIELD CARD -->
+            <div @click="filterStatus = (filterStatus === 'in_progress' ? 'all' : 'in_progress'); page = 1; triggerFetch()" 
+                 :class="filterStatus === 'in_progress' ? 'card-3d-active amber' : ''" 
+                 class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group"
+                 id="btn-filter-inprogress">
+                <div class="absolute -top-3 sm:-top-4 left-3 sm:left-6 h-8 w-8 sm:h-10 sm:w-10 xl:h-12 xl:w-12 grid place-items-center rounded-xl bg-amber-500 shadow-[0_8px_16px_rgba(245,158,11,0.2)] z-10">
+                    <i class="fa-solid fa-person-running text-xs sm:text-sm text-white"></i>
                 </div>
-                <div class="p-4 text-right pt-2 relative">
-                    <p class="text-[9px] font-black tracking-widest text-sky-500 uppercase">Tiger Reached</p>
-                    <div class="flex items-center justify-end gap-2 mt-1">
-                        <span class="text-[10px] font-black text-white bg-sky-500 px-2 py-0.5 rounded-full shadow-sm" x-text="stats.tiger_reached_percent + '%'"></span>
-                        <h4 class="text-3xl font-extrabold text-blue-900" x-text="stats.tiger_reached"></h4>
+                <div class="p-2.5 sm:p-3 xl:p-4 text-right pt-2 relative">
+                    <p class="text-[8px] sm:text-[9px] font-black tracking-widest text-amber-500 uppercase truncate">Active Field</p>
+                    <div class="flex items-center justify-end gap-1.5 sm:gap-2 mt-1">
+                        <span class="text-[8px] sm:text-[10px] font-black text-white bg-amber-500 px-1.5 sm:px-2 py-0.5 rounded-full shadow-sm shrink-0" x-text="stats.in_progress_percent + '%'"></span>
+                        <h4 class="text-lg sm:text-2xl xl:text-3xl font-extrabold text-blue-900 truncate" x-text="stats.in_progress"></h4>
                     </div>
                 </div>
             </div>
 
-            <div @click="filterStatus = 'completed'; filterType = ''; triggerFetch()" :class="filterStatus === 'completed' ? 'card-3d-active emerald' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group">
-                <div class="absolute -top-4 left-6 h-12 w-12 grid place-items-center rounded-xl bg-emerald-600 shadow-[0_8px_16px_rgba(16,185,129,0.2)] z-10">
-                    <i class="fa-solid fa-check-double text-sm text-white"></i>
+            <!-- 5. TIGER REACHED CARD -->
+            <div @click="filterStatus = (filterStatus === 'tiger_reached' ? 'all' : 'tiger_reached'); page = 1; triggerFetch()" 
+                 :class="filterStatus === 'tiger_reached' ? 'card-3d-active sky' : ''" 
+                 class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group"
+                 id="btn-filter-tiger">
+                <div class="absolute -top-3 sm:-top-4 left-3 sm:left-6 h-8 w-8 sm:h-10 sm:w-10 xl:h-12 xl:w-12 grid place-items-center rounded-xl bg-sky-500 shadow-[0_8px_16px_rgba(14,165,233,0.25)] z-10">
+                    <i class="fa-solid fa-location-dot text-xs sm:text-sm text-white"></i>
                 </div>
-                <div class="p-4 text-right pt-2 relative">
-                    <p class="text-[9px] font-black tracking-widest text-emerald-500 uppercase">Resolved Units</p>
-                    <div class="flex items-center justify-end gap-2 mt-1">
-                        <span class="text-[10px] font-black text-white bg-emerald-600 px-2 py-0.5 rounded-full shadow-sm" x-text="stats.completed_percent + '%'"></span>
-                        <h4 class="text-3xl font-extrabold text-blue-900" x-text="stats.completed"></h4>
+                <div class="p-2.5 sm:p-3 xl:p-4 text-right pt-2 relative">
+                    <p class="text-[8px] sm:text-[9px] font-black tracking-widest text-sky-500 uppercase truncate">Reached</p>
+                    <div class="flex items-center justify-end gap-1.5 sm:gap-2 mt-1">
+                        <span class="text-[8px] sm:text-[10px] font-black text-white bg-sky-500 px-1.5 sm:px-2 py-0.5 rounded-full shadow-sm shrink-0" x-text="stats.tiger_reached_percent + '%'"></span>
+                        <h4 class="text-lg sm:text-2xl xl:text-3xl font-extrabold text-blue-900 truncate" x-text="stats.tiger_reached"></h4>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6. RESOLVED UNITS CARD -->
+            <div @click="filterStatus = (filterStatus === 'completed' ? 'all' : 'completed'); page = 1; triggerFetch()" 
+                 :class="filterStatus === 'completed' ? 'card-3d-active emerald' : ''" 
+                 class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group"
+                 id="btn-filter-completed">
+                <div class="absolute -top-3 sm:-top-4 left-3 sm:left-6 h-8 w-8 sm:h-10 sm:w-10 xl:h-12 xl:w-12 grid place-items-center rounded-xl bg-emerald-600 shadow-[0_8px_16px_rgba(16,185,129,0.2)] z-10">
+                    <i class="fa-solid fa-check-double text-xs sm:text-sm text-white"></i>
+                </div>
+                <div class="p-2.5 sm:p-3 xl:p-4 text-right pt-2 relative">
+                    <p class="text-[8px] sm:text-[9px] font-black tracking-widest text-emerald-500 uppercase truncate">Resolved</p>
+                    <div class="flex items-center justify-end gap-1.5 sm:gap-2 mt-1">
+                        <span class="text-[8px] sm:text-[10px] font-black text-white bg-emerald-600 px-1.5 sm:px-2 py-0.5 rounded-full shadow-sm shrink-0" x-text="stats.completed_percent + '%'"></span>
+                        <h4 class="text-lg sm:text-2xl xl:text-3xl font-extrabold text-blue-900 truncate" x-text="stats.completed"></h4>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- CATEGORY FILTERS (LOGICAL COLORS) -->
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 mt-6">
+        <!-- CATEGORY FILTERS (LOGICAL COLORS) — STRICT SINGLE ROW (6 COLUMNS) -->
+        <div class="grid grid-cols-6 gap-2.5 sm:gap-3 xl:gap-4 mt-6 w-full" style="grid-template-columns: repeat(6, minmax(0, 1fr));">
             <template x-for="cat in stats.categories" :key="cat.id">
-                <div @click="filterType = cat.id; filterStatus = 'all'; triggerFetch()" 
+                <div @click="filterType = (filterType == cat.id ? '' : cat.id); page = 1; triggerFetch()" 
                      :class="filterType == cat.id ? 'card-3d-active ' + (
                         cat.name.toLowerCase().includes('emergency') ? 'rose' : 
                         cat.name.toLowerCase().includes('complaint') ? 'amber' : 
@@ -162,9 +272,9 @@
                         cat.name.toLowerCase().includes('crime') ? 'indigo' : 
                         cat.name.toLowerCase().includes('junk') ? 'slate' : 'blue'
                      ) : 'hover:border-blue-200'"
-                     class="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-[0_10px_30px_rgba(0,0,0,0.02)] transition-all duration-300 cursor-pointer relative group overflow-hidden">
-                    <div class="flex justify-between items-start mb-4 relative z-10">
-                        <div class="h-10 w-10 rounded-xl flex items-center justify-center text-white shadow-lg"
+                     class="bg-white p-2.5 sm:p-3 xl:p-4 rounded-2xl xl:rounded-[2rem] border border-slate-100 shadow-[0_10px_30px_rgba(0,0,0,0.02)] transition-all duration-300 cursor-pointer relative group overflow-hidden">
+                    <div class="flex justify-between items-start mb-2 sm:mb-3 xl:mb-4 relative z-10">
+                        <div class="h-7 w-7 sm:h-8 sm:w-8 xl:h-10 xl:w-10 rounded-xl flex items-center justify-center text-white shadow-lg shrink-0"
                              :class="
                                 cat.name.toLowerCase().includes('emergency') ? 'bg-rose-600 shadow-rose-200' : 
                                 cat.name.toLowerCase().includes('complaint') ? 'bg-amber-500 shadow-amber-200' : 
@@ -174,7 +284,7 @@
                              ">
                             <i :class="'fas ' + cat.icon + ' text-xs'"></i>
                         </div>
-                        <span class="text-[10px] font-black px-2 py-0.5 rounded-lg text-white" 
+                        <span class="text-[8px] sm:text-[9px] xl:text-[10px] font-black px-1.5 sm:px-2 py-0.5 rounded-lg text-white shrink-0" 
                               :class="
                                 cat.name.toLowerCase().includes('emergency') ? 'bg-rose-600' : 
                                 cat.name.toLowerCase().includes('complaint') ? 'bg-amber-500' : 
@@ -184,8 +294,8 @@
                               "
                               x-text="cat.percent + '%'"></span>
                     </div>
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest truncate mb-1" x-text="cat.name"></p>
-                    <h5 class="text-3xl font-black text-blue-900" x-text="cat.count"></h5>
+                    <p class="text-[8px] sm:text-[9px] xl:text-[10px] font-black text-slate-400 uppercase tracking-widest truncate mb-0.5 sm:mb-1" x-text="cat.name"></p>
+                    <h5 class="text-base sm:text-xl xl:text-3xl font-black text-blue-900 truncate" x-text="cat.count"></h5>
                 </div>
             </template>
         </div>
@@ -200,12 +310,21 @@
                     <div x-show="viewMode === 'grid'" x-transition class="p-8">
                         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
                             <template x-for="item in pagedItems" :key="item.id">
-                                <div class="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 p-8 hover:-translate-y-2 transition-all duration-300 group relative overflow-hidden flex flex-col justify-between">
+                                <div :class="isPendingWomen(item) ? 'card-women-pending-blink' : 'bg-white border-slate-100 hover:-translate-y-2'"
+                                     class="rounded-[2.5rem] shadow-xl border p-8 transition-all duration-300 group relative overflow-hidden flex flex-col justify-between">
                                     <div class="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform duration-500">
                                         <i class="fa-solid fa-headset text-9xl text-blue-900"></i>
                                     </div>
                                     
                                     <div>
+                                        <template x-if="isPendingWomen(item)">
+                                            <div class="mb-4">
+                                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-600 text-white text-[10px] font-black uppercase tracking-wider shadow-md animate-bounce">
+                                                    <i class="fa-solid fa-person-dress"></i>
+                                                    <span>WOMEN SOS PENDING</span>
+                                                </span>
+                                            </div>
+                                        </template>
                                         <div class="flex items-start justify-between mb-8 relative z-10">
                                             <div class="w-14 h-14 rounded-2xl bg-slate-50 border-2 border-slate-100 flex items-center justify-center text-blue-900 shadow-sm group-hover:bg-blue-600 group-hover:text-white transition-all duration-500">
                                                 <i class="fa-solid fa-satellite-dish text-xl"></i>
@@ -304,9 +423,9 @@
                                             <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 shadow-sm border border-blue-100">
                                                 <i class="fa-solid fa-satellite-dish text-[10px]"></i>
                                             </div>
-                                            <button @click="sortByItem('call_number')" class="flex items-center gap-1.5 hover:text-blue-700 transition-colors group">
-                                                ID
-                                                <i class="fas text-[10px] transition-all duration-300 opacity-0 group-hover:opacity-100 fa-sort text-blue-600" :class="getSortIcon('call_number')"></i>
+                                            <button @click="sortByItem('created_at')" class="flex items-center gap-1.5 hover:text-blue-700 transition-colors group">
+                                                ID / TIME
+                                                <i class="fas text-[10px] transition-all duration-300 opacity-0 group-hover:opacity-100 fa-sort text-blue-600" :class="getSortIcon('created_at')"></i>
                                             </button>
                                         </div>
                                     </th>
@@ -393,9 +512,19 @@
                             </thead>
                             <tbody class="divide-y divide-slate-50">
                                 <template x-for="item in pagedItems" :key="item.id">
-                                    <tr class="hover:bg-blue-50/40 transition-colors group cursor-pointer border-l-4 border-transparent hover:border-blue-600" @click="window.location='/calls/' + (item.uuid || item.id)">
+                                    <tr :class="isPendingWomen(item) ? 'row-women-pending-blink' : 'hover:bg-blue-50/40 border-l-4 border-transparent hover:border-blue-600'" 
+                                        class="transition-colors group cursor-pointer" 
+                                        @click="window.location='/calls/' + (item.uuid || item.id)">
                                         <td class="px-2 py-3">
                                             <div class="flex flex-col gap-1">
+                                                <template x-if="isPendingWomen(item)">
+                                                    <div class="flex items-center gap-1.5 mb-1">
+                                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black uppercase tracking-wider shadow-md animate-bounce">
+                                                            <i class="fa-solid fa-person-dress"></i>
+                                                            <span>WOMEN SOS PENDING</span>
+                                                        </span>
+                                                    </div>
+                                                </template>
                                                 <div class="flex items-center gap-1.5">
                                                     <span class="font-black text-blue-900 text-xs tracking-tighter uppercase group-hover:text-blue-600 transition-colors" x-text="item.call_number"></span>
                                                     <template x-if="item.call_reminder_count > 0">
@@ -438,7 +567,12 @@
                                         </td>
                                         <td class="px-2 py-3">
                                             <div class="flex flex-col">
-                                                <span class="text-xs font-black text-blue-900 uppercase" x-text="formatTitleCase(item.caller_name) || 'Anonymous'"></span>
+                                                <div class="flex items-center gap-1.5">
+                                                    <span class="text-xs font-black text-blue-900 uppercase" x-text="formatTitleCase(item.caller_name) || 'Anonymous'"></span>
+                                                    <template x-if="item.caller_gender === 'female' || item.caller_gender === 'women' || item.call_type_id === 10">
+                                                        <span class="px-1.5 py-0.5 rounded text-[8px] font-black bg-rose-100 text-rose-700 uppercase shrink-0"><i class="fa-solid fa-person-dress mr-0.5"></i> Female</span>
+                                                    </template>
+                                                </div>
                                                 <span class="text-[10px] font-black text-blue-900 uppercase tracking-widest" x-text="item.caller_number"></span>
                                             </div>
                                         </td>
@@ -583,6 +717,12 @@
                     </div>
 
                     <div class="p-6 space-y-6 w-full flex-1">
+                        <!-- Loading Indicator for On-Demand Filter Options -->
+                        <div x-show="isLoadingFilters" class="p-3 bg-blue-50 border border-blue-100 rounded-xl flex items-center gap-2.5 text-blue-700 text-xs shadow-sm animate-pulse" x-cloak>
+                            <i class="fas fa-circle-notch fa-spin text-blue-600"></i>
+                            <span class="font-bold text-[11px]">Syncing intelligence filter options...</span>
+                        </div>
+
                         <!-- Search -->
                         <div class="space-y-3">
                             <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
@@ -849,7 +989,7 @@
                                 <div class="p-6 bg-slate-50 rounded-3xl border border-slate-100 space-y-4">
                                     <div class="flex items-center justify-between">
                                         <span class="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Assigned Beat</span>
-                                        <span class="text-xs font-black text-blue-900 uppercase" x-text="(selectedItem?.office?.parent?.parent?.name || '---') + ' / ' + (selectedItem?.office?.parent?.name || '---') + ' / ' + (selectedItem?.office?.name || '---')"></span>
+                                        <span class="text-xs font-black text-blue-900 uppercase" x-text="selectedItem?.location || ((selectedItem?.office?.parent?.parent?.name || '---') + ' / ' + (selectedItem?.office?.parent?.name || '---') + ' / ' + (selectedItem?.office?.name || '---'))"></span>
                                     </div>
                                     <div class="flex items-center justify-between">
                                         <span class="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Location Details</span>
@@ -1003,56 +1143,198 @@
                 userRole: config.userRole || null,
                 userScope: config.userScope || null,
                 filterStatus: config.status || 'all',
+                filterAssignment: config.assignment || '',
+                filterGender: config.gender || '',
                 dateFrom: '',
                 dateTo: '',
                 timeFrom: '',
                 timeTo: '',
                 totalRecords: config.total || 0,
                 totalPages: config.last_page || 1,
+                page: config.current_page || 1,
+                perPage: config.per_page || 10,
+                sortBy: config.sort || 'created_at',
+                sortDirection: config.direction || 'desc',
                 isLoading: false,
                 fetchTimeout: null,
+                filterOptionsLoaded: false,
+                isLoadingFilters: false,
+                alarmAudioCtx: null,
+                alarmTimer: null,
+                alarmSpeechTimer: null,
+                alarmMuted: false,
+                alarmAudioUnlocked: false,
+                lastSpokenTime: 0,
+                lastEmergencySeenId: 0,
+                lastEmergencyCheckInitialized: false,
 
+                async loadFilterOptions() {
+                    if (this.filterOptionsLoaded || this.isLoadingFilters) return;
+                    this.isLoadingFilters = true;
 
-                
-                async fetchData() {
-                    if (this.isLoading) return;
-                    this.isLoading = true;
                     try {
-                        const params = new URLSearchParams({
-                            search: this.search,
-                            status: this.filterStatus,
-                            zone_id: this.filterZone,
-                            sector_id: this.filterSector,
-                            beat_id: this.filterBeat,
-                            call_type_id: this.filterType,
-                            call_sub_type_id: this.filterSubType,
-                            agent_id: this.filterAgent,
-                            date_from: this.dateFrom,
-                            date_to: this.dateTo,
-                            time_from: this.timeFrom,
-                            time_to: this.timeTo,
-                            page: this.page,
-                            perPage: this.perPage,
-                            sort: this.sortBy,
-                            direction: this.sortDirection
-                        });
-                        
-                        const res = await fetch(window.location.pathname + '?' + params.toString(), {
+                        const cached = sessionStorage.getItem('nhmp_calls_filter_options_v2');
+                        if (cached) {
+                            const data = JSON.parse(cached);
+                            this.applyFilterOptionsData(data);
+                            this.filterOptionsLoaded = true;
+                            this.isLoadingFilters = false;
+                            return;
+                        }
+
+                        const res = await fetch('/calls/filter-options', {
                             headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
                         });
+
                         if (res.ok) {
                             const data = await res.json();
-                            this.items = data.items;
-                            this.stats = data.stats;
-                            this.page = data.current_page;
-                            this.totalPages = data.last_page;
-                            this.totalRecords = data.total;
+                            this.applyFilterOptionsData(data);
+                            try {
+                                sessionStorage.setItem('nhmp_calls_filter_options_v2', JSON.stringify(data));
+                            } catch (e) {}
+                            this.filterOptionsLoaded = true;
                         }
                     } catch (e) {
-                        console.error('Fetch error:', e);
-                        if (window.Notification) window.Notification.error('Communications array offline.', 'Connection Error');
+                        console.error('Failed to load filter options:', e);
                     } finally {
-                        this.isLoading = false;
+                        this.isLoadingFilters = false;
+                    }
+                },
+
+                applyFilterOptionsData(data) {
+                    if (!data) return;
+                    this.zones = data.zones || [];
+                    this.sectors = data.sectors || [];
+                    this.beats = data.beats || [];
+                    this.callTypes = data.callTypes || [];
+                    this.callSubTypes = data.callSubTypes || [];
+                    this.agents = data.agents || [];
+
+                    const isPrivileged = ['super_admin', 'operation_admin', 'agent_supervisor', 'agent'].includes(this.userRole);
+                    if (this.userScope && !isPrivileged) {
+                        this.resolveUserScopeHierarchy();
+                    }
+                },
+
+                resolveUserScopeHierarchy() {
+                    if (!this.userScope) return;
+                    if (this.userScope.type === 'zone') {
+                        this.filterZone = this.userScope.id;
+                    } else if (this.userScope.type === 'sector') {
+                        const sector = this.sectors.find(s => s.id == this.userScope.id);
+                        if (sector) {
+                            this.filterZone = sector.parent_id;
+                            this.filterSector = sector.id;
+                        }
+                    } else if (this.userScope.type === 'beat') {
+                        const beat = this.beats.find(b => b.id == this.userScope.id);
+                        if (beat) {
+                            const sector = this.sectors.find(s => s.id == beat.parent_id);
+                            if (sector) {
+                                this.filterZone = sector.parent_id;
+                                this.filterSector = sector.id;
+                            }
+                            this.filterBeat = beat.id;
+                        }
+                    }
+                },
+
+                latestRequestId: 0,
+                fetchAbortController: null,
+
+                async fetchData() {
+                    const currentRequestId = ++this.latestRequestId;
+
+                    if (this.fetchAbortController) {
+                        try { this.fetchAbortController.abort(); } catch (e) {}
+                    }
+                    this.fetchAbortController = new AbortController();
+                    const signal = this.fetchAbortController.signal;
+
+                    this.isLoading = true;
+                    try {
+                        const params = new URLSearchParams();
+                        if (this.search) params.set('search', this.search);
+                        if (this.filterAssignment) params.set('assignment', this.filterAssignment);
+                        if (this.filterGender) params.set('gender', this.filterGender);
+                        if (this.filterStatus && this.filterStatus !== 'all') params.set('status', this.filterStatus);
+                        if (this.filterType) params.set('call_type_id', this.filterType);
+                        if (this.filterSubType) params.set('call_sub_type_id', this.filterSubType);
+                        if (this.filterZone) params.set('zone_id', this.filterZone);
+                        if (this.filterSector) params.set('sector_id', this.filterSector);
+                        if (this.filterBeat) params.set('beat_id', this.filterBeat);
+                        if (this.filterAgent) params.set('agent_id', this.filterAgent);
+                        if (this.dateFrom) params.set('date_from', this.dateFrom);
+                        if (this.dateTo) params.set('date_to', this.dateTo);
+                        if (this.timeFrom) params.set('time_from', this.timeFrom);
+                        if (this.timeTo) params.set('time_to', this.timeTo);
+                        if (this.page > 1) params.set('page', this.page);
+                        if (this.perPage != 10) params.set('per_page', this.perPage);
+                        if (this.sortBy && this.sortBy !== 'created_at') params.set('sort', this.sortBy);
+                        if (this.sortDirection && this.sortDirection !== 'desc') params.set('direction', this.sortDirection);
+
+                        const payload = Object.fromEntries(params.entries());
+                        const res = await fetch('{{ route("calls.data") }}', {
+                            method: 'POST',
+                            signal,
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                            },
+                            body: JSON.stringify(payload)
+                        });
+
+                        // Drop stale responses if a newer fetch was initiated while this request was in flight
+                        if (currentRequestId !== this.latestRequestId) {
+                            return;
+                        }
+
+                        if (!res.ok) {
+                            const errBody = await res.json().catch(() => null);
+                            const errMsg = errBody?.message || errBody?.error || `Server responded with status ${res.status}`;
+                            if (window.Notification) {
+                                window.Notification.error(errMsg, 'Request Failed');
+                            }
+                            return;
+                        }
+
+                        const data = await res.json();
+                        if (currentRequestId !== this.latestRequestId) {
+                            return;
+                        }
+
+                        if (data && Array.isArray(data.items)) {
+                            this.items = data.items;
+                            if (data.stats) this.stats = data.stats;
+                            this.page = data.current_page || this.page;
+                            this.totalPages = data.last_page || 1;
+                            this.totalRecords = data.total ?? this.items.length;
+                            this.updateBrowserUrl(params);
+                            this.syncAlarmState();
+                        } else {
+                            throw new Error('Malformed payload returned from server');
+                        }
+                    } catch (e) {
+                        if (!e || e.name === 'AbortError' || signal?.aborted || (e.message && e.message.toLowerCase().includes('abort'))) {
+                            return; // Stale request cancelled by newer request
+                        }
+                        console.error('Fetch error:', e);
+                        if (currentRequestId === this.latestRequestId && window.Notification) {
+                            window.Notification.error(e.message || 'Communications array offline.', 'Connection Error');
+                        }
+                    } finally {
+                        // Only clear loading state if this is the latest initiated request
+                        if (currentRequestId === this.latestRequestId) {
+                            this.isLoading = false;
+                        }
+                    }
+                },
+
+                updateBrowserUrl(params) {
+                    if (window.location.search) {
+                        window.history.replaceState({ page: this.page }, document.title, window.location.pathname);
                     }
                 },
 
@@ -1126,30 +1408,51 @@
                     // Check if the user is a privileged role (Admin, Supervisor, Agent)
                     const isPrivileged = ['super_admin', 'operation_admin', 'agent_supervisor', 'agent'].includes(this.userRole);
 
-                    if (this.userScope && !isPrivileged) {
-                        if (this.userScope.type === 'zone') {
-                            this.filterZone = this.userScope.id;
-                        } else if (this.userScope.type === 'sector') {
-                            const sector = this.sectors.find(s => s.id == this.userScope.id);
-                            if (sector) {
-                                this.filterZone = sector.parent_id;
-                                this.filterSector = sector.id;
+                    // Check if specific filter parameters were passed via URL
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const hasFilterParams = urlParams.has('zone_id') || urlParams.has('sector_id') ||
+                                            urlParams.has('beat_id') || urlParams.has('call_type_id') ||
+                                            urlParams.has('call_sub_type_id') || urlParams.has('agent_id');
+
+                    // If scoped or filters requested on arrival, load options immediately to hydrate dropdowns
+                    if (hasFilterParams || (this.userScope && !isPrivileged)) {
+                        this.loadFilterOptions().then(() => {
+                            if (this.userScope && !isPrivileged) {
+                                this.resolveUserScopeHierarchy();
                             }
-                        } else if (this.userScope.type === 'beat') {
-                            const beat = this.beats.find(b => b.id == this.userScope.id);
-                            if (beat) {
-                                const sector = this.sectors.find(s => s.id == beat.parent_id);
-                                if (sector) {
-                                    this.filterZone = sector.parent_id;
-                                    this.filterSector = sector.id;
-                                }
-                                this.filterBeat = beat.id;
-                            }
-                        }
+                        });
+                    } else if (this.userScope && !isPrivileged) {
+                        this.resolveUserScopeHierarchy();
                     }
+
+                    // Clean up global bootstrap data object from window namespace
+                    if (window._indexData) {
+                        try { delete window._indexData; } catch (e) { window._indexData = null; }
+                    }
+
+                    // Synchronize on browser history popstate (Back/Forward)
+                    window.addEventListener('popstate', () => {
+                        const p = new URLSearchParams(window.location.search);
+                        this.filterAssignment = p.get('assignment') || '';
+                        this.filterGender = p.get('gender') || '';
+                        this.filterStatus = p.get('status') || 'all';
+                        this.filterType = p.get('call_type_id') || '';
+                        this.filterSubType = p.get('call_sub_type_id') || '';
+                        this.filterZone = p.get('zone_id') || '';
+                        this.filterSector = p.get('sector_id') || '';
+                        this.filterBeat = p.get('beat_id') || '';
+                        this.filterAgent = p.get('agent_id') || '';
+                        this.search = p.get('search') || '';
+                        this.page = parseInt(p.get('page')) || 1;
+                        this.sortBy = p.get('sort') || 'created_at';
+                        this.sortDirection = p.get('direction') || 'desc';
+                        this.fetchData();
+                    });
 
                     this.$watch('search', () => { this.page = 1; this.triggerFetch(); });
                     this.$watch('filterStatus', () => { this.page = 1; this.triggerFetch(); });
+                    this.$watch('filterAssignment', () => { this.page = 1; this.triggerFetch(); });
+                    this.$watch('filterGender', () => { this.page = 1; this.triggerFetch(); });
                     this.$watch('filterZone', () => { this.page = 1; this.triggerFetch(); });
                     this.$watch('filterSector', () => { this.page = 1; this.triggerFetch(); });
                     this.$watch('filterBeat', () => { this.page = 1; this.triggerFetch(); });
@@ -1162,14 +1465,65 @@
                     this.$watch('timeTo', () => { this.page = 1; this.triggerFetch(); });
                     this.$watch('perPage', () => { this.page = 1; this.triggerFetch(); });
                     this.$watch('page', () => { this.triggerFetch(); });
+
+                    this.initAlarm();
+
+                    // Real-Time Emergency Monitor for Pending Women Safety Calls
+                    // Strictly scoped to the operator's active beat jurisdiction
+                    setInterval(async () => {
+                        if (this.showDetailModal || this.showTransitionModal || this.showConfirmModal) return;
+                        try {
+                            const p = new URLSearchParams();
+                            p.set('last_id', this.lastEmergencySeenId > 0 ? this.lastEmergencySeenId : 0);
+                            if (this.filterBeat) p.set('beat_id', this.filterBeat);
+                            else if (this.filterSector) p.set('sector_id', this.filterSector);
+                            else if (this.filterZone) p.set('zone_id', this.filterZone);
+
+                            const res = await fetch(`/api/v1/realtime/emergency-check?${p.toString()}`, {
+                                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                            });
+                            if (res.ok) {
+                                const data = await res.json();
+                                if (!this.lastEmergencyCheckInitialized) {
+                                    this.lastEmergencyCheckInitialized = true;
+                                    if (data.call && data.call.id) {
+                                        this.lastEmergencySeenId = data.call.id;
+                                    }
+                                    if (Number(data.total_pending_women) === 0) {
+                                        this.stopAlarm();
+                                    }
+                                    return;
+                                }
+
+                                if (data.has_new_emergency && data.call && data.call.id > this.lastEmergencySeenId) {
+                                    this.lastEmergencySeenId = data.call.id;
+                                    // Trigger alert only if operator has pending women safety call
+                                    if (this.hasPendingWomen() && this.alarmAudioUnlocked) {
+                                        this.playBeepTone();
+                                        this.speakVoiceAlert();
+                                    }
+                                    if (!this.isLoading) {
+                                        this.fetchData().catch(() => {});
+                                    }
+                                } else if (data.total_pending_women > 0 && this.hasPendingWomen()) {
+                                    if (!this.alarmTimer) this.syncAlarmState();
+                                } else if (data.total_pending_women === 0 || !this.hasPendingWomen()) {
+                                    this.stopAlarm();
+                                }
+                            }
+                        } catch (e) {}
+                    }, 3000);
+
+                    // Periodic background refresh (30s) to discover general state updates
+                    setInterval(() => {
+                        if (!this.isLoading && !this.showDetailModal && !this.showTransitionModal && !this.showConfirmModal) {
+                            this.fetchData();
+                        }
+                    }, 30000);
                 },
 
                 density: 'spacious',
                 viewMode: 'table',
-                sortBy: 'call_number',
-                sortDirection: 'desc',
-                page: 1,
-                perPage: 10,
                 showSidebar: false,
                 showDetailModal: false,
                 showTransitionModal: false,
@@ -1246,7 +1600,9 @@
                 },
 
                 getLocationHierarchy(item) {
-                    if (!item || !item.office) return 'OFF-GRID';
+                    if (!item) return 'OFF-GRID';
+                    if (item.location) return item.location;
+                    if (!item.office) return 'OFF-GRID';
                     const parts = [];
                     if (item.office.parent?.parent?.name) parts.push(item.office.parent.parent.name);
                     if (item.office.parent?.name) parts.push(item.office.parent.name);
@@ -1265,6 +1621,145 @@
                         'cancelled': '<span class="px-3 py-1 bg-slate-100 text-slate-500 border border-slate-200 rounded-lg text-[9px] font-black uppercase tracking-widest">Cancelled</span>'
                     };
                     return badges[status] || status;
+                },
+
+                isPendingWomen(item) {
+                    if (!item) return false;
+                    const isFemale = item.caller_gender === 'female' || item.caller_gender === 'women' || item.call_type_id === 10;
+                    const isPending = item.status && item.status.toLowerCase() === 'pending';
+                    return Boolean(isFemale && isPending);
+                },
+
+                hasPendingWomen() {
+                    // Authoritative check based on current scoped stats from server
+                    if (this.stats && typeof this.stats.pending_women !== 'undefined') {
+                        return Number(this.stats.pending_women) > 0;
+                    }
+                    return Array.isArray(this.items) && this.items.some(it => this.isPendingWomen(it));
+                },
+
+                initAlarm() {
+                    const unlock = () => {
+                        this.unlockAudio();
+                    };
+                    ['click', 'keydown', 'touchstart'].forEach(evt => {
+                        document.addEventListener(evt, unlock, { passive: true });
+                    });
+                    this.syncAlarmState();
+                },
+
+                unlockAudio() {
+                    try {
+                        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                        if (!AudioCtx) return;
+                        if (!this.alarmAudioCtx) {
+                            this.alarmAudioCtx = new AudioCtx();
+                        }
+                        if (this.alarmAudioCtx.state === 'suspended') {
+                            this.alarmAudioCtx.resume().then(() => {
+                                this.alarmAudioUnlocked = true;
+                                if (this.hasPendingWomen() && !this.alarmMuted) {
+                                    this.playBeepTone();
+                                }
+                            }).catch(() => {});
+                        } else if (this.alarmAudioCtx.state === 'running') {
+                            this.alarmAudioUnlocked = true;
+                        }
+                    } catch (e) {}
+                },
+
+                toggleAlarmMute() {
+                    this.alarmMuted = !this.alarmMuted;
+                    if (!this.alarmMuted) {
+                        this.unlockAudio();
+                        if (this.alarmAudioUnlocked && this.hasPendingWomen()) {
+                            this.playBeepTone();
+                        }
+                    }
+                },
+
+                playBeepTone() {
+                    if (this.alarmMuted || !this.alarmAudioUnlocked || !this.hasPendingWomen()) return;
+                    try {
+                        if (!this.alarmAudioCtx || this.alarmAudioCtx.state !== 'running') return;
+
+                        const now = this.alarmAudioCtx.currentTime;
+                        const gainNode = this.alarmAudioCtx.createGain();
+                        gainNode.gain.setValueAtTime(0.001, now);
+                        gainNode.gain.linearRampToValueAtTime(0.25, now + 0.04);
+                        gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+                        gainNode.connect(this.alarmAudioCtx.destination);
+
+                        const osc = this.alarmAudioCtx.createOscillator();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(880, now);
+                        osc.frequency.setValueAtTime(1174.66, now + 0.18);
+                        osc.connect(gainNode);
+
+                        osc.start(now);
+                        osc.stop(now + 0.4);
+                    } catch (e) {}
+                },
+
+                speakVoiceAlert() {
+                    if (this.alarmMuted || !this.alarmAudioUnlocked || !this.hasPendingWomen()) return;
+                    if ('speechSynthesis' in window) {
+                        try {
+                            const now = Date.now();
+                            if (now - this.lastSpokenTime < 10000) return;
+                            this.lastSpokenTime = now;
+                            window.speechSynthesis.cancel();
+                            const utter = new SpeechSynthesisUtterance('Emergency alert: Pending women safety call awaiting initialization.');
+                            utter.rate = 1.05;
+                            utter.pitch = 1.1;
+                            window.speechSynthesis.speak(utter);
+                        } catch (e) {}
+                    }
+                },
+
+                syncAlarmState() {
+                    if (this.hasPendingWomen()) {
+                        if (!this.alarmTimer) {
+                            if (this.alarmAudioUnlocked) {
+                                this.playBeepTone();
+                                this.speakVoiceAlert();
+                            }
+                            this.alarmTimer = setInterval(() => {
+                                if (this.hasPendingWomen()) {
+                                    if (this.alarmAudioUnlocked) {
+                                        this.playBeepTone();
+                                    }
+                                } else {
+                                    this.stopAlarm();
+                                }
+                            }, 3200);
+                            this.alarmSpeechTimer = setInterval(() => {
+                                if (this.hasPendingWomen()) {
+                                    if (this.alarmAudioUnlocked) {
+                                        this.speakVoiceAlert();
+                                    }
+                                } else {
+                                    this.stopAlarm();
+                                }
+                            }, 14000);
+                        }
+                    } else {
+                        this.stopAlarm();
+                    }
+                },
+
+                stopAlarm() {
+                    if (this.alarmTimer) {
+                        clearInterval(this.alarmTimer);
+                        this.alarmTimer = null;
+                    }
+                    if (this.alarmSpeechTimer) {
+                        clearInterval(this.alarmSpeechTimer);
+                        this.alarmSpeechTimer = null;
+                    }
+                    if ('speechSynthesis' in window) {
+                        try { window.speechSynthesis.cancel(); } catch (e) {}
+                    }
                 },
 
                 openDetailModal(item) {
@@ -1287,7 +1782,8 @@
                     if (window.Notification) window.Notification.info('Updating help status...', 'Processing Help');
 
                     try {
-                        const response = await fetch(`/calls/${this.selectedItem.id}/status`, {
+                        const callIdentifier = this.selectedItem.uuid || this.selectedItem.id;
+                        const response = await fetch(`/calls/${callIdentifier}/status`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -1314,8 +1810,7 @@
                             
                             this.showTransitionModal = false;
                             if (window.Notification) window.Notification.success(result.message || 'Help updated successfully.', 'Success');
-                            
-                            setTimeout(() => window.location.reload(), 5000);
+                            this.fetchData();
                         } else {
                             if (window.Notification) window.Notification.warning(result.message || 'Help not updated.', 'Help Update Failed');
                         }
@@ -1341,6 +1836,8 @@
 
                 clearFilters() {
                     this.filterStatus = 'all';
+                    this.filterAssignment = '';
+                    this.filterGender = '';
                     this.filterZone = this.userScope?.type === 'zone' ? this.userScope.id : '';
                     this.filterSector = this.userScope?.type === 'sector' ? this.userScope.id : '';
                     this.filterBeat = this.userScope?.type === 'beat' ? this.userScope.id : '';
@@ -1354,7 +1851,6 @@
                     this.timeFrom = '';
                     this.timeTo = '';
                     this.triggerFetch();
-
                 },
 
                 confirmDelete(item) {
@@ -1364,7 +1860,8 @@
                         icon: 'fa-trash-can',
                         isDanger: true,
                         action: async () => {
-                            const response = await fetch(`/calls/${item.id}`, {
+                            const callIdentifier = item.uuid || item.id;
+                            const response = await fetch(`/calls/${callIdentifier}`, {
                                 method: 'DELETE',
                                 headers: {
                                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
@@ -1439,7 +1936,8 @@
 
                 async sendReminder(item) {
                     try {
-                        const res = await fetch(`/api/calls/${item.id}/reminder`, {
+                        const callIdentifier = item.uuid || item.id;
+                        const res = await fetch(`/api/calls/${callIdentifier}/reminder`, {
                             method: 'POST',
                             headers: {
                                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,

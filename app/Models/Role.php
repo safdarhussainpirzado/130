@@ -20,6 +20,16 @@ class Role extends Model
 
     protected $fillable = ['name', 'display_name', 'scope_level', 'status'];
 
+    protected static function boot()
+    {
+        parent::boot();
+        static::creating(function ($role) {
+            if (empty($role->display_name)) {
+                $role->display_name = ucwords(str_replace('_', ' ', (string) $role->name));
+            }
+        });
+    }
+
     protected $appends = ['is_mfa_enforced', 'is_mfa_protected'];
 
     public function users()

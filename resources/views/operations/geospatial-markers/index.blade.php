@@ -6,13 +6,7 @@
 
 @section('load-leaflet', true)
 
-@push('leaflet')
-<link rel="stylesheet" href="{{ asset('vendor/leaflet/leaflet.css') }}" />
-<link rel="stylesheet" href="{{ asset('vendor/leaflet/MarkerCluster.css') }}" />
-<link rel="stylesheet" href="{{ asset('vendor/leaflet/MarkerCluster.Default.css') }}" />
-<script src="{{ asset('vendor/leaflet/leaflet.js') }}"></script>
-<script src="{{ asset('vendor/leaflet/leaflet.markercluster.js') }}"></script>
-@endpush
+
 
 @push('styles')
 <style>
@@ -226,6 +220,148 @@
     color: #0f172a;
     background: rgba(255, 255, 255, 0.5);
 }
+
+/* ==========================================================================
+   3D Tactile Milestone Signs & Territorial Area Badges
+   ========================================================================== */
+.milestone-3d-sign {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transform: translate(-50%, -100%);
+    pointer-events: auto;
+    cursor: pointer;
+    filter: drop-shadow(0 8px 16px rgba(15, 23, 42, 0.28));
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 800;
+}
+.milestone-3d-sign:hover {
+    transform: translate(-50%, -108%) scale(1.08);
+    z-index: 1000 !important;
+}
+.milestone-pin-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 12px 5px 7px;
+    border-radius: 9999px;
+    color: #ffffff;
+    font-size: 11px;
+    white-space: nowrap;
+    border: 2px solid #ffffff;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 4px 12px rgba(0, 0, 0, 0.25);
+    user-select: none;
+}
+.milestone-3d-start .milestone-pin-pill {
+    background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+}
+.milestone-3d-end .milestone-pin-pill {
+    background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%);
+}
+.milestone-flag-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.22);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+.milestone-text-group {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+}
+.milestone-sub {
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.9;
+}
+.milestone-km {
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.milestone-stem {
+    width: 3px;
+    height: 12px;
+    background: #334155;
+    border-radius: 2px;
+}
+.milestone-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #0f172a;
+    border: 2px solid #ffffff;
+    box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.35);
+}
+
+/* Beat Area Tag Badge */
+.beat-area-tag-badge {
+    background: rgba(15, 23, 42, 0.92);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #ffffff;
+    padding: 4px 10px;
+    border-radius: 9999px;
+    border: 1.5px solid rgba(255, 255, 255, 0.9);
+    border-left-width: 5px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 800;
+    white-space: nowrap;
+    transform: translate(-50%, -50%);
+    pointer-events: auto;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 600;
+}
+.beat-area-tag-badge:hover {
+    transform: translate(-50%, -55%) scale(1.06);
+    background: rgba(15, 23, 42, 0.98);
+    z-index: 900;
+}
+.beat-color-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.beat-range-pill {
+    background: rgba(255, 255, 255, 0.15);
+    padding: 1px 6px;
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 9px;
+    font-weight: 800;
+    color: #e2e8f0;
+}
+
+/* 3D Leaflet Custom Milestone Popup */
+.milestone-popup .leaflet-popup-content-wrapper {
+    background: #ffffff;
+    border-radius: 18px;
+    box-shadow: 0 16px 32px -4px rgba(15, 23, 42, 0.25), 0 8px 12px -6px rgba(15, 23, 42, 0.1);
+    border: 1px solid #e2e8f0;
+    padding: 0;
+    overflow: hidden;
+}
+.milestone-popup .leaflet-popup-content {
+    margin: 0;
+    line-height: 1.4;
+}
+.milestone-popup .leaflet-popup-tip {
+    background: #ffffff;
+}
 </style>
 @endpush
 
@@ -406,43 +542,151 @@
                 </div>
             </div>
 
-            <!-- Floating Highway Corridor Info Badge (Top Right) -->
-            <div x-show="selectedRoad" x-transition class="absolute top-4 right-4 z-[500] toolbar-3d p-3.5 max-w-sm hidden md:block border-l-4 border-l-emerald-500 shadow-xl">
-                <div class="flex items-center justify-between gap-3">
-                    <div class="flex items-center gap-2">
-                        <span class="px-2.5 py-1 rounded-xl bg-emerald-600 text-white font-mono font-black text-xs shadow-sm" x-text="selectedRoad ? selectedRoad.road_short : ''"></span>
-                        <div>
-                            <h4 class="text-xs font-black text-slate-900 leading-tight" x-text="selectedRoad ? selectedRoad.road_name : ''"></h4>
-                            <p class="text-[10px] font-bold text-slate-500" x-text="selectedRoad ? (selectedRoad.road_from + ' → ' + selectedRoad.road_to) : ''"></p>
+            <!-- Floating Operational Territory & Corridor Info Card (Top Right) -->
+            <div x-show="getSelectedBeat() || getSelectedSector() || getSelectedZone() || selectedRoad" 
+                 x-transition 
+                 class="absolute top-4 right-4 z-[500] toolbar-3d p-4 max-w-sm hidden md:block shadow-2xl"
+                 :class="{
+                     'border-l-4 border-l-emerald-500': getSelectedBeat(),
+                     'border-l-4 border-l-blue-500': !getSelectedBeat() && getSelectedSector(),
+                     'border-l-4 border-l-indigo-500': !getSelectedBeat() && !getSelectedSector() && getSelectedZone(),
+                     'border-l-4 border-l-purple-500': !getSelectedBeat() && !getSelectedSector() && !getSelectedZone() && selectedRoad
+                 }">
+
+                <!-- 1. BEAT LEVEL ACTIVE -->
+                <template x-if="getSelectedBeat()">
+                    <div>
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="flex items-center gap-2.5">
+                                <span class="px-2.5 py-1 rounded-xl bg-emerald-600 text-white font-mono font-black text-xs shadow-sm">BEAT</span>
+                                <div>
+                                    <h4 class="text-xs font-black text-slate-900 leading-tight" x-text="getSelectedBeat().name"></h4>
+                                    <p class="text-[10px] font-bold text-slate-500" x-text="getSelectedBeat().sector_name + ' • ' + getSelectedBeat().zone_name"></p>
+                                </div>
+                            </div>
+                            <button @click="mapBeatId = ''; onMapSectorChange()" class="text-slate-400 hover:text-slate-600 text-xs p-1" title="Clear Beat Isolation"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="mt-2.5 pt-2 border-t border-slate-100 grid grid-cols-4 gap-2 text-center text-[10px]">
+                            <div class="p-1 rounded-lg bg-emerald-50/70 border border-emerald-100">
+                                <span class="block text-emerald-800 font-extrabold text-[8px] uppercase">Start KM</span>
+                                <span class="font-black text-emerald-950 font-mono" x-text="getSelectedBeat().start_point ? 'KM ' + Number(getSelectedBeat().start_point.km).toFixed(1) : 'N/A'"></span>
+                            </div>
+                            <div class="p-1 rounded-lg bg-rose-50/70 border border-rose-100">
+                                <span class="block text-rose-800 font-extrabold text-[8px] uppercase">End KM</span>
+                                <span class="font-black text-rose-950 font-mono" x-text="getSelectedBeat().end_point ? 'KM ' + Number(getSelectedBeat().end_point.km).toFixed(1) : 'N/A'"></span>
+                            </div>
+                            <div class="p-1 rounded-lg bg-slate-50">
+                                <span class="block text-slate-400 font-extrabold text-[8px] uppercase">Span</span>
+                                <span class="font-black text-slate-800" x-text="(getSelectedBeat().km_min !== null && getSelectedBeat().km_max !== null) ? (Number(getSelectedBeat().km_max - getSelectedBeat().km_min).toFixed(1) + ' KM') : 'N/A'"></span>
+                            </div>
+                            <div class="p-1 rounded-lg bg-slate-50">
+                                <span class="block text-slate-400 font-extrabold text-[8px] uppercase">Coords</span>
+                                <span class="font-black text-emerald-600" x-text="Number(getSelectedBeat().count || 0).toLocaleString()"></span>
+                            </div>
                         </div>
                     </div>
-                    <button @click="resetMapFilters()" class="text-slate-400 hover:text-slate-600 text-xs p-1" title="Clear Road Selection"><i class="fa-solid fa-xmark"></i></button>
-                </div>
-                <div class="mt-2.5 pt-2 border-t border-slate-100 grid grid-cols-4 gap-2 text-center text-[10px]">
-                    <div class="p-1 rounded-lg bg-slate-50">
-                        <span class="block text-slate-400 font-extrabold text-[8px] uppercase">Length</span>
-                        <span class="font-black text-slate-800" x-text="selectedRoad ? (selectedRoad.total_km + ' KM') : ''"></span>
+                </template>
+
+                <!-- 2. SECTOR LEVEL ACTIVE -->
+                <template x-if="!getSelectedBeat() && getSelectedSector()">
+                    <div>
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="flex items-center gap-2.5">
+                                <span class="px-2.5 py-1 rounded-xl bg-blue-600 text-white font-mono font-black text-xs shadow-sm">SECTOR</span>
+                                <div>
+                                    <h4 class="text-xs font-black text-slate-900 leading-tight" x-text="getSelectedSector().name"></h4>
+                                    <p class="text-[10px] font-bold text-slate-500" x-text="getSelectedSector().zone_name + ' • Operational Sector'"></p>
+                                </div>
+                            </div>
+                            <button @click="mapSectorId = ''; onMapZoneChange()" class="text-slate-400 hover:text-slate-600 text-xs p-1" title="Clear Sector Isolation"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="mt-2.5 pt-2 border-t border-slate-100 grid grid-cols-3 gap-2 text-center text-[10px]">
+                            <div class="p-1 rounded-lg bg-blue-50/70 border border-blue-100">
+                                <span class="block text-blue-800 font-extrabold text-[8px] uppercase">Child Beats</span>
+                                <span class="font-black text-blue-950" x-text="getSelectedSector().beat_ids ? getSelectedSector().beat_ids.length : 0"></span>
+                            </div>
+                            <div class="p-1 rounded-lg bg-slate-50">
+                                <span class="block text-slate-400 font-extrabold text-[8px] uppercase">Chainage</span>
+                                <span class="font-black text-slate-800 text-[9px] font-mono" x-text="getSelectedSector().km_range || 'N/A'"></span>
+                            </div>
+                            <div class="p-1 rounded-lg bg-slate-50">
+                                <span class="block text-slate-400 font-extrabold text-[8px] uppercase">Coords</span>
+                                <span class="font-black text-blue-600" x-text="Number(getSelectedSector().count || 0).toLocaleString()"></span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="p-1 rounded-lg bg-slate-50">
-                        <span class="block text-slate-400 font-extrabold text-[8px] uppercase">Beats</span>
-                        <span class="font-black text-blue-600" x-text="selectedRoad && selectedRoad.beat_ids ? selectedRoad.beat_ids.length : '0'"></span>
+                </template>
+
+                <!-- 3. ZONE LEVEL ACTIVE -->
+                <template x-if="!getSelectedBeat() && !getSelectedSector() && getSelectedZone()">
+                    <div>
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="flex items-center gap-2.5">
+                                <span class="px-2.5 py-1 rounded-xl bg-indigo-600 text-white font-mono font-black text-xs shadow-sm">ZONE</span>
+                                <div>
+                                    <h4 class="text-xs font-black text-slate-900 leading-tight" x-text="getSelectedZone().name"></h4>
+                                    <p class="text-[10px] font-bold text-slate-500">Regional Command Area</p>
+                                </div>
+                            </div>
+                            <button @click="mapZoneId = ''; onMapRoadChange()" class="text-slate-400 hover:text-slate-600 text-xs p-1" title="Clear Zone Isolation"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="mt-2.5 pt-2 border-t border-slate-100 grid grid-cols-3 gap-2 text-center text-[10px]">
+                            <div class="p-1 rounded-lg bg-indigo-50/70 border border-indigo-100">
+                                <span class="block text-indigo-800 font-extrabold text-[8px] uppercase">Sectors</span>
+                                <span class="font-black text-indigo-950" x-text="getSelectedZone().sector_ids ? getSelectedZone().sector_ids.length : 0"></span>
+                            </div>
+                            <div class="p-1 rounded-lg bg-slate-50">
+                                <span class="block text-slate-400 font-extrabold text-[8px] uppercase">Beats</span>
+                                <span class="font-black text-slate-800" x-text="getSelectedZone().beat_ids ? getSelectedZone().beat_ids.length : 0"></span>
+                            </div>
+                            <div class="p-1 rounded-lg bg-slate-50">
+                                <span class="block text-slate-400 font-extrabold text-[8px] uppercase">Coords</span>
+                                <span class="font-black text-indigo-600" x-text="Number(getSelectedZone().count || 0).toLocaleString()"></span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="p-1 rounded-lg bg-slate-50">
-                        <span class="block text-slate-400 font-extrabold text-[8px] uppercase">Landmarks</span>
-                        <span class="font-black text-purple-600" x-text="selectedRoad ? selectedRoad.landmark_count : '0'"></span>
+                </template>
+
+                <!-- 4. ROAD CORRIDOR ACTIVE -->
+                <template x-if="!getSelectedBeat() && !getSelectedSector() && !getSelectedZone() && selectedRoad">
+                    <div>
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2.5 py-1 rounded-xl bg-purple-600 text-white font-mono font-black text-xs shadow-sm" x-text="selectedRoad ? selectedRoad.road_short : ''"></span>
+                                <div>
+                                    <h4 class="text-xs font-black text-slate-900 leading-tight" x-text="selectedRoad ? selectedRoad.road_name : ''"></h4>
+                                    <p class="text-[10px] font-bold text-slate-500" x-text="selectedRoad ? (selectedRoad.road_from + ' → ' + selectedRoad.road_to) : ''"></p>
+                                </div>
+                            </div>
+                            <button @click="resetMapFilters()" class="text-slate-400 hover:text-slate-600 text-xs p-1" title="Clear Road Selection"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="mt-2.5 pt-2 border-t border-slate-100 grid grid-cols-4 gap-2 text-center text-[10px]">
+                            <div class="p-1 rounded-lg bg-slate-50">
+                                <span class="block text-slate-400 font-extrabold text-[8px] uppercase">Length</span>
+                                <span class="font-black text-slate-800" x-text="selectedRoad ? (selectedRoad.total_km + ' KM') : ''"></span>
+                            </div>
+                            <div class="p-1 rounded-lg bg-slate-50">
+                                <span class="block text-slate-400 font-extrabold text-[8px] uppercase">Beats</span>
+                                <span class="font-black text-blue-600" x-text="selectedRoad && selectedRoad.beat_ids ? selectedRoad.beat_ids.length : '0'"></span>
+                            </div>
+                            <div class="p-1 rounded-lg bg-slate-50">
+                                <span class="block text-slate-400 font-extrabold text-[8px] uppercase">Landmarks</span>
+                                <span class="font-black text-purple-600" x-text="selectedRoad ? selectedRoad.landmark_count : '0'"></span>
+                            </div>
+                            <div class="p-1 rounded-lg bg-slate-50">
+                                <span class="block text-slate-400 font-extrabold text-[8px] uppercase">Coords</span>
+                                <span class="font-black text-emerald-600" x-text="selectedRoad ? Number(selectedRoad.marker_count).toLocaleString() : '0'"></span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="p-1 rounded-lg bg-slate-50">
-                        <span class="block text-slate-400 font-extrabold text-[8px] uppercase">Coords</span>
-                        <span class="font-black text-emerald-600" x-text="selectedRoad ? Number(selectedRoad.marker_count).toLocaleString() : '0'"></span>
-                    </div>
-                </div>
+                </template>
             </div>
 
             <!-- Map Container (Clean viewport without zoom button clipping) -->
             <div id="geospatial-leaflet-map" style="height: 680px; width: 100%; z-index: 10;"></div>
 
             <!-- Map Legend -->
-            <div class="absolute bottom-6 left-6 z-[500] toolbar-3d p-3.5 text-[11px] font-bold text-slate-700 flex flex-col gap-2">
+            <div class="absolute bottom-6 left-6 z-[500] toolbar-3d p-3.5 text-[11px] font-bold text-slate-700 flex flex-col gap-2 max-w-xs shadow-xl">
                 <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Highway Markers Legend</span>
                 <div class="flex items-center gap-2">
                     <span class="w-3 h-3 rounded-full bg-emerald-500 shadow-sm border border-white"></span>
@@ -455,6 +699,20 @@
                 <div class="flex items-center gap-2">
                     <span class="w-3 h-3 rounded-full bg-blue-600 shadow-sm border border-white"></span>
                     <span>Density Cluster (&lt; 10x Zoom)</span>
+                </div>
+                <div class="pt-1 mt-1 border-t border-slate-100 flex flex-col gap-1.5">
+                    <div class="flex items-center gap-2">
+                        <span class="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[8px] font-black shadow-2xs"><i class="fa-solid fa-flag"></i></span>
+                        <span>Start Milestone Sign</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-4 h-4 rounded-full bg-rose-600 text-white flex items-center justify-center text-[8px] font-black shadow-2xs"><i class="fa-solid fa-flag-checkered"></i></span>
+                        <span>Terminus Milestone Sign</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-4 h-2 rounded-full bg-slate-800 border-l-2 border-emerald-400"></span>
+                        <span>Beat Operational Area</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -707,6 +965,16 @@
 <script>
 window.geospatialGridManager = function() {
     const initData = JSON.parse(document.getElementById('geospatial-markers-data')?.textContent || '{}');
+
+    // Isolate Leaflet instances from Alpine ES6 reactive Proxy to prevent internal identity breakage
+    const rawLeaflet = {
+        map: null,
+        clusterGroup: null,
+        roadPolylineGroup: null,
+        boundaryLayerGroup: null,
+        milestoneLayerGroup: null,
+    };
+
     return {
         activeTab: 'map',
         roads: initData.roads || [],
@@ -715,10 +983,18 @@ window.geospatialGridManager = function() {
         beats: initData.beats || [],
         stats: initData.stats || {},
         
-        // Map State
-        map: null,
-        clusterGroup: null,
-        roadPolylineGroup: null,
+        // Unproxied Leaflet Accessors
+        get map() { return rawLeaflet.map; },
+        set map(val) { rawLeaflet.map = val; },
+        get clusterGroup() { return rawLeaflet.clusterGroup; },
+        set clusterGroup(val) { rawLeaflet.clusterGroup = val; },
+        get roadPolylineGroup() { return rawLeaflet.roadPolylineGroup; },
+        set roadPolylineGroup(val) { rawLeaflet.roadPolylineGroup = val; },
+        get boundaryLayerGroup() { return rawLeaflet.boundaryLayerGroup; },
+        set boundaryLayerGroup(val) { rawLeaflet.boundaryLayerGroup = val; },
+        get milestoneLayerGroup() { return rawLeaflet.milestoneLayerGroup; },
+        set milestoneLayerGroup(val) { rawLeaflet.milestoneLayerGroup = val; },
+
         mapLoading: false,
         mapRoadCode: '',
         selectedRoad: null,
@@ -751,6 +1027,21 @@ window.geospatialGridManager = function() {
             });
 
             this.$watch('tableSearch', () => { this.filterTable(1); });
+        },
+
+        // ==========================================
+        // SELECTION GETTERS FOR TERRITORY CARDS
+        // ==========================================
+        getSelectedBeat() {
+            return this.mapBeatId ? this.beats.find(b => b.id == this.mapBeatId) : null;
+        },
+
+        getSelectedSector() {
+            return this.mapSectorId ? this.sectors.find(s => s.id == this.mapSectorId) : null;
+        },
+
+        getSelectedZone() {
+            return this.mapZoneId ? this.zones.find(z => z.id == this.mapZoneId) : null;
         },
 
         // ==========================================
@@ -798,51 +1089,12 @@ window.geospatialGridManager = function() {
             this.mapSectorId = '';
             this.mapBeatId = '';
 
-            if (this.roadPolylineGroup) {
-                this.roadPolylineGroup.clearLayers();
-            }
-
             if (this.mapRoadCode) {
                 const road = this.roads.find(r => r.road_short === this.mapRoadCode || r.road === this.mapRoadCode);
                 this.selectedRoad = road || null;
 
-                if (road) {
-                    // Render corridor roadmap vector polyline
-                    if (road.corridor && road.corridor.length > 0 && this.roadPolylineGroup) {
-                        const glowLine = L.polyline(road.corridor, {
-                            color: '#10b981',
-                            weight: 8,
-                            opacity: 0.35,
-                            lineCap: 'round',
-                            lineJoin: 'round'
-                        });
-                        const coreLine = L.polyline(road.corridor, {
-                            color: '#059669',
-                            weight: 3.5,
-                            opacity: 0.95,
-                            lineCap: 'round',
-                            lineJoin: 'round'
-                        });
-
-                        coreLine.bindPopup(`
-                            <div style="font-family: inherit; font-size: 11px; min-width: 180px;">
-                                <strong style="font-size: 13px; color: #047857;">${road.road_short}: ${road.road_name}</strong><br>
-                                <span style="color: #64748b;">${road.road_from} → ${road.road_to}</span><br>
-                                <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #e2e8f0; display: flex; gap: 8px;">
-                                    <span><strong>${road.total_km}</strong> KM</span> •
-                                    <span><strong>${road.beat_ids ? road.beat_ids.length : 0}</strong> Beats</span> •
-                                    <span><strong>${road.landmark_count || 0}</strong> Landmarks</span>
-                                </div>
-                            </div>
-                        `);
-
-                        this.roadPolylineGroup.addLayer(glowLine);
-                        this.roadPolylineGroup.addLayer(coreLine);
-                    }
-
-                    if (road.bounds && this.map) {
-                        this.map.flyToBounds(road.bounds, { padding: [60, 60], maxZoom: 12, duration: 1.2 });
-                    }
+                if (road && road.bounds && this.map) {
+                    this.map.flyToBounds(road.bounds, { padding: [60, 60], maxZoom: 12, duration: 1.2 });
                 }
             } else {
                 this.selectedRoad = null;
@@ -851,6 +1103,7 @@ window.geospatialGridManager = function() {
                 }
             }
 
+            this.renderActiveSelectionOverlays();
             this.fetchViewportMarkers();
         },
 
@@ -867,6 +1120,7 @@ window.geospatialGridManager = function() {
             } else if (this.map) {
                 this.map.flyTo([30.3753, 69.3451], 6, { duration: 1.2 });
             }
+            this.renderActiveSelectionOverlays();
             this.fetchViewportMarkers();
         },
 
@@ -881,6 +1135,7 @@ window.geospatialGridManager = function() {
                     }
                 }
             }
+            this.renderActiveSelectionOverlays();
             this.fetchViewportMarkers();
         },
 
@@ -895,15 +1150,13 @@ window.geospatialGridManager = function() {
                     }
                 }
             }
+            this.renderActiveSelectionOverlays();
             this.fetchViewportMarkers();
         },
 
         resetMapFilters() {
             this.mapRoadCode = '';
             this.selectedRoad = null;
-            if (this.roadPolylineGroup) {
-                this.roadPolylineGroup.clearLayers();
-            }
             this.mapZoneId = '';
             this.mapSectorId = '';
             this.mapBeatId = '';
@@ -911,7 +1164,386 @@ window.geospatialGridManager = function() {
             if (this.map) {
                 this.map.flyTo([30.3753, 69.3451], 6, { duration: 1.2 });
             }
+            this.renderActiveSelectionOverlays();
             this.fetchViewportMarkers();
+        },
+
+        safeRunWhenNotZooming(fn) {
+            if (!this.map) return;
+            if (this.map._animatingZoom) {
+                this.map.once('zoomend', () => {
+                    setTimeout(() => {
+                        if (this.map && !this.map._animatingZoom) {
+                            fn();
+                        } else if (this.map) {
+                            this.safeRunWhenNotZooming(fn);
+                        }
+                    }, 30);
+                });
+                return;
+            }
+            fn();
+        },
+
+        // =========================================================================
+        // STRICT TERRITORIAL ISOLATION & MILESTONE OVERLAY RENDERER
+        // =========================================================================
+        renderActiveSelectionOverlays() {
+            if (!this.map) return;
+
+            // Wait for active zoom animation to finish before updating overlays
+            if (this.map._animatingZoom) {
+                this.map.once('zoomend', () => {
+                    setTimeout(() => this.renderActiveSelectionOverlays(), 30);
+                });
+                return;
+            }
+
+            if (this.roadPolylineGroup) this.roadPolylineGroup.clearLayers();
+            if (this.boundaryLayerGroup) this.boundaryLayerGroup.clearLayers();
+            if (this.milestoneLayerGroup) this.milestoneLayerGroup.clearLayers();
+
+            const zoom = this.map.getZoom();
+            const bounds = this.map.getBounds() ? this.map.getBounds().pad(0.08) : null;
+
+            const isPointVisible = (pt) => {
+                if (!pt || pt.lat === undefined || pt.lng === undefined || !bounds) return false;
+                return bounds.contains([pt.lat, pt.lng]);
+            };
+
+            const isBeatVisible = (b) => {
+                if (!bounds) return true;
+                if (b.bounds) {
+                    return bounds.intersects(L.latLngBounds(b.bounds));
+                }
+                if (b.start_point) return isPointVisible(b.start_point);
+                if (b.end_point) return isPointVisible(b.end_point);
+                return true;
+            };
+
+            const BEAT_PALETTE = [
+                '#059669', '#2563eb', '#7c3aed', '#d97706', '#db2777',
+                '#0891b2', '#16a34a', '#ea580c', '#4f46e5', '#ca8a04'
+            ];
+
+            const createStartMilestoneMarker = (beat, pt) => {
+                if (!pt || pt.lat === undefined || pt.lng === undefined) return null;
+                const kmStr = Number(pt.km !== undefined ? pt.km : beat.km_min || 0).toFixed(2);
+                const icon = L.divIcon({
+                    className: 'custom-milestone-marker',
+                    html: `
+                        <div class="milestone-3d-sign milestone-3d-start" title="${beat.name} Starting Point: KM ${kmStr}">
+                            <div class="milestone-pin-pill">
+                                <span class="milestone-flag-icon"><i class="fa-solid fa-flag"></i></span>
+                                <div class="milestone-text-group">
+                                    <span class="milestone-sub">${beat.name} START</span>
+                                    <span class="milestone-km">KM ${kmStr}</span>
+                                </div>
+                            </div>
+                            <div class="milestone-stem"></div>
+                            <div class="milestone-dot"></div>
+                        </div>
+                    `,
+                    iconSize: [140, 52],
+                    iconAnchor: [70, 52]
+                });
+
+                const popupHtml = `
+                    <div class="milestone-popup p-3 font-sans min-w-[220px]">
+                        <div class="flex items-center gap-2 pb-2 mb-2 border-b border-slate-100">
+                            <span class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-black shadow-inner">
+                                <i class="fa-solid fa-flag"></i>
+                            </span>
+                            <div>
+                                <h4 class="text-xs font-black text-slate-900">${beat.name} (Start Point)</h4>
+                                <p class="text-[10px] font-bold text-slate-400">${beat.sector_name || ''} • ${beat.zone_name || ''}</p>
+                            </div>
+                        </div>
+                        <div class="space-y-1.5 text-[11px] font-bold text-slate-600">
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Milestone</span>
+                                <span class="font-mono text-emerald-700 font-black">KM ${kmStr}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Coordinates</span>
+                                <span class="font-mono text-slate-800 text-[10px]">${Number(pt.lat).toFixed(6)}, ${Number(pt.lng).toFixed(6)}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Chainage</span>
+                                <span class="text-slate-700">${beat.km_range || ''}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                return L.marker([pt.lat, pt.lng], { icon: icon, zIndexOffset: 1000 }).bindPopup(popupHtml, { className: 'milestone-popup' });
+            };
+
+            const createEndMilestoneMarker = (beat, pt) => {
+                if (!pt || pt.lat === undefined || pt.lng === undefined) return null;
+                const kmStr = Number(pt.km !== undefined ? pt.km : beat.km_max || 0).toFixed(2);
+                const icon = L.divIcon({
+                    className: 'custom-milestone-marker',
+                    html: `
+                        <div class="milestone-3d-sign milestone-3d-end" title="${beat.name} Terminus Point: KM ${kmStr}">
+                            <div class="milestone-pin-pill">
+                                <span class="milestone-flag-icon"><i class="fa-solid fa-flag-checkered"></i></span>
+                                <div class="milestone-text-group">
+                                    <span class="milestone-sub">${beat.name} END</span>
+                                    <span class="milestone-km">KM ${kmStr}</span>
+                                </div>
+                            </div>
+                            <div class="milestone-stem"></div>
+                            <div class="milestone-dot"></div>
+                        </div>
+                    `,
+                    iconSize: [140, 52],
+                    iconAnchor: [70, 52]
+                });
+
+                const popupHtml = `
+                    <div class="milestone-popup p-3 font-sans min-w-[220px]">
+                        <div class="flex items-center gap-2 pb-2 mb-2 border-b border-slate-100">
+                            <span class="w-7 h-7 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center text-xs font-black shadow-inner">
+                                <i class="fa-solid fa-flag-checkered"></i>
+                            </span>
+                            <div>
+                                <h4 class="text-xs font-black text-slate-900">${beat.name} (Terminus Point)</h4>
+                                <p class="text-[10px] font-bold text-slate-400">${beat.sector_name || ''} • ${beat.zone_name || ''}</p>
+                            </div>
+                        </div>
+                        <div class="space-y-1.5 text-[11px] font-bold text-slate-600">
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Milestone</span>
+                                <span class="font-mono text-rose-700 font-black">KM ${kmStr}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Coordinates</span>
+                                <span class="font-mono text-slate-800 text-[10px]">${Number(pt.lat).toFixed(6)}, ${Number(pt.lng).toFixed(6)}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Chainage</span>
+                                <span class="text-slate-700">${beat.km_range || ''}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                return L.marker([pt.lat, pt.lng], { icon: icon, zIndexOffset: 1000 }).bindPopup(popupHtml, { className: 'milestone-popup' });
+            };
+
+            const createBeatAreaBadge = (beat, midPoint, color) => {
+                if (!midPoint) return null;
+                const icon = L.divIcon({
+                    className: 'custom-beat-tag',
+                    html: `
+                        <div class="beat-area-tag-badge" style="border-left-color: ${color};" title="Click to isolate ${beat.name}">
+                            <span class="beat-color-dot" style="background-color: ${color};"></span>
+                            <span>${beat.name} Area</span>
+                            <span class="beat-range-pill">${beat.km_range || ''}</span>
+                        </div>
+                    `,
+                    iconSize: [160, 30],
+                    iconAnchor: [80, 15]
+                });
+
+                const badgeMarker = L.marker(midPoint, { icon: icon, zIndexOffset: 500 });
+                badgeMarker.on('click', () => {
+                    this.mapBeatId = beat.id;
+                    this.onMapBeatChange();
+                });
+                return badgeMarker;
+            };
+
+            // =====================================================================
+            // 1. BEAT LEVEL ISOLATION (Single Beat Active - Zero Clutter)
+            // =====================================================================
+            if (this.mapBeatId) {
+                const beat = this.beats.find(b => b.id == this.mapBeatId);
+                if (beat) {
+                    if (beat.polyline && beat.polyline.length > 0 && this.boundaryLayerGroup) {
+                        L.polyline(beat.polyline, {
+                            color: '#10b981',
+                            weight: 10,
+                            opacity: 0.35,
+                            lineCap: 'round',
+                            lineJoin: 'round'
+                        }).addTo(this.boundaryLayerGroup);
+
+                        L.polyline(beat.polyline, {
+                            color: '#047857',
+                            weight: 4.5,
+                            opacity: 0.95,
+                            lineCap: 'round',
+                            lineJoin: 'round'
+                        }).addTo(this.boundaryLayerGroup);
+
+                        const midIdx = Math.floor(beat.polyline.length / 2);
+                        const areaBadge = createBeatAreaBadge(beat, beat.polyline[midIdx], '#10b981');
+                        if (areaBadge && this.milestoneLayerGroup) this.milestoneLayerGroup.addLayer(areaBadge);
+                    }
+
+                    // A single isolated beat ALWAYS shows its Start and End milestone signs cleanly
+                    if (beat.start_point && this.milestoneLayerGroup) {
+                        const startM = createStartMilestoneMarker(beat, beat.start_point);
+                        if (startM) this.milestoneLayerGroup.addLayer(startM);
+                    }
+                    if (beat.end_point && this.milestoneLayerGroup) {
+                        const endM = createEndMilestoneMarker(beat, beat.end_point);
+                        if (endM) this.milestoneLayerGroup.addLayer(endM);
+                    }
+                }
+                return;
+            }
+
+            // =====================================================================
+            // 2. SECTOR LEVEL ISOLATION (3 to 6 Beats)
+            // =====================================================================
+            if (this.mapSectorId) {
+                const sector = this.sectors.find(s => s.id == this.mapSectorId);
+                if (sector) {
+                    const sectorBeats = this.beats.filter(b => b.sector_id == sector.id);
+                    sectorBeats.forEach((b, idx) => {
+                        const color = BEAT_PALETTE[idx % BEAT_PALETTE.length];
+
+                        // Route corridors always cleanly rendered
+                        if (b.polyline && b.polyline.length > 0 && this.boundaryLayerGroup) {
+                            const glowLine = L.polyline(b.polyline, {
+                                color: color,
+                                weight: 8,
+                                opacity: 0.25,
+                                lineCap: 'round',
+                                lineJoin: 'round'
+                            }).addTo(this.boundaryLayerGroup);
+
+                            const coreLine = L.polyline(b.polyline, {
+                                color: color,
+                                weight: 4,
+                                opacity: 0.95,
+                                lineCap: 'round',
+                                lineJoin: 'round'
+                            }).addTo(this.boundaryLayerGroup);
+
+                            coreLine.on('click', () => {
+                                this.mapBeatId = b.id;
+                                this.onMapBeatChange();
+                            });
+                            coreLine.bindTooltip(`<strong>${b.name}</strong><br><span style="font-size:10px; color:#64748b;">${b.km_range || ''}</span><br><span style="font-size:9px; color:#059669; font-weight:800;">Click to isolate beat</span>`, {
+                                sticky: true,
+                                direction: 'top'
+                            });
+
+                            // Zoom LOD: Render Area Badges only when zoom >= 10 and beat is in viewport
+                            if (zoom >= 10 && isBeatVisible(b)) {
+                                const midIdx = Math.floor(b.polyline.length / 2);
+                                const areaBadge = createBeatAreaBadge(b, b.polyline[midIdx], color);
+                                if (areaBadge && this.milestoneLayerGroup) this.milestoneLayerGroup.addLayer(areaBadge);
+                            }
+                        }
+
+                        // Zoom LOD: Render Start/End Milestone signs ONLY when zoomed in (zoom >= 12) to avoid collision
+                        if (zoom >= 12) {
+                            if (b.start_point && isPointVisible(b.start_point) && this.milestoneLayerGroup) {
+                                const startM = createStartMilestoneMarker(b, b.start_point);
+                                if (startM) this.milestoneLayerGroup.addLayer(startM);
+                            }
+                            if (b.end_point && isPointVisible(b.end_point) && this.milestoneLayerGroup) {
+                                const endM = createEndMilestoneMarker(b, b.end_point);
+                                if (endM) this.milestoneLayerGroup.addLayer(endM);
+                            }
+                        }
+                    });
+                }
+                return;
+            }
+
+            // =====================================================================
+            // 3. ZONE LEVEL ISOLATION (20 to 35 Beats across whole province)
+            // =====================================================================
+            if (this.mapZoneId) {
+                const zone = this.zones.find(z => z.id == this.mapZoneId);
+                if (zone) {
+                    const zoneSectors = this.sectors.filter(s => s.zone_id == zone.id);
+                    zoneSectors.forEach((s, sIdx) => {
+                        const secColor = BEAT_PALETTE[sIdx % BEAT_PALETTE.length];
+                        const sBeats = this.beats.filter(b => b.sector_id == s.id);
+                        sBeats.forEach((b) => {
+                            // Route corridors always cleanly rendered without any clutter
+                            if (b.polyline && b.polyline.length > 0 && this.boundaryLayerGroup) {
+                                const coreLine = L.polyline(b.polyline, {
+                                    color: secColor,
+                                    weight: 3.5,
+                                    opacity: 0.85,
+                                    lineCap: 'round',
+                                    lineJoin: 'round'
+                                }).addTo(this.boundaryLayerGroup);
+
+                                coreLine.on('click', () => {
+                                    this.mapBeatId = b.id;
+                                    this.onMapBeatChange();
+                                });
+                                coreLine.bindTooltip(`<strong>${b.name}</strong> (${s.name})<br><span style="font-size:10px; color:#64748b;">${b.km_range || ''}</span><br><span style="font-size:9px; color:#059669; font-weight:800;">Click to isolate beat</span>`, {
+                                    sticky: true,
+                                    direction: 'top'
+                                });
+
+                                // Zoom LOD: Show Area Badges ONLY when zoomed in (zoom >= 11) for beats in viewport
+                                if (zoom >= 11 && isBeatVisible(b)) {
+                                    const midIdx = Math.floor(b.polyline.length / 2);
+                                    const areaBadge = createBeatAreaBadge(b, b.polyline[midIdx], secColor);
+                                    if (areaBadge && this.milestoneLayerGroup) this.milestoneLayerGroup.addLayer(areaBadge);
+                                }
+                            }
+
+                            // Zoom LOD: Show Start/End Milestone signs ONLY when deeply zoomed in (zoom >= 13)
+                            if (zoom >= 13) {
+                                if (b.start_point && isPointVisible(b.start_point) && this.milestoneLayerGroup) {
+                                    const startM = createStartMilestoneMarker(b, b.start_point);
+                                    if (startM) this.milestoneLayerGroup.addLayer(startM);
+                                }
+                                if (b.end_point && isPointVisible(b.end_point) && this.milestoneLayerGroup) {
+                                    const endM = createEndMilestoneMarker(b, b.end_point);
+                                    if (endM) this.milestoneLayerGroup.addLayer(endM);
+                                }
+                            }
+                        });
+                    });
+                }
+                return;
+            }
+
+            // 4. ROAD CORRIDOR VECTOR (WHEN NO TERRITORIAL ISOLATION ACTIVE)
+            if (this.selectedRoad && this.selectedRoad.corridor && this.selectedRoad.corridor.length > 0 && this.roadPolylineGroup) {
+                const glowLine = L.polyline(this.selectedRoad.corridor, {
+                    color: '#10b981',
+                    weight: 8,
+                    opacity: 0.35,
+                    lineCap: 'round',
+                    lineJoin: 'round'
+                });
+                const coreLine = L.polyline(this.selectedRoad.corridor, {
+                    color: '#059669',
+                    weight: 3.5,
+                    opacity: 0.95,
+                    lineCap: 'round',
+                    lineJoin: 'round'
+                });
+
+                coreLine.bindPopup(`
+                    <div style="font-family: inherit; font-size: 11px; min-width: 180px;">
+                        <strong style="font-size: 13px; color: #047857;">${this.selectedRoad.road_short}: ${this.selectedRoad.road_name}</strong><br>
+                        <span style="color: #64748b;">${this.selectedRoad.road_from} → ${this.selectedRoad.road_to}</span><br>
+                        <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #e2e8f0; display: flex; gap: 8px;">
+                            <span><strong>${this.selectedRoad.total_km}</strong> KM</span> •
+                            <span><strong>${this.selectedRoad.beat_ids ? this.selectedRoad.beat_ids.length : 0}</strong> Beats</span> •
+                            <span><strong>${this.selectedRoad.landmark_count || 0}</strong> Landmarks</span>
+                        </div>
+                    </div>
+                `);
+
+                this.roadPolylineGroup.addLayer(glowLine);
+                this.roadPolylineGroup.addLayer(coreLine);
+            }
         },
 
         // ==========================================
@@ -1026,6 +1658,11 @@ window.geospatialGridManager = function() {
                 } catch (e) {}
                 window._geospatialMarkerMap = null;
             }
+            rawLeaflet.map = null;
+            rawLeaflet.clusterGroup = null;
+            rawLeaflet.roadPolylineGroup = null;
+            rawLeaflet.boundaryLayerGroup = null;
+            rawLeaflet.milestoneLayerGroup = null;
 
             // 3. Reset internal DOM node:
             if (mapEl._leaflet_id) {
@@ -1064,6 +1701,8 @@ window.geospatialGridManager = function() {
             }).addTo(this.map);
 
             this.roadPolylineGroup = L.layerGroup().addTo(this.map);
+            this.boundaryLayerGroup = L.layerGroup().addTo(this.map);
+            this.milestoneLayerGroup = L.layerGroup().addTo(this.map);
 
             this.clusterGroup = L.markerClusterGroup({
                 chunkedLoading: true,
@@ -1075,21 +1714,21 @@ window.geospatialGridManager = function() {
             });
             this.map.addLayer(this.clusterGroup);
 
-            // Fetch markers on pan / zoom with debounce
+            // Re-render overlays & markers on pan / zoom with debounce for responsive LOD
             let moveTimeout = null;
             this.map.on('moveend', () => {
                 clearTimeout(moveTimeout);
                 moveTimeout = setTimeout(() => {
+                    this.renderActiveSelectionOverlays();
                     this.fetchViewportMarkers();
-                }, 250);
+                }, 200);
             });
 
-            // If a road is already selected, render its corridor
-            if (this.mapRoadCode) {
-                this.onMapRoadChange();
-            } else {
-                this.fetchViewportMarkers();
+            // If a route, zone, sector, or beat is active, render selection overlays
+            if (this.mapBeatId || this.mapSectorId || this.mapZoneId || this.mapRoadCode) {
+                this.renderActiveSelectionOverlays();
             }
+            this.fetchViewportMarkers();
         },
 
         async fetchViewportMarkers() {
@@ -1129,42 +1768,55 @@ window.geospatialGridManager = function() {
                 if (!res.ok) throw new Error('API response failed');
 
                 const data = await res.json();
-                this.clusterGroup.clearLayers();
 
-                const newLayers = [];
+                this.safeRunWhenNotZooming(() => {
+                    if (!this.clusterGroup) return;
+                    this.clusterGroup.clearLayers();
 
-                if (data.mode === 'clusters') {
-                    // Low zoom: display cluster summary centroids
-                    (data.markers || []).forEach(c => {
-                        const icon = L.divIcon({
-                            className: 'custom-cluster-centroid',
-                            html: `<div style="background:linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%); color:white; border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:11px; border:2.5px solid white; box-shadow:0 4px 12px rgba(0,0,0,0.3); cursor:pointer;">${c.count}</div>`,
-                            iconSize: [36, 36],
-                            iconAnchor: [18, 18]
+                    const newLayers = [];
+
+                    if (data.mode === 'clusters') {
+                        // Low zoom: display cluster summary centroids
+                        (data.markers || []).forEach(c => {
+                            const icon = L.divIcon({
+                                className: 'custom-cluster-centroid',
+                                html: `<div style="background:linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%); color:white; border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:11px; border:2.5px solid white; box-shadow:0 4px 12px rgba(0,0,0,0.3); cursor:pointer;">${c.count}</div>`,
+                                iconSize: [36, 36],
+                                iconAnchor: [18, 18]
+                            });
+                            const marker = L.marker([c.lat, c.lng], { icon: icon })
+                                .bindPopup(`<strong>${c.beat}</strong><br>Carriageway: ${c.side}<br>${c.km_range}<br><strong>${c.count} Coordinates</strong> (Zoom in to view pins)`);
+                            
+                            // Interactive click on cluster centroid to zoom into that beat or area
+                            marker.on('click', () => {
+                                if (c.bounds && this.map) {
+                                    this.map.flyToBounds(c.bounds, { padding: [40, 40], maxZoom: 14, duration: 0.8 });
+                                } else if (this.map) {
+                                    this.map.flyTo([c.lat, c.lng], Math.min(14, this.map.getZoom() + 3), { duration: 0.8 });
+                                }
+                            });
+                            newLayers.push(marker);
                         });
-                        const marker = L.marker([c.lat, c.lng], { icon: icon })
-                            .bindPopup(`<strong>${c.beat}</strong><br>Carriageway: ${c.side}<br>${c.km_range}<br><strong>${c.count} Coordinates</strong> (Zoom in to view pins)`);
-                        newLayers.push(marker);
-                    });
-                    this.mapStatusText = `${(data.total_matched || data.total).toLocaleString()} coordinates in ${data.cluster_count || data.markers.length} clusters (Zoom in for pins)`;
-                } else {
-                    // High zoom: display individual highway coordinates
-                    (data.markers || []).forEach(p => {
-                        const color = p.side === 'N' ? '#10b981' : (p.side === 'S' ? '#6366f1' : '#f59e0b');
-                        const marker = L.circleMarker([p.lat, p.lng], {
-                            radius: 6,
-                            fillColor: color,
-                            color: '#ffffff',
-                            weight: 2,
-                            opacity: 1,
-                            fillOpacity: 0.95
-                        }).bindPopup(`<strong>KM ${Number(p.km).toFixed(2)}</strong><br>${p.beat}<br>Direction: ${p.side === 'N' ? 'Northbound (N)' : (p.side === 'S' ? 'Southbound (S)' : 'Shared')}<br><small class="font-mono">${Number(p.lat).toFixed(6)}, ${Number(p.lng).toFixed(6)}</small>`);
-                        newLayers.push(marker);
-                    });
-                    this.mapStatusText = `${data.total.toLocaleString()} of ${(data.total_matched || data.total).toLocaleString()} coordinates rendered in viewport`;
-                }
+                        this.mapStatusText = `${(data.total_matched || data.total).toLocaleString()} coordinates in ${data.cluster_count || data.markers.length} clusters (Zoom in for pins)`;
+                    } else {
+                        // High zoom: display individual highway coordinates
+                        (data.markers || []).forEach(p => {
+                            const color = p.side === 'N' ? '#10b981' : (p.side === 'S' ? '#6366f1' : '#f59e0b');
+                            const marker = L.circleMarker([p.lat, p.lng], {
+                                radius: 6,
+                                fillColor: color,
+                                color: '#ffffff',
+                                weight: 2,
+                                opacity: 1,
+                                fillOpacity: 0.95
+                            }).bindPopup(`<strong>KM ${Number(p.km).toFixed(2)}</strong><br>${p.beat}<br>Direction: ${p.side === 'N' ? 'Northbound (N)' : (p.side === 'S' ? 'Southbound (S)' : 'Shared')}<br><small class="font-mono">${Number(p.lat).toFixed(6)}, ${Number(p.lng).toFixed(6)}</small>`);
+                            newLayers.push(marker);
+                        });
+                        this.mapStatusText = `${data.total.toLocaleString()} of ${(data.total_matched || data.total).toLocaleString()} coordinates rendered in viewport`;
+                    }
 
-                this.clusterGroup.addLayers(newLayers);
+                    this.clusterGroup.addLayers(newLayers);
+                });
             } catch (err) {
                 if (err.name !== 'AbortError') {
                     console.error('Viewport fetch error:', err);
@@ -1228,10 +1880,19 @@ window.geospatialGridManager = function() {
         jumpToMap(m) {
             this.selectedMarker = null;
             this.activeTab = 'map';
+            if (m.office_id) {
+                this.mapBeatId = m.office_id;
+                const b = this.beats.find(x => x.id == m.office_id);
+                if (b) {
+                    if (b.sector_id) this.mapSectorId = b.sector_id;
+                    if (b.zone_id) this.mapZoneId = b.zone_id;
+                }
+            }
             this.$nextTick(() => {
                 this.initMapIfNeeded();
+                this.renderActiveSelectionOverlays();
                 if (this.map && m.lat && m.lng) {
-                    this.map.flyTo([m.lat, m.lng], 15, { duration: 1.0 });
+                    this.map.flyTo([m.lat, m.lng], 16, { duration: 1.0 });
                 }
             });
         }

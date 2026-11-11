@@ -44,6 +44,10 @@ class MfaPolicyResolver
      */
     public function isMfaRequiredForUser(User $user): bool
     {
+        if (config('auth.mfa_enforce') === false || empty($user->mfa_required)) {
+            return false;
+        }
+
         // 1. Privileged roles (Super Admin, Operation Admin / Manager) ALWAYS require MFA
         if ($user->isPrivileged() || in_array((int)$user->role_id, [1, 2], true)) {
             return true;
@@ -53,9 +57,12 @@ class MfaPolicyResolver
         $roleId = (int) $user->role_id;
         if ($roleId > 0) {
             $policy = $this->getPolicyForRole($roleId);
-            if ($policy && $policy->isEnforcedNow()) {
+            if ($policy === null || $policy->isEnforcedNow()) {
                 return true;
             }
+        } else {
+            // Fail-secure: If role is missing or unassigned, MFA is strictly required
+            return true;
         }
 
         // 3. Multi-role check: If user has secondary roles/scopes, any enforced role takes precedence
@@ -192,9 +199,12 @@ class MfaPolicyResolver
     public function getAllPoliciesMatrix(): array
     {
         try {
-            return Cache::remember(self::CACHE_KEY, self::CACHE_TTL_SECONDS, function () {
+            /** @var array<int, MfaRolePolicy> $matrix */
+            $matrix = Cache::remember(self::CACHE_KEY, self::CACHE_TTL_SECONDS, function (): mixed {
                 return MfaRolePolicy::with('role')->get()->keyBy('role_id')->all();
             });
+
+            return is_array($matrix) ? $matrix : (array) $matrix;
         } catch (\Throwable $e) {
             Log::warning('MFA policy cache retrieval failed; falling back to direct DB: '.$e->getMessage());
             try {

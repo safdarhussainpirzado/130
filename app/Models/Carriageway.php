@@ -48,6 +48,23 @@ class Carriageway extends Model
             return Office::where('type', 'sector')->where('id', 20)->get();
         }
 
+        if (in_array($code, ['E-75', 'N-75', 'IMDC']) || in_array($clean, ['E75', 'N75', 'IMDC'])) {
+            return Office::where('type', 'sector')->where('id', 28)->get(); // Sector 28 IMDC
+        }
+
+        if ($code === 'N-5' || $clean === 'N5') {
+            // N-5 Sectors strictly: North1(25), North2(26), North3(27), Central1(29), Central2(30), Central3(31), South1(32), South2(33), South3(34)
+            // Sector 28 (IMDC / E-75 / N-75), Sector 35 (N55-1), Sector 40 (N55-2), Sector 42 (South4 M-9/LEW) are strictly isolated
+            return Office::where('type', 'sector')
+                ->whereIn('id', [25, 26, 27, 29, 30, 31, 32, 33, 34])
+                ->orderBy('id')
+                ->get();
+        }
+
+        if ($code === 'N-55' || $clean === 'N55') {
+            return Office::where('type', 'sector')->whereIn('id', [35, 40])->orderBy('id')->get();
+        }
+
         return Office::where('type', 'sector')
             ->where(function ($q) use ($code, $clean) {
                 if ($code === 'M-3' || $clean === 'M3') {
@@ -65,17 +82,11 @@ class Carriageway extends Model
                 } elseif ($code === 'E-35' || $clean === 'E35') {
                     $q->where('name', 'like', '%E35%');
                 } elseif ($code === 'M-9' || $clean === 'M9') {
-                    $q->where('id', 34);
+                    $q->whereIn('id', [34, 42]);
                 } elseif ($code === 'M-11' || $clean === 'M11') {
                     $q->where('id', 20);
                 } elseif ($code === 'M-16' || str_contains($code, 'SWAT')) {
                     $q->where('name', 'like', '%Swat%');
-                } elseif ($code === 'N-5' || $clean === 'N5') {
-                    $q->whereHas('parent', function ($zq) {
-                        $zq->where('name', 'like', '%N5%');
-                    });
-                } elseif ($code === 'N-55' || $clean === 'N55') {
-                    $q->where('name', 'like', '%N55%');
                 } elseif ($code === 'N-25' || $clean === 'N25') {
                     $q->where('name', 'like', '%N-25%')->orWhere('name', 'like', '%N25%');
                 } elseif ($code === 'N-10' || $clean === 'N10') {
@@ -113,6 +124,31 @@ class Carriageway extends Model
             return Office::where('type', 'beat')->whereIn('id', [70, 71])->orderBy('id')->get();
         }
 
+        if ($code === 'M-9' || $clean === 'M9') {
+            return Office::where('type', 'beat')->whereIn('id', [119, 120, 121])->orderBy('id')->get();
+        }
+
+        if (in_array($code, ['E-75', 'N-75', 'IMDC']) || in_array($clean, ['E75', 'N75', 'IMDC'])) {
+            return Office::where('type', 'beat')->where('id', 97)->get();
+        }
+
+        if ($code === 'N-55' || $clean === 'N55') {
+            return Office::where('type', 'beat')->whereIn('id', [123, 124, 125, 126, 127, 128])->orderBy('id')->get();
+        }
+
+        if ($code === 'N-5' || $clean === 'N5') {
+            // N-5 Beats strictly: 86-96, 98-118 (32 total operational beats along Grand Trunk Road corridor)
+            // Excludes Beat 97 (IMDC/E-75/N-75), Beats 119-121 (M-9), Beat 122 (LEW), Beats 123-128 (N-55), Beat 141 (LEBP)
+            return Office::where('type', 'beat')
+                ->whereIn('id', [
+                    86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96,
+                    98, 99, 100, 101, 102, 103, 104, 105, 106,
+                    107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118
+                ])
+                ->orderBy('id')
+                ->get();
+        }
+
         $sectorIds = $this->sectors->pluck('id')->all();
         if (empty($sectorIds)) {
             return collect();
@@ -120,7 +156,7 @@ class Carriageway extends Model
 
         return Office::where('type', 'beat')
             ->whereIn('parent_id', $sectorIds)
-            ->whereNotIn('id', [122, 141]) // LEW and LEBP are distinct expressways
+            ->whereNotIn('id', [97, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 141])
             ->orderBy('id')
             ->get();
     }

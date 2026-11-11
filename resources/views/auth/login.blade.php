@@ -1,3 +1,6 @@
+@php
+    /** @var \Illuminate\Support\ViewErrorBag $errors */
+@endphp
 <x-guest-layout>
     <div class="login-page {{ $errors->any() ? 'has-login-errors' : '' }}" id="nhmp-login">
         <div class="ambient-orb ambient-orb-blue" aria-hidden="true"></div>
@@ -44,7 +47,7 @@
                         @endforeach
                     </div>
                 @endif
-                <form id="loginForm" method="POST" action="{{ route('login') }}">
+                <form id="loginForm" method="POST" action="{{ route('login', [], false) }}">
                     @csrf
                     <div class="form-field">
                         <label for="username">System login ID</label>

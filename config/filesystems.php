@@ -50,7 +50,7 @@ return [
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),
-            'secret' => env('AWS_SECRET_ACCESS_KEY'),
+            'secret' => function_exists('docker_secret') ? docker_secret('minio_root_password', env('AWS_SECRET_ACCESS_KEY')) : env('AWS_SECRET_ACCESS_KEY'),
             'region' => env('AWS_DEFAULT_REGION'),
             'bucket' => env('AWS_BUCKET'),
             'url' => env('AWS_URL'),

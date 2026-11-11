@@ -10,7 +10,7 @@
     <div x-data="roleManager(@js([
         'items' => $roles,
         'permissions' => $permissions
-    ]))" class="space-y-8 relative mt-4 max-w-[1700px] mx-auto pb-32" @keydown.escape="showDetailsModal = false; showViewModal = false; showConfirmModal = false; showMfaModal = false" x-cloak>
+    ]))" class="space-y-8 relative mt-4 w-full max-w-full pb-32" @keydown.escape="showDetailsModal = false; showViewModal = false; showConfirmModal = false; showMfaModal = false" x-cloak>
 
 
         <!-- Floating Sidebar Toggle -->
@@ -409,107 +409,360 @@
         </div>
     </div> <!-- End Page Mode: Index -->
 
-        <!-- Page Mode: Permissions Matrix (Bento Styling Full Width) -->
+        <!-- Page Mode: Permissions Matrix (100% Full Width 3D Bento Layout) -->
         <div x-show="pageMode === 'permissions'" 
              x-transition:enter="transition ease-out duration-300" 
-             x-transition:enter-start="opacity-0" 
-             x-transition:enter-end="opacity-100"
-             class="space-y-8 pb-32 relative z-[10]" x-cloak>
+             x-transition:enter-start="opacity-0 translate-y-2" 
+             x-transition:enter-end="opacity-100 translate-y-0"
+             class="space-y-6 pb-32 relative z-[10] w-full max-w-full" x-cloak>
             
-            <!-- Header Bento Card -->
-            <div class="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 p-10 relative overflow-hidden">
-                <div class="absolute inset-0 bg-grid-slate-900/[0.02] bg-[size:32px_32px]"></div>
-                <div class="absolute -right-20 -top-20 w-96 h-96 bg-blue-50 rounded-full blur-3xl opacity-50"></div>
-                <div class="absolute -left-20 -bottom-20 w-96 h-96 bg-purple-50 rounded-full blur-3xl opacity-50"></div>
-                
-                <div class="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
-                    <div class="flex items-center gap-8">
-                        <div class="w-24 h-24 rounded-[2rem] bg-gradient-to-br from-indigo-600 to-blue-800 flex items-center justify-center text-white shadow-2xl border-4 border-white transform hover:rotate-6 transition-transform duration-500 shrink-0">
-                            <i class="fas fa-microchip text-4xl drop-shadow-lg"></i>
+            <!-- 3D Bento Header & Authority Context Card -->
+            <div class="w-full bg-white rounded-[2rem] shadow-[0_12px_40px_rgba(0,0,0,0.04)] border-2 border-slate-200/90 p-6 md:p-8 relative overflow-hidden">
+                <div class="absolute inset-0 bg-grid-slate-900/[0.02] bg-[size:24px_24px] pointer-events-none"></div>
+                <div class="absolute -right-20 -top-20 w-80 h-80 bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
+                <div class="absolute -left-20 -bottom-20 w-80 h-80 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
+                <div class="relative z-10 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
+                    <!-- Title & Role Info -->
+                    <div class="flex items-center gap-5">
+                        <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 flex items-center justify-center text-white shadow-xl shadow-blue-600/30 border-2 border-white/60 shrink-0 transform hover:scale-105 transition-all">
+                            <i class="fas fa-microchip text-2xl drop-shadow"></i>
                         </div>
                         <div>
-                            <h2 class="text-4xl font-black text-blue-900 tracking-tighter">Configure Capability Matrix</h2>
-                            <p class="text-slate-500 font-bold mt-2 flex items-center gap-2 text-lg">
-                                <span>Refining logic access for: </span>
-                                <span class="px-4 py-1.5 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-[0.2em] shadow-lg shadow-blue-500/20" x-text="form.display_name"></span>
+                            <div class="flex flex-wrap items-center gap-2 mb-1">
+                                <span class="px-2.5 py-0.5 rounded-lg bg-blue-100/90 text-blue-800 text-[10px] font-black uppercase tracking-widest border border-blue-200">Logic Matrix</span>
+                                <span class="px-2.5 py-0.5 rounded-lg bg-indigo-100/90 text-indigo-800 text-[10px] font-mono font-black uppercase tracking-widest border border-indigo-200" x-text="form.name"></span>
+                                <span class="px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-700 text-[10px] font-black uppercase tracking-widest border border-slate-200" x-text="'Scope: ' + (form.scope_level || 'National')"></span>
+                            </div>
+                            <h2 class="text-2xl md:text-3xl font-black text-navy-900 tracking-tight" x-text="form.display_name"></h2>
+                            <p class="text-xs font-bold text-slate-500 mt-0.5 flex items-center gap-2">
+                                <i class="fas fa-shield-halved text-blue-500"></i>
+                                <span>Refine operational permissions and role access boundaries across all modules</span>
                             </p>
                         </div>
                     </div>
 
-                    <!-- Integrated Security Notice -->
-                    <div class="bg-rose-50/50 border-l-4 border-rose-500 p-6 rounded-2xl max-w-xl">
-                        <div class="flex gap-4">
-                            <i class="fas fa-user-shield text-rose-500 text-xl mt-1"></i>
-                            <div>
-                                <h4 class="text-[10px] font-black uppercase tracking-widest text-rose-600 mb-1">Security Notice</h4>
-                                <p class="text-xs font-bold text-rose-900/70 leading-relaxed">
-                                    Modifying role permissions will immediately impact all users assigned to this role. Ensure you have validated the matrix before synchronization.
-                                </p>
+                    <!-- Global Action Controls & Live Bound Progress Gauge -->
+                    <div class="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-start xl:justify-end">
+                        <!-- Bound Metric Chip -->
+                        <div class="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-gradient-to-br from-blue-50/90 to-indigo-50/90 border-2 border-blue-200/80 shadow-sm">
+                            <div class="flex flex-col">
+                                <span class="text-[9px] font-black text-blue-600 uppercase tracking-widest">Active Matrix</span>
+                                <span class="text-sm font-black text-blue-950" x-text="form.permissions.length + ' / ' + totalPermissionsCount + ' Bound'"></span>
                             </div>
+                            <div class="w-24 bg-blue-200/60 h-2.5 rounded-full overflow-hidden border border-blue-300/40">
+                                <div class="bg-gradient-to-r from-blue-600 to-indigo-600 h-full rounded-full transition-all duration-300" :style="'width: ' + boundPercentage + '%'"></div>
+                            </div>
+                            <span class="text-[11px] font-black text-indigo-700 font-mono" x-text="boundPercentage + '%'"></span>
                         </div>
+
+                        <!-- Global Select All / Deselect All Toggle -->
+                        <button type="button" @click="allPermissionsSelected() ? clearMatrix() : selectAllPermissions()"
+                            class="px-4 py-2.5 rounded-xl border-2 font-black text-xs uppercase tracking-wider transition-all duration-200 shadow-sm active:scale-95 cursor-pointer flex items-center gap-2"
+                            :class="allPermissionsSelected() 
+                                ? 'border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-700' 
+                                : 'border-blue-300 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-blue-700'">
+                            <i class="fas fa-check-double text-xs"></i>
+                            <span x-text="allPermissionsSelected() ? 'Deselect All' : 'Select All'"></span>
+                        </button>
+
+                        <!-- Clear Matrix Button -->
+                        <button type="button" @click="clearMatrix()"
+                            class="px-3.5 py-2.5 rounded-xl border-2 border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-xs uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer flex items-center gap-1.5" title="Clear all permission selections">
+                            <i class="fas fa-eraser text-xs"></i>
+                            <span>Clear Matrix</span>
+                        </button>
+
+                        <!-- Cancel Button -->
+                        <button type="button" @click="pageMode = 'index'"
+                            class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-black text-xs uppercase tracking-wider transition-all active:scale-95 cursor-pointer border-2 border-slate-200">
+                            Cancel
+                        </button>
+
+                        <!-- Save Changes Primary 3D Button -->
+                        <button type="button" @click="submitForm()" :disabled="saving"
+                            class="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-blue-500/25 hover:-translate-y-0.5 active:scale-95 transition-all flex items-center gap-2 cursor-pointer border border-blue-400/40">
+                            <span x-show="!saving" class="flex items-center gap-1.5">
+                                <i class="fas fa-floppy-disk text-xs"></i>
+                                <span>Save Changes</span>
+                            </span>
+                            <span x-show="saving" class="flex items-center gap-1.5">
+                                <i class="fas fa-circle-notch animate-spin text-xs"></i>
+                                <span>Synchronizing...</span>
+                            </span>
+                        </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Capability Matrix (Full Width) -->
-            <div class="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 flex flex-col relative overflow-hidden">
-                <div class="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/30">
-                    <h4 class="text-xs font-black text-blue-900 uppercase tracking-[0.2em] flex items-center gap-3">
-                        <span class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center"><i class="fas fa-key"></i></span>
-                        Capability Matrix
-                    </h4>
-                    <div class="flex items-center gap-6">
-                        <div class="flex items-center gap-3 pr-6 border-r border-slate-200">
-                            <button @click="form.permissions = []" class="text-[10px] font-black text-rose-500 uppercase tracking-widest hover:underline transition-all">Clear Matrix</button>
-                            <span class="text-[10px] font-black text-blue-600 uppercase tracking-widest px-3 py-1 bg-blue-50 rounded-lg" x-text="form.permissions.length + ' Points Bound'"></span>
+            <!-- Group-Wise Module Navigator & Instant Search Bar (100% Full Width) -->
+            <div class="w-full bg-white rounded-2xl shadow-sm border-2 border-slate-200/90 p-3 md:p-4 flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-3">
+                <!-- Group-Wise Filter Pills / Module Navigator -->
+                <div class="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1 lg:pb-0 flex-1">
+                    <!-- All Modules Tab -->
+                    <button type="button" @click="activeModuleTab = 'all'"
+                        class="px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shrink-0 cursor-pointer flex items-center gap-2 shadow-sm border-2"
+                        :class="activeModuleTab === 'all' 
+                            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-600 shadow-blue-500/25 ring-2 ring-blue-500/20' 
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'">
+                        <i class="fas fa-layer-group text-xs"></i>
+                        <span>All Modules</span>
+                        <span class="px-1.5 py-0.5 rounded-md text-[9px] font-black"
+                            :class="activeModuleTab === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'" 
+                            x-text="totalPermissionsCount"></span>
+                    </button>
+
+                    <!-- Individual Module Tabs -->
+                    <template x-for="(perms, moduleName) in permissions" :key="moduleName">
+                        <button type="button" @click="activeModuleTab = moduleName"
+                            class="px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shrink-0 cursor-pointer flex items-center gap-2 shadow-sm border-2"
+                            :class="activeModuleTab === moduleName 
+                                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-600 shadow-blue-500/25 ring-2 ring-blue-500/20' 
+                                : (allModuleSelected(perms) ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100' : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300')">
+                            <i class="fas text-xs" :class="{
+                                'calls': 'fa-phone',
+                                'users': 'fa-users',
+                                'reports': 'fa-chart-pie',
+                                'dashboard': 'fa-gauge-high',
+                                'support': 'fa-headset',
+                                'analytics': 'fa-chart-line',
+                                'settings': 'fa-gear',
+                                'system': 'fa-server',
+                                'roles': 'fa-shield-halved',
+                                'permissions': 'fa-key',
+                                'geography': 'fa-map-location-dot',
+                                'security': 'fa-lock',
+                                'profile': 'fa-user'
+                            }[moduleName] || 'fa-cube'"></i>
+                            <span x-text="moduleName.replace('_', ' ')"></span>
+                            <span class="px-1.5 py-0.5 rounded-md text-[9px] font-black"
+                                :class="activeModuleTab === moduleName ? 'bg-white/20 text-white' : (allModuleSelected(perms) ? 'bg-emerald-200 text-emerald-900' : 'bg-slate-200 text-slate-600')"
+                                x-text="moduleActiveCount(perms) + '/' + perms.length"></span>
+                        </button>
+                    </template>
+                </div>
+
+                <!-- Instant Permission Search Box -->
+                <div class="relative w-full lg:w-72 shrink-0">
+                    <i class="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                    <input type="text" x-model="matrixSearch" placeholder="Search permissions..."
+                        class="w-full pl-9 pr-8 py-2 rounded-xl border-2 border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none">
+                    <button type="button" x-show="matrixSearch" @click="matrixSearch = ''" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                        <i class="fas fa-times-circle text-xs"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Single-Group Focused View (Active when a specific module is selected) -->
+            <template x-if="activeModuleTab !== 'all' && permissions[activeModuleTab]">
+                <div class="w-full bg-white rounded-[2rem] shadow-[0_12px_40px_rgba(0,0,0,0.04)] border-2 border-slate-200/90 p-6 md:p-8 relative overflow-hidden">
+                    <!-- Focused Group Header -->
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center pb-6 mb-6 border-b-2 border-slate-100 gap-4">
+                        <div class="flex items-center gap-4">
+                            <span class="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center text-2xl shadow-lg shadow-blue-500/25">
+                                <i class="fas" :class="{
+                                    'calls': 'fa-phone',
+                                    'users': 'fa-users',
+                                    'reports': 'fa-chart-pie',
+                                    'dashboard': 'fa-gauge-high',
+                                    'support': 'fa-headset',
+                                    'analytics': 'fa-chart-line',
+                                    'settings': 'fa-gear',
+                                    'system': 'fa-server',
+                                    'roles': 'fa-shield-halved',
+                                    'permissions': 'fa-key',
+                                    'geography': 'fa-map-location-dot',
+                                    'security': 'fa-lock',
+                                    'profile': 'fa-user'
+                                }[activeModuleTab] || 'fa-cube'"></i>
+                            </span>
+                            <div>
+                                <h3 class="text-xl md:text-2xl font-black text-navy-900 uppercase tracking-wider" x-text="activeModuleTab.replace('_', ' ') + ' Control Module'"></h3>
+                                <div class="flex items-center gap-3 mt-1">
+                                    <span class="text-xs font-black text-blue-700 px-3 py-1 bg-blue-50 rounded-xl border border-blue-200"
+                                        x-text="moduleActiveCount(permissions[activeModuleTab]) + ' of ' + permissions[activeModuleTab].length + ' Active'"></span>
+                                    <button type="button" @click="activeModuleTab = 'all'" class="text-xs font-black text-slate-500 hover:text-blue-600 transition-colors flex items-center gap-1">
+                                        <i class="fas fa-arrow-left text-[10px]"></i>
+                                        <span>View All Modules</span>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        <div class="flex items-center gap-3">
-                            <button @click="pageMode = 'index'" class="px-6 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all active:scale-95">Cancel</button>
-                            <button @click="submitForm()" :disabled="saving" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:-translate-y-0.5 active:scale-95 transition-all flex items-center gap-2">
-                                <span x-show="!saving">Save Changes</span>
-                                <span x-show="saving"><i class="fas fa-circle-notch animate-spin"></i> Syncing...</span>
+
+                        <!-- Single-Group Dedicated Action Buttons -->
+                        <div class="flex flex-wrap items-center gap-3">
+                            <button type="button" @click="selectModule(permissions[activeModuleTab])"
+                                class="px-4 py-2.5 rounded-xl border-2 border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer flex items-center gap-2">
+                                <i class="fas fa-check-circle text-xs"></i>
+                                <span x-text="'Select All in ' + activeModuleTab.replace('_', ' ')"></span>
+                            </button>
+                            <button type="button" @click="deselectModule(permissions[activeModuleTab])"
+                                class="px-4 py-2.5 rounded-xl border-2 border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer flex items-center gap-2">
+                                <i class="fas fa-ban text-xs"></i>
+                                <span>Deselect All</span>
                             </button>
                         </div>
                     </div>
-                </div>
 
-                <div class="p-8 max-h-[800px] overflow-y-auto custom-scrollbar">
-                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
-                        <template x-for="(perms, module) in permissions" :key="module">
-                            <div class="bg-slate-50/50 rounded-3xl p-6 border border-slate-100 group hover:border-blue-200 transition-all">
-                                <h5 class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-5 pb-3 border-b border-slate-200/50 flex items-center justify-between group-hover:text-blue-600">
-                                    <span x-text="module.replace('_', ' ') + ' Control'"></span>
-                                    <button @click="toggleModule(perms)" class="text-[8px] hover:underline" x-text="allModuleSelected(perms) ? 'Deselect Module' : 'Select Module'"></button>
-                                </h5>
-                                <div class="grid grid-cols-1 gap-3">
-                                    <template x-for="perm in perms" :key="perm.id">
-                                        <label class="flex items-center justify-between bg-white px-4 py-3.5 rounded-2xl border border-slate-100 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group/item">
-                                            <div class="flex flex-col">
-                                                <span class="text-[11px] font-black text-slate-700 uppercase tracking-widest group-hover/item:text-blue-700 transition-colors" x-text="perm.name.split('.')[1] || perm.name"></span>
-                                                <span class="text-[8px] font-bold text-slate-400 font-mono mt-0.5" x-text="perm.name"></span>
-                                            </div>
-                                            <input type="checkbox" :value="perm.id" x-model="form.permissions" class="w-5 h-5 rounded-lg border-2 border-slate-200 text-blue-600 focus:ring-blue-500 transition-all cursor-pointer">
-                                        </label>
-                                    </template>
+                    <!-- Focused Group Chips in Spacious Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 w-full">
+                        <template x-for="perm in (matrixSearch ? permissions[activeModuleTab].filter(p => (p.name||'').toLowerCase().includes(matrixSearch.toLowerCase()) || (p.display_name||'').toLowerCase().includes(matrixSearch.toLowerCase())) : permissions[activeModuleTab])" :key="perm.id">
+                            <div @click="togglePermission(perm.id)"
+                                :class="form.permissions.includes(parseInt(perm.id)) 
+                                    ? 'border-blue-500 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white shadow-[0_8px_20px_rgba(37,99,235,0.35),inset_0_1px_1px_rgba(255,255,255,0.3)] ring-2 ring-blue-400/40 -translate-y-0.5' 
+                                    : 'border-slate-200/90 bg-slate-50/80 hover:bg-white text-slate-700 hover:border-blue-300 hover:shadow-md hover:-translate-y-0.5'"
+                                class="flex items-center justify-between p-4 rounded-2xl border-2 transition-all duration-200 cursor-pointer select-none group/chip">
+                                
+                                <div class="flex flex-col min-w-0 pr-3">
+                                    <span class="text-xs font-black tracking-wider truncate"
+                                        :class="form.permissions.includes(parseInt(perm.id)) ? 'text-white' : 'text-slate-800 group-hover/chip:text-blue-900'"
+                                        x-text="(perm.name.split('.')[1] || perm.name).toUpperCase()"></span>
+                                    <span class="text-[10px] font-bold font-mono truncate mt-0.5"
+                                        :class="form.permissions.includes(parseInt(perm.id)) ? 'text-blue-100' : 'text-slate-400'"
+                                        x-text="perm.name"></span>
+                                </div>
+
+                                <!-- 3D Tactile Check Circle -->
+                                <div class="w-6 h-6 rounded-xl flex items-center justify-center shrink-0 transition-all font-black text-xs"
+                                    :class="form.permissions.includes(parseInt(perm.id)) 
+                                        ? 'bg-white text-blue-600 shadow-md scale-105' 
+                                        : 'border-2 border-slate-300 bg-white text-transparent group-hover/chip:border-blue-400'">
+                                    <i class="fa-solid fa-check text-xs"></i>
                                 </div>
                             </div>
                         </template>
                     </div>
                 </div>
+            </template>
 
-                <!-- Bottom Sticky Action Bar -->
-                <div class="p-8 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+            <!-- All Modules Multi-Column Bento 3D Grid (100% Full Width) -->
+            <div x-show="activeModuleTab === 'all'" class="w-full">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-6 w-full">
+                    <template x-for="(perms, moduleName) in filteredModules()" :key="moduleName">
+                        <!-- Bento 3D Module Card -->
+                        <div class="bg-white rounded-[1.75rem] p-5 md:p-6 border-2 border-slate-200/90 shadow-[0_8px_30px_rgba(0,0,0,0.03)] hover:shadow-[0_16px_40px_rgba(37,99,235,0.08)] hover:border-blue-300 transition-all duration-300 flex flex-col justify-between relative overflow-hidden">
+                            
+                            <!-- Top Decorative Accent -->
+                            <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r" :class="{
+                                'calls': 'from-blue-500 to-indigo-600',
+                                'users': 'from-indigo-500 to-purple-600',
+                                'reports': 'from-purple-500 to-pink-600',
+                                'dashboard': 'from-cyan-500 to-blue-600',
+                                'support': 'from-emerald-500 to-teal-600',
+                                'analytics': 'from-amber-500 to-orange-600',
+                                'settings': 'from-slate-500 to-slate-700',
+                                'system': 'from-rose-500 to-red-600',
+                                'roles': 'from-blue-600 to-blue-800',
+                                'permissions': 'from-violet-500 to-indigo-600',
+                                'geography': 'from-teal-500 to-emerald-600',
+                                'security': 'from-rose-600 to-rose-800'
+                            }[moduleName] || 'from-blue-600 to-indigo-600'"></div>
+
+                            <div>
+                                <!-- Module Header -->
+                                <div class="flex items-center justify-between pb-4 mb-4 border-b-2 border-slate-100 gap-2">
+                                    <div class="flex items-center gap-3">
+                                        <span class="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-600 border border-blue-200 flex items-center justify-center text-sm font-bold shadow-sm shrink-0">
+                                            <i class="fas" :class="{
+                                                'calls': 'fa-phone',
+                                                'users': 'fa-users',
+                                                'reports': 'fa-chart-pie',
+                                                'dashboard': 'fa-gauge-high',
+                                                'support': 'fa-headset',
+                                                'analytics': 'fa-chart-line',
+                                                'settings': 'fa-gear',
+                                                'system': 'fa-server',
+                                                'roles': 'fa-shield-halved',
+                                                'permissions': 'fa-key',
+                                                'geography': 'fa-map-location-dot',
+                                                'security': 'fa-lock',
+                                                'profile': 'fa-user'
+                                            }[moduleName] || 'fa-cube'"></i>
+                                        </span>
+                                        <div>
+                                            <h5 class="text-xs font-black text-navy-900 uppercase tracking-wider" x-text="moduleName.replace('_', ' ') + ' Control'"></h5>
+                                            <!-- Mini Progress Bar -->
+                                            <div class="flex items-center gap-2 mt-1">
+                                                <div class="w-16 bg-slate-100 h-1.5 rounded-full overflow-hidden border border-slate-200">
+                                                    <div class="bg-blue-600 h-full rounded-full transition-all duration-300" 
+                                                        :style="'width: ' + ((moduleActiveCount(perms) / perms.length) * 100) + '%'"></div>
+                                                </div>
+                                                <span class="text-[9px] font-black text-slate-500 font-mono" x-text="moduleActiveCount(perms) + '/' + perms.length"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Group-Wise Select / Deselect 3D Button -->
+                                    <button type="button" @click="toggleModule(perms)" 
+                                        class="px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer shadow-sm border-2 shrink-0 flex items-center gap-1.5"
+                                        :class="allModuleSelected(perms) 
+                                            ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200' 
+                                            : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200'">
+                                        <i class="fas" :class="allModuleSelected(perms) ? 'fa-ban text-[9px]' : 'fa-check text-[9px]'"></i>
+                                        <span x-text="allModuleSelected(perms) ? 'Deselect' : 'Select All'"></span>
+                                    </button>
+                                </div>
+
+                                <!-- Bento 3D Permission Chips -->
+                                <div class="grid grid-cols-1 gap-2.5">
+                                    <template x-for="perm in perms" :key="perm.id">
+                                        <div @click="togglePermission(perm.id)"
+                                            :class="form.permissions.includes(parseInt(perm.id)) 
+                                                ? 'border-blue-500 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white shadow-[0_6px_18px_rgba(37,99,235,0.3)] ring-2 ring-blue-400/30 -translate-y-0.5' 
+                                                : 'border-slate-200/90 bg-slate-50/70 hover:bg-white text-slate-700 hover:border-blue-300 hover:shadow-md hover:-translate-y-0.5'"
+                                            class="flex items-center justify-between px-3.5 py-2.5 rounded-xl border-2 transition-all duration-200 cursor-pointer group/chip select-none">
+                                            
+                                            <div class="flex flex-col min-w-0 pr-2">
+                                                <span class="text-[11px] font-black tracking-wide truncate transition-colors"
+                                                    :class="form.permissions.includes(parseInt(perm.id)) ? 'text-white' : 'text-slate-800 group-hover/chip:text-blue-900'"
+                                                    x-text="(perm.name.split('.')[1] || perm.name).toUpperCase()"></span>
+                                                <span class="text-[9px] font-bold font-mono truncate mt-0.5"
+                                                    :class="form.permissions.includes(parseInt(perm.id)) ? 'text-blue-100' : 'text-slate-400'"
+                                                    x-text="perm.name"></span>
+                                            </div>
+
+                                            <!-- 3D Tactile Check Circle -->
+                                            <div class="w-5 h-5 rounded-lg flex items-center justify-center shrink-0 transition-all font-black text-[10px]"
+                                                :class="form.permissions.includes(parseInt(perm.id)) 
+                                                    ? 'bg-white text-blue-600 shadow-md scale-105' 
+                                                    : 'border-2 border-slate-300 bg-white text-transparent group-hover/chip:border-blue-400'">
+                                                <i class="fa-solid fa-check"></i>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Bottom Action & Synchronization Bar (100% Full Width) -->
+            <div class="w-full bg-white rounded-2xl shadow-sm border-2 border-slate-200/90 p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div class="flex items-center gap-3">
+                    <span class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm border border-blue-200">
+                        <i class="fas fa-shield-halved"></i>
+                    </span>
                     <div>
-                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">End of Matrix</p>
-                        <p class="text-xs font-bold text-slate-500 mt-1">Review all bindings before final synchronization.</p>
+                        <p class="text-xs font-black text-navy-900 uppercase tracking-wider">Capability Matrix Synchronization</p>
+                        <p class="text-[11px] font-bold text-slate-500">Authority points apply immediately across the network to all active identities upon synchronization.</p>
                     </div>
-                    <div class="flex items-center gap-4">
-                        <button @click="pageMode = 'index'" class="px-8 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95 shadow-sm">Abort Changes</button>
-                        <button @click="submitForm()" :disabled="saving" class="px-12 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl shadow-blue-500/30 hover:-translate-y-1 active:scale-95 transition-all flex items-center gap-3">
-                            <span x-show="!saving">Sync Logic Points</span>
-                            <span x-show="saving"><i class="fas fa-circle-notch animate-spin"></i> Harmonizing...</span>
-                        </button>
-                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button type="button" @click="pageMode = 'index'" class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-black text-xs uppercase tracking-wider transition-all active:scale-95 cursor-pointer border border-slate-200">
+                        Cancel
+                    </button>
+                    <button type="button" @click="submitForm()" :disabled="saving" class="px-8 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-xl shadow-blue-500/25 hover:-translate-y-0.5 active:scale-95 transition-all flex items-center gap-2 cursor-pointer border border-blue-400/30">
+                        <span x-show="!saving" class="flex items-center gap-2">
+                            <i class="fas fa-check-to-slot"></i>
+                            <span>Save Changes</span>
+                        </span>
+                        <span x-show="saving" class="flex items-center gap-2">
+                            <i class="fas fa-circle-notch animate-spin"></i>
+                            <span>Harmonizing...</span>
+                        </span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -743,6 +996,8 @@
                     perPage: 9,
                     showSidebar: false,
                     saving: false,
+                    activeModuleTab: 'all',
+                    matrixSearch: '',
                     
                     // Modals State
                     showViewModal: false,
@@ -836,19 +1091,104 @@
                     },
 
                     allModuleSelected(perms) {
-                        return perms.every(p => this.form.permissions.includes(p.id));
+                        if (!perms || perms.length === 0) return false;
+                        return perms.every(p => this.form.permissions.includes(parseInt(p.id)));
+                    },
+
+                    moduleActiveCount(perms) {
+                        if (!perms) return 0;
+                        return perms.filter(p => this.form.permissions.includes(parseInt(p.id))).length;
                     },
 
                     toggleModule(perms) {
-                        const allSelected = this.allModuleSelected(perms);
-                        const permIds = perms.map(p => p.id);
-                        if (allSelected) {
-                            this.form.permissions = this.form.permissions.filter(id => !permIds.includes(id));
+                        if (this.allModuleSelected(perms)) {
+                            this.deselectModule(perms);
                         } else {
-                            permIds.forEach(id => {
-                                if (!this.form.permissions.includes(id)) this.form.permissions.push(id);
-                            });
+                            this.selectModule(perms);
                         }
+                    },
+
+                    selectModule(perms) {
+                        if (!perms) return;
+                        const permIds = perms.map(p => parseInt(p.id));
+                        permIds.forEach(id => {
+                            if (!this.form.permissions.includes(id)) {
+                                this.form.permissions.push(id);
+                            }
+                        });
+                    },
+
+                    deselectModule(perms) {
+                        if (!perms) return;
+                        const permIds = perms.map(p => parseInt(p.id));
+                        this.form.permissions = this.form.permissions.filter(id => !permIds.includes(id));
+                    },
+
+                    togglePermission(id) {
+                        const numId = parseInt(id);
+                        const index = this.form.permissions.indexOf(numId);
+                        if (index > -1) {
+                            this.form.permissions.splice(index, 1);
+                        } else {
+                            this.form.permissions.push(numId);
+                        }
+                    },
+
+                    selectAllPermissions() {
+                        const allIds = [];
+                        Object.values(this.permissions).forEach(perms => {
+                            perms.forEach(p => allIds.push(parseInt(p.id)));
+                        });
+                        this.form.permissions = allIds;
+                    },
+
+                    clearMatrix() {
+                        this.form.permissions = [];
+                    },
+
+                    allPermissionsSelected() {
+                        const allIds = [];
+                        Object.values(this.permissions).forEach(perms => {
+                            perms.forEach(p => allIds.push(parseInt(p.id)));
+                        });
+                        return allIds.length > 0 && allIds.every(id => this.form.permissions.includes(id));
+                    },
+
+                    get totalPermissionsCount() {
+                        let count = 0;
+                        Object.values(this.permissions).forEach(perms => {
+                            count += perms.length;
+                        });
+                        return count;
+                    },
+
+                    get boundPercentage() {
+                        if (this.totalPermissionsCount === 0) return 0;
+                        return Math.round((this.form.permissions.length / this.totalPermissionsCount) * 100);
+                    },
+
+                    filteredModules() {
+                        let result = {};
+                        const search = (this.matrixSearch || '').toLowerCase().trim();
+                        const targetModule = this.activeModuleTab;
+
+                        Object.entries(this.permissions).forEach(([moduleName, perms]) => {
+                            if (targetModule !== 'all' && moduleName !== targetModule) {
+                                return;
+                            }
+                            if (!search) {
+                                result[moduleName] = perms;
+                                return;
+                            }
+                            const matched = perms.filter(p => 
+                                (p.name || '').toLowerCase().includes(search) || 
+                                (p.display_name || '').toLowerCase().includes(search)
+                            );
+                            if (matched.length > 0) {
+                                result[moduleName] = matched;
+                            }
+                        });
+                        return result;
                     },
 
                     // Action Triggers
@@ -885,12 +1225,14 @@
                         this.showDetailsModal = false;
                         this.showMfaModal = false;
                         this.showConfirmModal = false;
+                        this.activeModuleTab = 'all';
+                        this.matrixSearch = '';
                         this.form = { 
                             id: item.id,
                             name: item.name,
                             display_name: item.display_name,
                             scope_level: item.scope_level || 'national',
-                            permissions: item.permissions ? item.permissions.map(p => p.id) : [] 
+                            permissions: item.permissions ? item.permissions.map(p => parseInt(p.id)) : [] 
                         };
                         this.pageMode = 'permissions';
                         window.scrollTo({ top: 0, behavior: 'smooth' });

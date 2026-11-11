@@ -6,6 +6,7 @@ use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -56,14 +57,20 @@ class LoginRequest extends FormRequest
 
         // Mitigation for account enumeration timing differences
         if (!$user) {
-            \Illuminate\Support\Facades\Hash::check($password, '$2y$10$e8wVf59B.Z5t9i3s2v4u6.GZq7u8w9x0y1z2a3b4c5d6e7f8g9h0i');
-            \Illuminate\Support\Facades\RateLimiter::hit($this->throttleKey());
+            Hash::check($password, '$argon2id$v=19$m=19456,t=2,p=1$dWFyZnRubzlXenRJQWJYTw$OhG5rNzPx9t7onw0PhHiSkw2OmhvsqL27w6+aLCEyE4');
+            RateLimiter::hit($this->throttleKey());
             throw ValidationException::withMessages([
                 'username' => trans('auth.failed'),
             ]);
         }
 
-        // Account hard-locked by admin
+        // Account blocked or inactive
+        if ($user->is_blocked) {
+            throw ValidationException::withMessages([
+                'username' => 'This account has been blocked for security reasons. Please contact Support or use your identity recovery link.',
+            ]);
+        }
+
         if (!$user->is_active) {
             throw ValidationException::withMessages([
                 'username' => 'This account has been deactivated. Contact your administrator.',
@@ -78,8 +85,8 @@ class LoginRequest extends FormRequest
             ]);
         }
 
-        if (!\Illuminate\Support\Facades\Hash::check($password, $user->password)) {
-            \Illuminate\Support\Facades\RateLimiter::hit($this->throttleKey());
+        if (!Hash::check($password, $user->password)) {
+            RateLimiter::hit($this->throttleKey());
 
             $attempts = ($user->failed_attempts ?? 0) + 1;
             $lockUntil = $attempts >= 5 ? now()->addMinutes(30) : null;
@@ -103,7 +110,14 @@ class LoginRequest extends FormRequest
             ]);
         }
 
-        \Illuminate\Support\Facades\RateLimiter::clear($this->throttleKey());
+        // Seamless transparent upgrade of legacy Bcrypt passwords to Argon2id
+        if (Hash::needsRehash($user->password)) {
+            $user->update([
+                'password' => Hash::make($password),
+            ]);
+        }
+
+        RateLimiter::clear($this->throttleKey());
 
         if (($user->failed_attempts ?? 0) > 0) {
             $user->update(['failed_attempts' => 0]);

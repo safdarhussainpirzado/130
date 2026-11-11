@@ -152,7 +152,7 @@
 
                                 {{-- Call ID --}}
                                 <td x-show="visibleColumns.call_number" class="px-3 py-2.5 border-r border-slate-200 whitespace-nowrap">
-                                    <a href="{{ route('calls.show', $row['id']) }}" target="_blank" class="font-mono font-black text-blue-600 hover:text-blue-800 hover:underline">
+                                    <a href="{{ route('calls.show', $row['uuid'] ?? $row['id']) }}" target="_blank" class="font-mono font-black text-blue-600 hover:text-blue-800 hover:underline">
                                         #{{ $row['call_number'] }}
                                     </a>
                                 </td>

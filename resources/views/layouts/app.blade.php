@@ -1,3 +1,21 @@
+@if(request()->header('X-PJAX'))
+    <title>@yield('title', config('app.name', '130 NHMP Helpline'))</title>
+    <div id="pjax-meta" 
+         data-title="@yield('title', config('app.name', '130 NHMP Helpline'))"
+         data-page-title="@yield('page-title', 'Dashboard')"
+         data-route="{{ request()->route()?->getName() }}"
+         data-url="{{ request()->fullUrl() }}"
+         style="display:none;"></div>
+    @include('partials.notifications')
+    <main class="flex-1 overflow-y-auto bg-white">
+        <div class="p-4">
+            @yield('content')
+        </div>
+    </main>
+    <div id="pjax-scripts" style="display:none;">
+        @stack('scripts')
+    </div>
+@else
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" x-data="appLayout">
 
@@ -8,28 +26,108 @@
 
     <title>@yield('title', config('app.name', '130 NHMP Helpline'))</title>
 
+    <!-- Favicon & App Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16x16.png') }}">
+    <link rel="icon" type="image/png" href="{{ asset('images/login/shield-logo.png') }}">
+    <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('apple-touch-icon.png') }}">
+
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100;200;300;400;500;600;700;800;900&display=swap"
         rel="stylesheet">
 
-    {{-- Redundant CDN links removed; now bundled via Vite in resources/css/app.css --}}
-
-
     <!-- Compiled Assets (Tailwind, Alpine, etc.) -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
-    <!-- Leaflet Maps CSS & Vendor Assets (Global for Command Center & SPA Navigation) -->
+    <!-- Leaflet Maps CSS & Vendor Assets (Persistent shell: always loaded for instant map transitions) -->
     <link rel="stylesheet" href="{{ asset('vendor/leaflet/leaflet.css') }}" />
     <link rel="stylesheet" href="{{ asset('vendor/leaflet/MarkerCluster.css') }}" />
     <link rel="stylesheet" href="{{ asset('vendor/leaflet/MarkerCluster.Default.css') }}" />
     <script src="{{ asset('vendor/leaflet/leaflet.js') }}"></script>
     <script src="{{ asset('vendor/leaflet/leaflet.markercluster.js') }}"></script>
+    <script>
+        // Global Defensive Guards for Leaflet Animation & Position Updates (Anti-Crash Layer)
+        (function() {
+            if (!window.L) return;
+
+            // 1. L.Tooltip Guard (Fixes TypeError: Cannot read properties of null reading 'latLngToLayerPoint' or '_latLngToNewLayerPoint')
+            if (L.Tooltip && !L.Tooltip._patchedZoomGuard) {
+                L.Tooltip._patchedZoomGuard = true;
+                const origTooltipAnimate = L.Tooltip.prototype._animateZoom;
+                L.Tooltip.prototype._animateZoom = function(opt) {
+                    if (!this._map || !this._latlng) return;
+                    return origTooltipAnimate ? origTooltipAnimate.call(this, opt) : undefined;
+                };
+                const origTooltipUpdatePos = L.Tooltip.prototype._updatePosition;
+                L.Tooltip.prototype._updatePosition = function() {
+                    if (!this._map || !this._latlng) return;
+                    return origTooltipUpdatePos ? origTooltipUpdatePos.call(this) : undefined;
+                };
+            }
+
+            // 2. L.Marker Guard (Fixes TypeError: Cannot read properties of null reading '_latLngToNewLayerPoint')
+            if (L.Marker && !L.Marker._patchedZoomGuard) {
+                L.Marker._patchedZoomGuard = true;
+                const origMarkerAnimate = L.Marker.prototype._animateZoom;
+                L.Marker.prototype._animateZoom = function(opt) {
+                    if (!this._map || !this._latlng) return;
+                    return origMarkerAnimate ? origMarkerAnimate.call(this, opt) : undefined;
+                };
+                const origMarkerUpdatePos = L.Marker.prototype._updatePosition;
+                L.Marker.prototype._updatePosition = function() {
+                    if (!this._map || !this._latlng) return;
+                    return origMarkerUpdatePos ? origMarkerUpdatePos.call(this) : undefined;
+                };
+            }
+
+            // 3. L.Popup Guard
+            if (L.Popup && !L.Popup._patchedZoomGuard) {
+                L.Popup._patchedZoomGuard = true;
+                const origPopupAnimate = L.Popup.prototype._animateZoom;
+                L.Popup.prototype._animateZoom = function(opt) {
+                    if (!this._map || !this._latlng) return;
+                    return origPopupAnimate ? origPopupAnimate.call(this, opt) : undefined;
+                };
+                const origPopupUpdatePos = L.Popup.prototype._updatePosition;
+                L.Popup.prototype._updatePosition = function() {
+                    if (!this._map || !this._latlng) return;
+                    return origPopupUpdatePos ? origPopupUpdatePos.call(this) : undefined;
+                };
+            }
+
+            // 4. L.CircleMarker Guard
+            if (L.CircleMarker && !L.CircleMarker._patchedZoomGuard) {
+                L.CircleMarker._patchedZoomGuard = true;
+                const origCircleAnimate = L.CircleMarker.prototype._animateZoom;
+                if (origCircleAnimate) {
+                    L.CircleMarker.prototype._animateZoom = function(opt) {
+                        if (!this._map || !this._latlng) return;
+                        return origCircleAnimate.call(this, opt);
+                    };
+                }
+            }
+
+            // 5. L.Path Guard
+            if (L.Path && !L.Path._patchedZoomGuard) {
+                L.Path._patchedZoomGuard = true;
+                if (L.Path.prototype._animateZoom) {
+                    const origPathAnimate = L.Path.prototype._animateZoom;
+                    L.Path.prototype._animateZoom = function(opt) {
+                        if (!this._map) return;
+                        return origPathAnimate.call(this, opt);
+                    };
+                }
+            }
+        })();
+    </script>
+    @stack('leaflet')
 
     <!-- Notification & Routing JS -->
     <script defer src="{{ asset('js/notification.js') }}"></script>
-    <script defer src="{{ asset('js/bento-bridge.js') }}?v={{ time() }}"></script>
+    <script defer src="{{ asset('js/bento-bridge.js') }}?v=1.0.1"></script>
     
     {{-- Hardened Session Security with Cross-Tab Activity Synchronization --}}
     <script>
@@ -200,6 +298,12 @@
             --tw-shadow-color: rgba(10, 28, 47, 0.3);
         }
 
+        /* Prevent Leaflet maps from breaking stacking contexts and bleeding over modals */
+        .leaflet-container {
+            isolation: isolate !important;
+            z-index: 1 !important;
+        }
+
         /* ============================================
            SIDEBAR SYSTEM
         ============================================ */
@@ -272,7 +376,8 @@
         @media (max-width: 1023px) {
             .sidebar-wrap {
                 position: fixed;
-                inset-y: 0;
+                top: 0;
+                bottom: 0;
                 left: 0;
                 z-index: 50;
                 width: 260px !important;
@@ -684,48 +789,84 @@
                         </a>
                     @endif
 
-                    @canany(['geography.offices.view', 'geography.carriageways.view', 'users.view'])
+                    @canany(['geography.offices.view', 'geography.carriageways.view', 'geography.geospatial.view'])
                         <!-- OPERATIONS -->
                         <div class="nav-section">Operations</div>
                         <div class="nav-section-divider"></div>
 
-                        @can('users.view')
-                            <a href="{{ route('admin.users.index') }}"
-                                class="nav-item {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
-                                <span class="nav-icon"><i class="fa-solid fa-user-gear"></i></span>
-                                <span class="nav-label">User Management</span>
-                                <span class="nav-tooltip">Users</span>
-                            </a>
-                        @endcan
-
-                        @can('security.mfa_roles.view')
-                            <a href="{{ route('admin.mfa-settings.index') }}"
-                                class="nav-item {{ request()->routeIs('admin.mfa-settings.*') || request()->routeIs('admin.settings.*') ? 'active' : '' }}">
-                                <span class="nav-icon text-cyan-600"><i class="fa-solid fa-shield-halved"></i></span>
-                                <span class="nav-label">MFA Settings</span>
-                                <span class="nav-tooltip">MFA Settings</span>
-                            </a>
-                        @endcan
-
                         <a href="{{ route('admin.offices.index') }}"
                             class="nav-item {{ request()->routeIs('admin.offices.*') ? 'active' : '' }}">
-                            <span class="nav-icon"><i class="fa-solid fa-earth-asia"></i></span>
+                            <span class="nav-icon text-blue-600"><i class="fa-solid fa-earth-asia"></i></span>
                             <span class="nav-label">Operational Units</span>
                             <span class="nav-tooltip">Field offices</span>
                         </a>
 
                         <a href="{{ route('admin.carriageways.index') }}"
                             class="nav-item {{ request()->routeIs('admin.carriageways.*') ? 'active' : '' }}">
-                            <span class="nav-icon"><i class="fa-solid fa-road"></i></span>
+                            <span class="nav-icon text-emerald-600"><i class="fa-solid fa-road"></i></span>
                             <span class="nav-label">Highway Registry</span>
                             <span class="nav-tooltip">Highways</span>
                         </a>
 
+                        <a href="{{ route('admin.geospatial-landmarks.index') }}"
+                            class="nav-item {{ request()->routeIs('admin.geospatial-landmarks.*') ? 'active' : '' }}">
+                            <span class="nav-icon text-indigo-500"><i class="fa-solid fa-satellite-dish"></i></span>
+                            <span class="nav-label">Geospatial Landmarks</span>
+                            <span class="nav-tooltip">Caller Helper (1,042)</span>
+                        </a>
+
                         <a href="{{ route('admin.geospatial-markers.index') }}"
                             class="nav-item {{ request()->routeIs('admin.geospatial-markers.*') ? 'active' : '' }}">
-                            <span class="nav-icon text-emerald-500"><i class="fa-solid fa-location-dot"></i></span>
+                            <span class="nav-icon text-sky-500"><i class="fa-solid fa-map-location-dot"></i></span>
                             <span class="nav-label">Geospatial Markers</span>
-                            <span class="nav-tooltip">Map Markers</span>
+                            <span class="nav-tooltip">Coordinate Grid (97,479)</span>
+                        </a>
+                    @endcanany
+
+                    <!-- TRAVEL ADVISORY -->
+                    <div class="nav-section">Travel Advisory</div>
+                    <div class="nav-section-divider"></div>
+
+                    <a href="{{ route('ops.travel-advisory.create') }}"
+                        class="nav-item {{ request()->routeIs('ops.travel-advisory.create') ? 'active' : '' }}">
+                        <span class="nav-icon text-amber-500"><i class="fa-solid fa-tower-broadcast"></i></span>
+                        <span class="nav-label">Log Advisory / Fog</span>
+                        <span class="nav-tooltip">Wireless Operator Entry</span>
+                    </a>
+
+                    <a href="{{ route('ops.travel-advisory.index') }}"
+                        class="nav-item {{ request()->routeIs('ops.travel-advisory.index') ? 'active' : '' }}">
+                        <span class="nav-icon text-sky-500"><i class="fa-solid fa-triangle-exclamation"></i></span>
+                        <span class="nav-label">Active Advisories Grid</span>
+                        <span class="nav-tooltip">Corridor Management</span>
+                    </a>
+
+                    <a href="{{ route('public.travel-advisory') }}" target="_blank"
+                        class="nav-item">
+                        <span class="nav-icon text-emerald-500"><i class="fa-solid fa-earth-asia"></i></span>
+                        <span class="nav-label">Commuter Portal</span>
+                        <span class="nav-tooltip">Humsafar Public View</span>
+                    </a>
+
+                    <!-- SUPPORT MANAGEMENT -->
+                    @canany(['support.view', 'support.manage', 'support.analytics', 'support.transfer_verify_source', 'support.transfer_confirm_destination', 'support.transfer_approve'])
+                        <div class="nav-section">Support Management</div>
+                        <div class="nav-section-divider"></div>
+
+                        @php
+                            $pendingSupportCount = (int) \App\Models\SupportRequest::pending()->count();
+                        @endphp
+                        <a href="{{ route('admin.support.index') }}"
+                            class="nav-item {{ request()->routeIs('admin.support.*') ? 'active' : '' }} flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="nav-icon text-blue-600"><i class="fa-solid fa-headset"></i></span>
+                                <span class="nav-label">Support Center</span>
+                            </div>
+                            <span id="support-pending-badge" 
+                                  class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white shadow-sm ml-auto {{ $pendingSupportCount > 0 ? '' : 'hidden' }}">
+                                {{ $pendingSupportCount }}
+                            </span>
+                            <span class="nav-tooltip">Support Center ({{ $pendingSupportCount }} Pending)</span>
                         </a>
                     @endcanany
 
@@ -743,7 +884,7 @@
 
                         <a href="{{ route('reports.agent-wise') }}"
                             class="nav-item {{ request()->routeIs('reports.agent-wise') ? 'active' : '' }}">
-                            <span class="nav-icon text-emerald-500"><i class="fa-solid fa-headset"></i></span>
+                            <span class="nav-icon text-emerald-500"><i class="fa-solid fa-user-check"></i></span>
                             <span class="nav-label">Agent Performance</span>
                             <span class="nav-tooltip">Personnel</span>
                         </a>
@@ -761,63 +902,54 @@
                             <span class="nav-label">Help Response-Time</span>
                             <span class="nav-tooltip">Response & Assistance</span>
                         </a>
-
-                        <!-- <a href="{{ route('reports.beat-wise') }}"
-                            class="nav-item {{ request()->routeIs('reports.beat-wise') ? 'active' : '' }}">
-                            <span class="nav-icon text-indigo-500"><i class="fa-solid fa-map-location-dot"></i></span>
-                            <span class="nav-label">Beat Analysis</span>
-                            <span class="nav-tooltip">Geospatial</span>
-                        </a>
-                        <a href="{{ route('reports.sla-compliance') }}"
-                            class="nav-item {{ request()->routeIs('reports.sla-compliance') ? 'active' : '' }}">
-                            <span class="nav-icon text-rose-500"><i class="fa-solid fa-stopwatch"></i></span>
-                            <span class="nav-label">SLA Monitoring</span>
-                            <span class="nav-tooltip">Compliance</span>
-                        </a>
-                        <a href="{{ route('reports.max-response-time') }}"
-                            class="nav-item {{ request()->routeIs('reports.max-response-time') ? 'active' : '' }}">
-                            <span class="nav-icon text-amber-500"><i class="fa-solid fa-gauge-high"></i></span>
-                            <span class="nav-label">Response Benchmarks</span>
-                            <span class="nav-tooltip">Outliers</span>
-                        </a>
-                        <a href="{{ route('reports.predictive-analysis') }}"
-                            class="nav-item {{ request()->routeIs('reports.predictive-analysis') ? 'active' : '' }}">
-                            <span class="nav-icon text-blue-600"><i class="fa-solid fa-brain"></i></span>
-                            <span class="nav-label">Predictive Load</span>
-                            <span class="nav-tooltip">Forecasting</span>
-                        </a>
-                        <a href="{{ route('reports.category-analysis') }}"
-                            class="nav-item {{ request()->routeIs('reports.category-analysis') ? 'active' : '' }}">
-                            <span class="nav-icon text-teal-500"><i class="fa-solid fa-layer-group"></i></span>
-                            <span class="nav-label">Primary vs Secondary</span>
-                            <span class="nav-tooltip">Structural</span>
-                        </a> -->
                     @endcan
 
-                    @if (Auth::user()->hasPermission('roles.view') ||
-                            Auth::user()->hasPermission('system.settings.view'))
+                    @if (Auth::user()->hasPermission('users.view') ||
+                         Auth::user()->hasPermission('security.mfa_roles.view') ||
+                         Auth::user()->hasPermission('roles.view') ||
+                         Auth::user()->hasPermission('permissions.view') ||
+                         Auth::user()->hasPermission('system.audit_view') ||
+                         Auth::user()->hasPermission('system.settings.view'))
                         <!-- ADMINISTRATIVE -->
                         <div class="nav-section">Administrative</div>
                         <div class="nav-section-divider"></div>
 
+                        @can('users.view')
+                            <a href="{{ route('admin.users.index') }}"
+                                class="nav-item {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
+                                <span class="nav-icon text-blue-600"><i class="fa-solid fa-user-gear"></i></span>
+                                <span class="nav-label">User Management</span>
+                                <span class="nav-tooltip">Users</span>
+                            </a>
+                        @endcan
+
+                        @can('security.mfa_roles.view')
+                            <a href="{{ route('admin.mfa-settings.index') }}"
+                                class="nav-item {{ request()->routeIs('admin.mfa-settings.*') || request()->routeIs('admin.settings.*') ? 'active' : '' }}">
+                                <span class="nav-icon text-cyan-600"><i class="fa-solid fa-shield-halved"></i></span>
+                                <span class="nav-label">MFA Settings</span>
+                                <span class="nav-tooltip">MFA Settings</span>
+                            </a>
+                        @endcan
+
                         @can('roles.view')
                             <a href="{{ route('admin.roles.index') }}"
                                 class="nav-item {{ request()->routeIs('admin.roles.*') ? 'active' : '' }}">
-                                <span class="nav-icon"><i class="fa-solid fa-fingerprint"></i></span>
+                                <span class="nav-icon text-amber-600"><i class="fa-solid fa-user-shield"></i></span>
                                 <span class="nav-label">Roles Management</span>
                                 <span class="nav-tooltip">Roles</span>
                             </a>
 
                             <a href="{{ route('admin.permissions.index') }}"
                                 class="nav-item {{ request()->routeIs('admin.permissions.*') ? 'active' : '' }}">
-                                <span class="nav-icon"><i class="fa-solid fa-key"></i></span>
+                                <span class="nav-icon text-emerald-600"><i class="fa-solid fa-key"></i></span>
                                 <span class="nav-label">Permission Management</span>
                                 <span class="nav-tooltip">Permissions</span>
                             </a>
 
                             <a href="{{ route('admin.audit.index') }}"
                                 class="nav-item {{ request()->routeIs('admin.audit.*') ? 'active' : '' }}">
-                                <span class="nav-icon"><i class="fa-solid fa-fingerprint"></i></span>
+                                <span class="nav-icon text-indigo-600"><i class="fa-solid fa-fingerprint"></i></span>
                                 <span class="nav-label">Security Audit Logs</span>
                                 <span class="nav-tooltip">Security Audit Logs</span>
                             </a>
@@ -880,6 +1012,14 @@
                         <div id="live-time" class="text-[10px] font-mono font-bold text-navy-900 leading-none"></div>
                     </div>
                     <div class="h-6 w-px bg-slate-200"></div>
+
+                    {{-- Self-Service Support Center Access --}}
+                    <a href="{{ route('portal.support.index') }}" 
+                        class="h-10 px-3 rounded-2xl border-2 transition-all flex items-center gap-2 group text-xs font-bold {{ request()->routeIs('portal.support.*') ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700' }}"
+                        title="Self-Service Support Center">
+                        <i class="fa-solid fa-headset text-blue-600"></i>
+                        <span class="hidden sm:inline">Support Center</span>
+                    </a>
 
                     {{-- Voice Activation Protocol --}}
                     <button @click="toggleVoice()" 
@@ -1081,8 +1221,77 @@
         });
     </script>
 
+    <script>
+        // Enforce Zero-Query-String Architecture: sanitize address bar across all application routes
+        (function() {
+            if (window.location.search) {
+                try {
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                } catch (e) {}
+            }
+        })();
+    </script>
+
+    @canany(['support.manage', 'support.view', 'support.transfer_approve'])
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            let lastNotifiedId = parseInt(sessionStorage.getItem('nhmp_last_notified_support_id') || '0', 10);
+            let isInitialCheck = true;
+
+            async function checkPendingSupportRequests() {
+                try {
+                    const res = await fetch('{{ route("admin.support.pendingCount") }}', {
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                    });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    
+                    // Live update sidebar badge
+                    const badge = document.getElementById('support-pending-badge');
+                    if (badge) {
+                        badge.textContent = data.count;
+                        if (data.count > 0) {
+                            badge.classList.remove('hidden');
+                        } else {
+                            badge.classList.add('hidden');
+                        }
+                    }
+
+                    // Trigger JS toast via notification.js if new request or first load with pending
+                    if (data.count > 0 && data.latest_id) {
+                        if (isInitialCheck) {
+                            if (lastNotifiedId !== data.latest_id) {
+                                lastNotifiedId = data.latest_id;
+                                sessionStorage.setItem('nhmp_last_notified_support_id', lastNotifiedId.toString());
+                                if (window.showInfo) {
+                                    window.showInfo(`There are ${data.count} pending request(s) awaiting review in Support Center.`, 'Pending Support Alert', 6000);
+                                }
+                            }
+                        } else if (data.latest_id > lastNotifiedId) {
+                            lastNotifiedId = data.latest_id;
+                            sessionStorage.setItem('nhmp_last_notified_support_id', lastNotifiedId.toString());
+                            const subject = data.subject || 'New Support Request';
+                            if (window.showWarning) {
+                                window.showWarning(`New Support Request: "${subject}". Awaiting operational decision.`, 'Support Center Dispatch', 7000);
+                            }
+                        }
+                    }
+                    isInitialCheck = false;
+                } catch (e) {
+                    // Fail silently on polling connection drop
+                }
+            }
+
+            // Initial check + 30-second interval poll
+            setTimeout(checkPendingSupportRequests, 1200);
+            setInterval(checkPendingSupportRequests, 30000);
+        });
+    </script>
+    @endcanany
+
     @include('partials.notifications')
     @stack('scripts')
 </body>
 
 </html>
+@endif

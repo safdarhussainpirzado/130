@@ -12,8 +12,8 @@ class CarriagewayController extends Controller
         $this->authorize('geography.carriageways.view');
         $query = Carriageway::query();
 
-        // Since the list of roads is small, we'll return all for client-side logic stability
-        $carriageways = $query->get();
+        // Since the list of roads is small, we'll return selective columns for client-side logic stability
+        $carriageways = $query->select(['id', 'type', 'road', 'road_short', 'road_name', 'road_from', 'road_to', 'total_km', 'status', 'created_at'])->get();
 
         if ($request->wantsJson()) {
             return response()->json([
