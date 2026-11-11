@@ -1,0 +1,3 @@
+$kind: collection
+description: A commuter token must NOT reach patrol or desk endpoints (regression for commit 7f91bbe).
+order: 2000

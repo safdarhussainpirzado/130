@@ -1,0 +1,18 @@
+$kind: http-request
+name: "A4 Case history"
+description: Case history
+url: "{{base_url}}/api/v1/commuter/cases/history"
+method: GET
+headers:
+  Accept: application/json
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: "{{access_token}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('HTTP 200', () => pm.response.to.have.status(200));
+    language: text/javascript
+order: 4000

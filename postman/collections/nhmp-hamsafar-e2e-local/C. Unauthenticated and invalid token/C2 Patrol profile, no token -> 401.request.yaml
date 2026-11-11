@@ -1,0 +1,13 @@
+$kind: http-request
+name: "C2 Patrol profile, no token -> 401"
+description: Patrol profile, no token -> 401
+url: "{{base_url}}/api/v1/patrol/me"
+method: GET
+headers:
+  Accept: application/json
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('HTTP 401', () => pm.response.to.have.status(401));
+    language: text/javascript
+order: 2000

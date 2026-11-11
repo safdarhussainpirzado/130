@@ -1,0 +1,8 @@
+$kind: collection
+id: 5b0a6c1e-3f4d-4a77-9a52-2f6c1d7e9b10
+name: NHMP Hamsafar - Self-contained E2E and Authorization Tests (local)
+description: |-
+  Self-contained: registers a fresh throwaway commuter on every run (email pmtest+<timestamp>@example.com), so it needs no seeded passwords.
+  Verifies the commuter lifecycle, the role boundaries added in commit 7f91bbe (commuter token must get 403 on patrol and women's-journey desk endpoints),
+  and that unauthenticated/invalid tokens get 401. Run against a LOCAL or dev stack only; never production.
+order: 6000

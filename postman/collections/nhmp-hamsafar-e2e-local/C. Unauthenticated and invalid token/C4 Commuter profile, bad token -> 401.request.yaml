@@ -1,0 +1,14 @@
+$kind: http-request
+name: "C4 Commuter profile, bad token -> 401"
+description: Commuter profile, bad token -> 401
+url: "{{base_url}}/api/v1/commuter/profile"
+method: GET
+headers:
+  Accept: application/json
+  Authorization: Bearer invalid-token
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('HTTP 401', () => pm.response.to.have.status(401));
+    language: text/javascript
+order: 4000
