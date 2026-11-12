@@ -41,6 +41,10 @@ class VerifyAuditIntegrity extends Command
             return Command::SUCCESS;
         }
 
+        \Illuminate\Support\Facades\Log::warning('audit chain verification found issues', [
+            'count' => count($result['errors']),
+            'ids'   => array_slice(array_column($result['errors'], 'id'), 0, 20),
+        ]);
         $this->error("🚨 TAMPERING DETECTED! Audit log integrity check failed!");
         foreach ($result['errors'] as $err) {
             $this->error("   [ID: {$err['id']}] {$err['error']} (Expected: {$err['expected']}, Got: {$err['actual']})");

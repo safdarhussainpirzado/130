@@ -41,6 +41,26 @@ class AuditLog extends Model
     // worker under login bursts (outage 2026-11-12). A concurrent-write fork of the hash chain is detectable via
     // verifyIntegrity() and is preferable to blocking the helpline. Revisit with a non-blocking design.
 
+    /**
+     * Canonical JSON used for hashing. MySQL's JSON type re-orders object keys (shorter keys first, then bytewise),
+     * so hashing the insertion order made rows with 2+ keys fail verification after the DB round trip (false "tampering").
+     */
+    public static function canonicalJson(mixed $value): string
+    {
+        $canon = function ($v) use (&$canon) {
+            if (! is_array($v)) {
+                return $v;
+            }
+            $isList = array_is_list($v);
+            $v = array_map($canon, $v);
+            if (! $isList) {
+                uksort($v, fn ($a, $b) => [strlen((string) $a), (string) $a] <=> [strlen((string) $b), (string) $b]);
+            }
+            return $v;
+        };
+        return json_encode($canon($value));
+    }
+
     protected static function booted(): void
     {
         static::creating(function (AuditLog $log): void {
@@ -57,8 +77,8 @@ class AuditLog extends Model
                 (string) $log->table_name,
                 (string) $log->record_id,
                 (string) $log->ip_address,
-                json_encode($log->old_values),
-                json_encode($log->new_values),
+                static::canonicalJson($log->old_values),
+                static::canonicalJson($log->new_values),
                 $previousHash,
             ]);
 
@@ -127,6 +147,14 @@ class AuditLog extends Model
             ]);
 
             $calculatedHash = hash_hmac('sha256', $payload, $salt);
+            $canonPayload = implode('|', [
+                (string) $log->user_id, (string) $log->action, (string) $log->table_name, (string) $log->record_id,
+                (string) $log->ip_address, static::canonicalJson($log->old_values), static::canonicalJson($log->new_values),
+                (string) $log->previous_hash,
+            ]);
+            if ($log->record_hash === hash_hmac('sha256', $canonPayload, $salt)) {
+                $calculatedHash = $log->record_hash;
+            }
             if ($log->record_hash !== $calculatedHash) {
                 // Historical backward-compatibility fallback for empty array vs null JSON serialization
                 $altPayload = implode('|', [

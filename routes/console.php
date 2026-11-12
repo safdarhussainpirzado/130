@@ -17,3 +17,6 @@ Schedule::command('analytics:process-outbox --limit=1000')->everyMinute()->witho
 
 // Reconcile and guarantee zero drift between operational DB and rollup analytics nightly at 03:00
 Schedule::command('analytics:reconcile')->dailyAt('03:00');
+
+// Hourly tamper/fork detection over the most recent audit records; failures surface in the app log (see command).
+Schedule::command('audit:verify-integrity --limit=200')->hourly()->withoutOverlapping();
