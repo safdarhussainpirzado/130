@@ -37,28 +37,9 @@ class AuditLog extends Model
 
     const UPDATED_AT = null;
 
-    /**
-     * Serialize chain writes across all app nodes (Redis lock) so two concurrent events cannot read the same
-     * previous hash and fork the chain. Fails open (logs) if the lock cannot be obtained so auditing never blocks users.
-     */
-    public static function create(array $attributes = [])
-    {
-        try {
-            $lock = \Illuminate\Support\Facades\Cache::lock('audit_chain_write', 10);
-            if ($lock->block(5)) {
-                try {
-                    return parent::create($attributes);
-                } finally {
-                    $lock->release();
-                }
-            }
-        } catch (\Illuminate\Contracts\Cache\LockTimeoutException $e) {
-            \Illuminate\Support\Facades\Log::warning('audit chain lock timeout; writing unlocked');
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('audit chain lock unavailable: '.$e->getMessage());
-        }
-        return parent::create($attributes);
-    }
+    // NOTE: chain writes are intentionally NOT serialized with a lock. A blocking Redis lock (rc13) stalled every
+    // worker under login bursts (outage 2026-11-12). A concurrent-write fork of the hash chain is detectable via
+    // verifyIntegrity() and is preferable to blocking the helpline. Revisit with a non-blocking design.
 
     protected static function booted(): void
     {
