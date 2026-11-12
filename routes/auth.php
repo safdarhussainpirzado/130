@@ -108,6 +108,12 @@ Route::middleware('auth')->group(function () {
 
     Route::put('password', [PasswordController::class, 'update'])->name('password.update');
 
+    // Optional recovery codes: only users who completed 2FA setup can generate them (replaces any previous set).
+    Route::get('2fa/recovery-codes', [TwoFactorEnrollmentController::class, 'manageRecoveryCodes'])->name('2fa.recovery.manage');
+    Route::post('2fa/recovery-codes', [TwoFactorEnrollmentController::class, 'generateRecoveryCodes'])
+        ->middleware(['mfa.fresh:recovery_codes', 'throttle:5,1'])
+        ->name('2fa.recovery.generate');
+
     // 15-Day Mandatory Password Expiration Enforcement
     Route::get('password/expired', [PasswordExpiredController::class, 'show'])->name('password.expired');
     Route::post('password/expired', [PasswordExpiredController::class, 'update'])

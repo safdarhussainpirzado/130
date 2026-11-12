@@ -47,7 +47,8 @@ class AuthenticatedSessionController extends Controller
 
         if (!$mfaRequired) {
             // Role is exempt from MFA! Directly authenticate into web guard.
-            Auth::guard('web')->login($user, (bool) $request->boolean('remember'));
+            // Remember-me is disabled: persistent cookies re-authenticated the previous user on shared workstations.
+            Auth::guard('web')->login($user, false);
             $request->session()->regenerate();
 
             $now = now()->timestamp;

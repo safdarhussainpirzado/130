@@ -67,7 +67,7 @@
                         @if ($errors->has('password'))<div id="password-error" class="field-error">@foreach ($errors->get('password') as $message)<p>{{ $message }}</p>@endforeach</div>@endif
                     </div>
                     <div class="form-options">
-                        <label for="remember_me" class="remember-label"><input id="remember_me" type="checkbox" name="remember" @checked(old('remember'))><span>Remember me</span></label>
+                        
                         @if (Route::has('password.request'))<a href="{{ route('password.request') }}">Forgot password?</a>@endif
                     </div>
                     <button type="submit" id="loginButton" class="sign-in-button"><span id="btnText">Sign in to your workspace</span><svg class="submit-arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg><span id="loadingSpinner" class="login-spinner" hidden aria-hidden="true"></span></button>

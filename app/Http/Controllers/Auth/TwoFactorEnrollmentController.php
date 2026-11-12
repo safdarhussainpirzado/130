@@ -164,8 +164,7 @@ class TwoFactorEnrollmentController extends Controller
                 $this->enrollmentAuthService->consumeAuthorization($authorization);
             }
 
-            // Generate 10 single-use recovery codes
-            $recoveryResult = $this->recoveryService->generateCodes($user->id);
+            // Recovery codes are NOT generated at enrolment; users opt in later (2fa.recovery.manage).
         });
 
         AuditLog::create([
@@ -296,7 +295,6 @@ class TwoFactorEnrollmentController extends Controller
             if ($authorization) {
                 $this->enrollmentAuthService->consumeAuthorization($authorization);
             }
-            $recoveryResult = $this->recoveryService->generateCodes($user->id);
         });
 
         AuditLog::create([
@@ -425,8 +423,8 @@ class TwoFactorEnrollmentController extends Controller
             $user->security_version = ($user->security_version ?? 1) + 1;
             $user->save();
 
-            // Revoke old recovery codes and generate 10 new ones
-            $recoveryResult = $this->recoveryService->generateCodes($user->id);
+            // Old recovery codes are revoked; new ones are issued only on request.
+            \App\Models\TwoFactorRecoveryCode::where('user_id', $user->id)->whereNull('consumed_at')->update(['consumed_at' => now()]);
         });
 
         AuditLog::create([
@@ -445,6 +443,49 @@ class TwoFactorEnrollmentController extends Controller
             'security_version' => (int) $user->security_version,
             'mfa_new_recovery_codes' => $recoveryResult['plain_codes'],
         ]);
+
+        return redirect()->route('2fa.enroll.success');
+    }
+
+    /**
+     * Optional: page where an enrolled user may generate recovery codes.
+     */
+    public function manageRecoveryCodes(Request $request): View|RedirectResponse
+    {
+        /** @var User $user */
+        $user = Auth::user();
+        if (! $user->hasMfaEnrolled()) {
+            abort(403, 'Complete two-factor setup first.');
+        }
+
+        return view('auth.two-factor-recovery-manage', [
+            'remaining' => $this->recoveryService->getRemainingCount($user->id),
+        ]);
+    }
+
+    /**
+     * Generate a fresh set of 10 codes (invalidates all earlier ones) and show them once.
+     */
+    public function generateRecoveryCodes(Request $request): RedirectResponse
+    {
+        /** @var User $user */
+        $user = Auth::user();
+        if (! $user->hasMfaEnrolled()) {
+            abort(403, 'Complete two-factor setup first.');
+        }
+
+        $result = $this->recoveryService->generateCodes($user->id);
+
+        AuditLog::create([
+            'user_id' => $user->id,
+            'action' => 'recovery_codes_generated',
+            'table_name' => 'two_factor_recovery_codes',
+            'record_id' => $user->id,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
+        $request->session()->put('mfa_new_recovery_codes', $result['plain_codes']);
 
         return redirect()->route('2fa.enroll.success');
     }
