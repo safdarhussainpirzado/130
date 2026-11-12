@@ -58,7 +58,7 @@ if (!function_exists('docker_secret')) {
     function docker_secret(string $name, mixed $default = null): mixed
     {
         $path = "/run/secrets/{$name}";
-        if (file_exists($path) && is_readable($path)) {
+        if (is_file($path) && is_readable($path)) {
             $val = trim((string) file_get_contents($path));
             if ($val !== '') {
                 return $val;
@@ -67,7 +67,7 @@ if (!function_exists('docker_secret')) {
 
         // Host / local development fallback: check docker/secrets/{name}.txt
         $localSecretPath = function_exists('base_path') ? base_path("docker/secrets/{$name}.txt") : (__DIR__ . "/../../docker/secrets/{$name}.txt");
-        if (file_exists($localSecretPath) && is_readable($localSecretPath)) {
+        if (is_file($localSecretPath) && is_readable($localSecretPath)) {
             $val = trim((string) file_get_contents($localSecretPath));
             if ($val !== '') {
                 return $val;

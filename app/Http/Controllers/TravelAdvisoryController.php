@@ -6,6 +6,7 @@ use App\Models\Carriageway;
 use App\Models\GeospatialLandmark;
 use App\Models\GeospatialMarker;
 use App\Models\Office;
+use App\Models\Role;
 use App\Models\TabletAdvisory;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -18,6 +19,23 @@ use Illuminate\View\View;
 
 class TravelAdvisoryController extends Controller
 {
+    /**
+     * Authorize that the current authenticated user has sector operator access.
+     * Restricted to sector_admin role (and super_admin for system management).
+     */
+    private function authorizeSectorAdmin(): void
+    {
+        /** @var \App\Models\User|null $user */
+        $user = Auth::user();
+        if (! $user) {
+            abort(401, 'Unauthenticated.');
+        }
+
+        $roleName = $user->role?->name;
+        if (! in_array($roleName, [Role::SECTOR_ADMIN, Role::SUPER_ADMIN], true) && ! ($user instanceof \App\Models\User && $user->hasPermission('travel_advisory.view'))) {
+            abort(403, 'Unauthorized. Access to Travel Advisory operations is restricted to sector operators (sector_admin).');
+        }
+    }
     /**
      * Public Commuter Travel Advisory Portal (matches Humsafar mockup + Roadworks Radar UK).
      */
@@ -111,12 +129,15 @@ class TravelAdvisoryController extends Controller
      */
     public function operatorCreate(Request $request): View
     {
+        $this->authorizeSectorAdmin();
+
+        /** @var \App\Models\User|null $user */
         $user = Auth::user();
-        $userOffice = $user?->office;
+        $userOffice = $user?->office ?? ($user instanceof \App\Models\User ? $user->activeScopes()->with('office.parent.parent')->first()?->office : null);
 
         // Determine operator tier based on office type or role
         $tier = 'beat';
-        if ($user?->role?->name === 'super_admin' || $user?->role?->name === 'national_admin' || !$userOffice) {
+        if ($user?->role?->name === Role::SUPER_ADMIN || $user?->role?->name === 'national_admin' || !$userOffice) {
             $tier = 'national';
         } elseif ($userOffice) {
             $tier = strtolower((string)$userOffice->type); // 'zone', 'sector', 'beat'
@@ -132,9 +153,19 @@ class TravelAdvisoryController extends Controller
         });
 
         $zones = Office::where('type', 'zone')->orderBy('name')->get();
-        $carriageways = Carriageway::whereIn('type', ['Motorway', 'Highway'])
+        $carriageways = Carriageway::whereIn('type', ['Motorway', 'Highway', 'Strategic Route'])
             ->orderBy('road')
-            ->get();
+            ->get()
+            ->map(fn($cw) => [
+                'id'         => $cw->id,
+                'road'       => $cw->road,
+                'road_short' => $cw->road_short ?: $cw->road,
+                'road_name'  => $cw->road_name,
+                'road_from'  => $cw->road_from,
+                'road_to'    => $cw->road_to,
+                'total_km'   => (float)$cw->total_km,
+                'type'       => $cw->type,
+            ]);
 
         // Recent advisories entered by this operational unit
         $recentAdvisories = TabletAdvisory::orderBy('published_at', 'desc')
@@ -159,6 +190,8 @@ class TravelAdvisoryController extends Controller
      */
     public function operatorStore(Request $request): RedirectResponse|JsonResponse
     {
+        $this->authorizeSectorAdmin();
+
         $validated = $request->validate([
             'advisory_type'     => 'required|in:fog,road_closure,road_works,traffic,weather,diversion',
             'severity'          => 'required|in:info,advisory,warning,critical',
@@ -275,6 +308,8 @@ class TravelAdvisoryController extends Controller
      */
     public function operatorIndex(Request $request): View|JsonResponse
     {
+        $this->authorizeSectorAdmin();
+
         $road = $request->query('road', 'all');
         $status = $request->query('status', 'active');
         $type = $request->query('type', 'all');
@@ -403,6 +438,8 @@ class TravelAdvisoryController extends Controller
      */
     public function operatorResolve(Request $request, int $id): JsonResponse|RedirectResponse
     {
+        $this->authorizeSectorAdmin();
+
         $advisory = TabletAdvisory::findOrFail($id);
         $advisory->update([
             'status'     => 'resolved',
@@ -426,6 +463,8 @@ class TravelAdvisoryController extends Controller
      */
     public function operatorExtend(Request $request, int $id): JsonResponse|RedirectResponse
     {
+        $this->authorizeSectorAdmin();
+
         $advisory = TabletAdvisory::findOrFail($id);
         $newExpiry = ($advisory->expires_at && $advisory->expires_at->isFuture()) 
             ? $advisory->expires_at->addHours(2) 

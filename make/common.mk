@@ -20,8 +20,10 @@ LOCAL_IP := 127.0.0.1
 # Container Naming (Validated against Docker Compose & Docker Engine)
 APP1_CONTAINER := 130-app-1-1
 APP2_CONTAINER := 130-app-2-1
+OCTANE_APP_CONTAINER := 130-app-octane-1-1
 WEB1_CONTAINER := 130-web-1-1
 WEB2_CONTAINER := 130-web-2-1
+OCTANE_WEB_CONTAINER := 130-web-octane-1-1
 HAPROXY_CONTAINER := 130-haproxy-1
 DB1_CONTAINER := 130-db-1-1
 DB2_CONTAINER := 130-db-2-1

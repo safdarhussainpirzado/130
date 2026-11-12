@@ -48,6 +48,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 6
+    volumes:
+      - ./resources/views:/var/www/html/resources/views:ro
     networks:
       - crm-net
 

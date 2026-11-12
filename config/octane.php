@@ -23,6 +23,10 @@ use Laravel\Octane\Listeners\ReportException;
 use Laravel\Octane\Listeners\StopWorkerIfNecessary;
 use Laravel\Octane\Octane;
 
+$prepareNextOperation = class_exists(Octane::class) ? Octane::prepareApplicationForNextOperation() : [];
+$prepareNextRequest   = class_exists(Octane::class) ? Octane::prepareApplicationForNextRequest() : [];
+$defaultWarm          = class_exists(Octane::class) ? Octane::defaultServicesToWarm() : [];
+
 return [
 
     /*
@@ -71,8 +75,8 @@ return [
         ],
 
         RequestReceived::class => [
-            ...Octane::prepareApplicationForNextOperation(),
-            ...Octane::prepareApplicationForNextRequest(),
+            ...$prepareNextOperation,
+            ...$prepareNextRequest,
             //
         ],
 
@@ -85,7 +89,7 @@ return [
         ],
 
         TaskReceived::class => [
-            ...Octane::prepareApplicationForNextOperation(),
+            ...$prepareNextOperation,
             //
         ],
 
@@ -94,7 +98,7 @@ return [
         ],
 
         TickReceived::class => [
-            ...Octane::prepareApplicationForNextOperation(),
+            ...$prepareNextOperation,
             //
         ],
 
@@ -131,7 +135,7 @@ return [
     */
 
     'warm' => [
-        ...Octane::defaultServicesToWarm(),
+        ...$defaultWarm,
     ],
 
     'flush' => [

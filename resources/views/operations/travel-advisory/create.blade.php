@@ -5,11 +5,15 @@
 
 @section('content')
 @php
-    $userOfficeId = $operatorOffice?->id ?? null;
-    $userSectorId = $operatorOffice?->type === 'beat' ? $operatorOffice->parent_id : ($operatorOffice?->type === 'sector' ? $operatorOffice->id : null);
-    $userZoneId = $operatorOffice?->type === 'beat' 
+    $isBeat = ($operatorOffice?->type === 'beat');
+    $isSector = ($operatorOffice?->type === 'sector');
+    $isZone = ($operatorOffice?->type === 'zone');
+
+    $userOfficeId = $isBeat ? $operatorOffice->id : null;
+    $userSectorId = $isBeat ? $operatorOffice->parent_id : ($isSector ? $operatorOffice->id : null);
+    $userZoneId = $isBeat 
         ? $operatorOffice?->parent?->parent_id 
-        : ($operatorOffice?->type === 'sector' ? $operatorOffice?->parent_id : ($operatorOffice?->type === 'zone' ? $operatorOffice->id : null));
+        : ($isSector ? $operatorOffice?->parent_id : ($isZone ? $operatorOffice->id : null));
 @endphp
 
 <div id="flash-bridge-create" 
@@ -38,6 +42,7 @@
     sectorsData: {{ Js::from($hierarchy['sectors'] ?? []) }},
     beatsData: {{ Js::from($hierarchy['beats'] ?? []) }},
     roadsData: {{ Js::from($hierarchy['roads'] ?? []) }},
+    carriagewaysData: {{ Js::from($carriageways ?? []) }},
     landmarksData: {{ Js::from($landmarks ?? []) }},
 })" class="space-y-5 max-w-7xl mx-auto pb-12 pt-1" x-cloak>
 
@@ -179,6 +184,42 @@
                 </div>
             </div>
 
+            <!-- TARGET CORRIDOR / ROAD SWITCHER -->
+            <div class="mt-2 pt-4 border-t border-slate-100 space-y-2.5">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <label class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-road text-amber-500"></i>
+                        <span>Target Highway / Motorway Corridor</span>
+                        <span class="text-[10px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200">Interactive Highway Switcher</span>
+                    </label>
+                    <span class="text-[11px] text-slate-500 font-medium">Click any corridor below to switch road or select from full registry</span>
+                </div>
+
+                <!-- Quick Buttons for Major Motorways & Highways -->
+                <div class="flex flex-wrap items-center gap-1.5">
+                    <template x-for="c in quickCorridors" :key="c">
+                        <button type="button" @click="selectRoad(c)"
+                            class="px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                            :class="selectedRoadCode === c 
+                                ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400 shadow-md font-black scale-105' 
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'">
+                            <i class="fa-solid fa-shield-halved text-[10px]" :class="selectedRoadCode === c ? 'text-slate-950' : 'text-slate-400'"></i>
+                            <span x-text="c"></span>
+                        </button>
+                    </template>
+
+                    <!-- Full Carriageways Registry Dropdown -->
+                    <div class="relative inline-block ml-auto sm:ml-2">
+                        <select x-model="selectedRoadCode" @change="selectRoad(selectedRoadCode)"
+                            class="bg-white border border-slate-300 text-slate-800 text-xs font-bold rounded-xl px-3 py-1.5 pr-8 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-sm cursor-pointer">
+                            <template x-for="cw in carriagewaysList" :key="cw.id">
+                                <option :value="cw.road_short || cw.road" x-text="cw.road_short + ' - ' + cw.road_name + ' (' + Math.round(cw.total_km) + ' KM)'"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
             <!-- DYNAMIC CORRIDOR STRIP & BOUND CHIPS -->
             <div class="mt-4 p-4 rounded-2xl bg-slate-900 text-white flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 shadow-inner">
                 <div class="flex items-start sm:items-center gap-3">
@@ -187,9 +228,9 @@
                     </div>
                     <div>
                         <div class="flex items-center gap-2 flex-wrap">
-                            <span class="text-sm font-black text-amber-400 tracking-wide font-mono px-2 py-0.5 rounded bg-amber-400/10 border border-amber-400/30" x-text="resolvedRouteCode"></span>
+                            <span class="text-sm font-black text-amber-400 tracking-wide font-mono px-2 py-0.5 rounded bg-amber-400/10 border border-amber-400/30" x-text="selectedRoadCode"></span>
                             <span class="text-xs text-slate-300 font-semibold" x-text="resolvedRoadTitle"></span>
-                            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Auto-Mapped from Beat Registry</span>
+                            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Target Corridor</span>
                         </div>
                         <div class="text-xs text-slate-400 mt-1 flex flex-wrap items-center gap-3">
                             <span class="font-mono text-slate-300 font-bold" x-text="'Beat Span: ' + selectedBeatKmRange"></span>
@@ -677,6 +718,39 @@
 
 <!-- Alpine Logic Component -->
 <script>
+const SECTOR_TO_ROAD_MAP = {
+    13: 'M-1',
+    14: 'M-2',
+    15: 'E-35',
+    16: 'M-16',
+    17: 'M-14',
+    18: 'M-2',
+    19: 'M-3',
+    20: 'M-11',
+    21: 'M-4',
+    22: 'M-4',
+    23: 'M-5',
+    24: 'M-5',
+    25: 'N-5',
+    26: 'N-5',
+    27: 'N-5',
+    28: 'N-75',
+    29: 'N-5',
+    30: 'N-5',
+    31: 'N-5',
+    32: 'N-5',
+    33: 'N-5',
+    34: 'N-5',
+    35: 'N-55',
+    36: 'N-25',
+    37: 'N-25',
+    38: 'N-10',
+    39: 'N-50',
+    40: 'N-55',
+    41: 'S-1',
+    42: 'M-9',
+};
+
 function rapidTravelAdvisoryHub(config) {
     return {
         tier: config.tier || 'beat',
@@ -684,7 +758,11 @@ function rapidTravelAdvisoryHub(config) {
         sectorsList: config.sectorsData || [],
         beatsList: config.beatsData || [],
         roadsList: config.roadsData || [],
+        carriagewaysList: config.carriagewaysData || [],
         landmarksMap: config.landmarksData || {},
+
+        selectedRoadCode: 'M-2',
+        quickCorridors: ['M-1', 'M-2', 'M-3', 'M-4', 'M-5', 'M-9', 'M-11', 'M-14', 'M-16', 'N-5', 'E-35', 'N-55', 'N-25', 'LEW'],
 
         selectedZoneId: config.initialUserZoneId || '',
         selectedSectorId: config.initialUserSectorId || '',
@@ -709,16 +787,30 @@ function rapidTravelAdvisoryHub(config) {
         isSubmitting: false,
 
         init() {
-            // Priority: if user has assigned beat, load it
-            if (this.selectedBeatId) {
+            // Priority 1: If operator has an assigned sector, initialize that road
+            if (this.selectedSectorId && SECTOR_TO_ROAD_MAP[this.selectedSectorId]) {
+                this.selectedRoadCode = SECTOR_TO_ROAD_MAP[this.selectedSectorId];
+            } else if (this.selectedBeatId) {
+                const b = this.beatsList.find(x => x.id == this.selectedBeatId);
+                if (b && (b.sector_id || b.parent_id)) {
+                    const secId = b.sector_id || b.parent_id;
+                    if (SECTOR_TO_ROAD_MAP[secId]) {
+                        this.selectedRoadCode = SECTOR_TO_ROAD_MAP[secId];
+                    }
+                }
+            }
+
+            // Priority 2: If user has assigned beat, load it
+            if (this.selectedBeatId && this.beatsList.some(x => x.id == this.selectedBeatId)) {
                 const b = this.beatsList.find(x => x.id == this.selectedBeatId);
                 if (b) {
                     if (b.sector_id || b.parent_id) this.selectedSectorId = b.sector_id || b.parent_id;
                     if (b.zone_id) this.selectedZoneId = b.zone_id;
                 }
                 this.selectBeat(this.selectedBeatId, false);
+            } else if (this.selectedSectorId) {
+                this.selectSector(this.selectedSectorId, false);
             } else if (this.zonesList.length > 0) {
-                // National admin: start with first zone
                 this.selectZone(this.zonesList[0].id);
             }
             this.generateAdvisoryMessage();
@@ -767,35 +859,50 @@ function rapidTravelAdvisoryHub(config) {
         },
 
         get resolvedRouteCode() {
-            const b = this.beatsList.find(x => x.id == this.selectedBeatId);
-            if (b) {
-                const s = this.sectorsList.find(x => x.id == (b.sector_id || b.parent_id));
-                if (s && s.name) {
-                    const match = s.name.match(/(M-\d+|M\d+|N-\d+|N\d+|E-\d+|E\d+|LEW|LEBP|KKH|S-1)/i);
-                    if (match) {
-                        let c = match[0].toUpperCase();
-                        if (c.indexOf('-') === -1 && (c.startsWith('M') || c.startsWith('N') || c.startsWith('E'))) {
-                            c = c[0] + '-' + c.slice(1);
-                        }
-                        return c;
-                    }
-                }
-            }
-            return 'M-2';
+            return this.selectedRoadCode || 'M-2';
         },
 
         get resolvedRoadTitle() {
             const code = this.resolvedRouteCode;
             const clean = code.replace('-', '');
-            const r = this.roadsList.find(x => (x.road_short === code || x.road === clean || x.road === code));
-            if (r) return `${r.road_name || r.road} (${r.road_from} ⇄ ${r.road_to})`;
-            return 'National Motorway Network';
+            const cw = this.carriagewaysList.find(x => (x.road_short === code || x.road === clean || x.road === code));
+            if (cw) return `${cw.road_name || cw.road} (${cw.road_from} ⇄ ${cw.road_to})`;
+            return `${code} Motorway / Highway Corridor`;
         },
 
         get computedExpiryText() {
             const d = new Date();
             d.setMinutes(d.getMinutes() + (this.durationHours * 60));
             return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' PKT';
+        },
+
+        selectRoad(code) {
+            this.selectedRoadCode = code;
+
+            // Find sectors that belong to this road
+            const clean = code.replace('-', '').toUpperCase();
+            const matchingSectors = this.sectorsList.filter(s => {
+                if (SECTOR_TO_ROAD_MAP[s.id] === code) return true;
+                const sName = (s.name || '').toUpperCase();
+                return sName.includes(code.toUpperCase()) || sName.includes(clean);
+            });
+
+            // If current selected sector is not on this road, switch to first matching sector
+            const isCurrentSectorOnRoad = matchingSectors.some(s => s.id == this.selectedSectorId);
+            if (!isCurrentSectorOnRoad && matchingSectors.length > 0) {
+                this.selectSector(matchingSectors[0].id, false);
+            } else if (matchingSectors.length === 0) {
+                // If road has no discrete sectors in hierarchy, set default km range from carriageway
+                const cw = this.carriagewaysList.find(x => (x.road_short === code || x.road === clean));
+                if (cw) {
+                    this.startKm = 0;
+                    this.endKm = Math.min(cw.total_km || 50, 50);
+                    this.startLandmark = `${code} Origin Point`;
+                    this.endLandmark = `${code} Junction`;
+                }
+            }
+
+            this.generateAdvisoryMessage(true);
         },
 
         selectZone(id) {
@@ -809,18 +916,31 @@ function rapidTravelAdvisoryHub(config) {
             }
         },
 
-        selectSector(id) {
+        selectSector(id, updateRoad = true) {
             this.selectedSectorId = id;
             const sec = this.sectorsList.find(x => x.id == id);
             if (sec && (sec.zone_id || sec.parent_id)) {
                 this.selectedZoneId = sec.zone_id || sec.parent_id;
             }
+
+            // Sync road if sector is mapped to a road
+            if (updateRoad && SECTOR_TO_ROAD_MAP[id]) {
+                this.selectedRoadCode = SECTOR_TO_ROAD_MAP[id];
+            }
+
             const availableBeats = this.beatsList.filter(b => (b.sector_id == id || b.parent_id == id));
             if (availableBeats.length > 0) {
                 this.selectBeat(availableBeats[0].id);
             } else {
                 this.selectedBeatId = '';
+                if (sec && sec.km_min !== null && sec.km_min !== undefined) {
+                    this.startKm = parseFloat(sec.km_min);
+                    this.endKm = parseFloat(sec.km_max || sec.km_min + 30);
+                    this.startLandmark = `${sec.name} Start`;
+                    this.endLandmark = `${sec.name} End`;
+                }
             }
+            this.generateAdvisoryMessage();
         },
 
         selectBeat(id, triggerRegen = true) {
