@@ -36,6 +36,12 @@ class RequestStateReset
                 if ($app->bound('auth.driver')) { $app->forgetInstance('auth.driver'); }
                 if ($app->bound('auth')) { Auth::forgetGuards(); }
             });
+            // Verification: after the reset, no guard may still hold a user.
+            $gate('verify-no-user', function () use ($app) {
+                if ($app->bound('auth') && Auth::guard('web')->hasUser()) {
+                    throw new \RuntimeException('web guard still holds a user after reset');
+                }
+            });
             $gate('permission-cache', fn () => \App\Models\User::clearPermissionCache());
             $gate('office-cache', fn () => \App\Models\Office::clearHierarchyCache());
             $gate('request-session-instances', function () use ($app) {
@@ -60,12 +66,6 @@ class RequestStateReset
             $gate('redis', function () use ($app) {
                 if ($app->bound('redis')) {
                     try { $app['redis']->connection()->ping(); } catch (\Throwable $e) { $app['redis']->purge(); }
-                }
-            });
-            // Verification: after the reset, no guard may still hold a user.
-            $gate('verify-no-user', function () use ($app) {
-                if ($app->bound('auth') && Auth::guard('web')->hasUser()) {
-                    throw new \RuntimeException('web guard still holds a user after reset');
                 }
             });
 
