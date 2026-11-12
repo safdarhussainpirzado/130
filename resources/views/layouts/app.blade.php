@@ -789,65 +789,37 @@
                         </a>
                     @endif
 
-                    @canany(['geography.offices.view', 'geography.carriageways.view', 'geography.geospatial.view'])
-                        <!-- OPERATIONS -->
-                        <div class="nav-section">Operations</div>
+                    <!-- TRAVEL ADVISORY -->
+                    @php
+                        $isSectorOperatorOrAdmin = in_array(Auth::user()?->role?->name, ['sector_admin', \App\Models\Role::SUPER_ADMIN], true) 
+                            || (Auth::user() && Auth::user()->hasPermission('travel_advisory.view'));
+                    @endphp
+
+                    @if ($isSectorOperatorOrAdmin)
+                        <div class="nav-section">Travel Advisory</div>
                         <div class="nav-section-divider"></div>
 
-                        <a href="{{ route('admin.offices.index') }}"
-                            class="nav-item {{ request()->routeIs('admin.offices.*') ? 'active' : '' }}">
-                            <span class="nav-icon text-blue-600"><i class="fa-solid fa-earth-asia"></i></span>
-                            <span class="nav-label">Operational Units</span>
-                            <span class="nav-tooltip">Field offices</span>
+                        <a href="{{ route('ops.travel-advisory.create') }}"
+                            class="nav-item {{ request()->routeIs('ops.travel-advisory.create') ? 'active' : '' }}">
+                            <span class="nav-icon text-amber-500"><i class="fa-solid fa-tower-broadcast"></i></span>
+                            <span class="nav-label">Log Advisory / Fog</span>
+                            <span class="nav-tooltip">Wireless Operator Entry</span>
                         </a>
 
-                        <a href="{{ route('admin.carriageways.index') }}"
-                            class="nav-item {{ request()->routeIs('admin.carriageways.*') ? 'active' : '' }}">
-                            <span class="nav-icon text-emerald-600"><i class="fa-solid fa-road"></i></span>
-                            <span class="nav-label">Highway Registry</span>
-                            <span class="nav-tooltip">Highways</span>
+                        <a href="{{ route('ops.travel-advisory.index') }}"
+                            class="nav-item {{ request()->routeIs('ops.travel-advisory.index') ? 'active' : '' }}">
+                            <span class="nav-icon text-sky-500"><i class="fa-solid fa-triangle-exclamation"></i></span>
+                            <span class="nav-label">Active Advisories Grid</span>
+                            <span class="nav-tooltip">Corridor Management</span>
                         </a>
 
-                        <a href="{{ route('admin.geospatial-landmarks.index') }}"
-                            class="nav-item {{ request()->routeIs('admin.geospatial-landmarks.*') ? 'active' : '' }}">
-                            <span class="nav-icon text-indigo-500"><i class="fa-solid fa-satellite-dish"></i></span>
-                            <span class="nav-label">Geospatial Landmarks</span>
-                            <span class="nav-tooltip">Caller Helper (1,042)</span>
+                        <a href="{{ route('public.travel-advisory') }}" target="_blank"
+                            class="nav-item">
+                            <span class="nav-icon text-emerald-500"><i class="fa-solid fa-earth-asia"></i></span>
+                            <span class="nav-label">Commuter Portal</span>
+                            <span class="nav-tooltip">Humsafar Public View</span>
                         </a>
-
-                        <a href="{{ route('admin.geospatial-markers.index') }}"
-                            class="nav-item {{ request()->routeIs('admin.geospatial-markers.*') ? 'active' : '' }}">
-                            <span class="nav-icon text-sky-500"><i class="fa-solid fa-map-location-dot"></i></span>
-                            <span class="nav-label">Geospatial Markers</span>
-                            <span class="nav-tooltip">Coordinate Grid (97,479)</span>
-                        </a>
-                    @endcanany
-
-                    {{-- TRAVEL ADVISORY links disabled (2026-11-10): hidden from the sidebar until the feature is released.
-                    <div class="nav-section">Travel Advisory</div>
-                    <div class="nav-section-divider"></div>
-
-                    <a href="{{ route('ops.travel-advisory.create') }}"
-                        class="nav-item {{ request()->routeIs('ops.travel-advisory.create') ? 'active' : '' }}">
-                        <span class="nav-icon text-amber-500"><i class="fa-solid fa-tower-broadcast"></i></span>
-                        <span class="nav-label">Log Advisory / Fog</span>
-                        <span class="nav-tooltip">Wireless Operator Entry</span>
-                    </a>
-
-                    <a href="{{ route('ops.travel-advisory.index') }}"
-                        class="nav-item {{ request()->routeIs('ops.travel-advisory.index') ? 'active' : '' }}">
-                        <span class="nav-icon text-sky-500"><i class="fa-solid fa-triangle-exclamation"></i></span>
-                        <span class="nav-label">Active Advisories Grid</span>
-                        <span class="nav-tooltip">Corridor Management</span>
-                    </a>
-
-                    <a href="{{ route('public.travel-advisory') }}" target="_blank"
-                        class="nav-item">
-                        <span class="nav-icon text-emerald-500"><i class="fa-solid fa-earth-asia"></i></span>
-                        <span class="nav-label">Commuter Portal</span>
-                        <span class="nav-tooltip">Humsafar Public View</span>
-                    </a>
-                    --}}
+                    @endif
 
                     <!-- SUPPORT MANAGEMENT -->
                     @canany(['support.view', 'support.manage', 'support.analytics', 'support.transfer_verify_source', 'support.transfer_confirm_destination', 'support.transfer_approve'])
@@ -956,6 +928,40 @@
                             </a>
                         @endcan
                     @endif
+
+                    @canany(['geography.offices.view', 'geography.carriageways.view', 'geography.geospatial.view'])
+                        <!-- OPERATIONS -->
+                        <div class="nav-section">Operations</div>
+                        <div class="nav-section-divider"></div>
+
+                        <a href="{{ route('admin.offices.index') }}"
+                            class="nav-item {{ request()->routeIs('admin.offices.*') ? 'active' : '' }}">
+                            <span class="nav-icon text-blue-600"><i class="fa-solid fa-earth-asia"></i></span>
+                            <span class="nav-label">Operational Units</span>
+                            <span class="nav-tooltip">Field offices</span>
+                        </a>
+
+                        <a href="{{ route('admin.carriageways.index') }}"
+                            class="nav-item {{ request()->routeIs('admin.carriageways.*') ? 'active' : '' }}">
+                            <span class="nav-icon text-emerald-600"><i class="fa-solid fa-road"></i></span>
+                            <span class="nav-label">Highway Registry</span>
+                            <span class="nav-tooltip">Highways</span>
+                        </a>
+
+                        <a href="{{ route('admin.geospatial-landmarks.index') }}"
+                            class="nav-item {{ request()->routeIs('admin.geospatial-landmarks.*') ? 'active' : '' }}">
+                            <span class="nav-icon text-indigo-500"><i class="fa-solid fa-satellite-dish"></i></span>
+                            <span class="nav-label">Geospatial Landmarks</span>
+                            <span class="nav-tooltip">Caller Helper (1,042)</span>
+                        </a>
+
+                        <a href="{{ route('admin.geospatial-markers.index') }}"
+                            class="nav-item {{ request()->routeIs('admin.geospatial-markers.*') ? 'active' : '' }}">
+                            <span class="nav-icon text-sky-500"><i class="fa-solid fa-map-location-dot"></i></span>
+                            <span class="nav-label">Geospatial Markers</span>
+                            <span class="nav-tooltip">Coordinate Grid (97,479)</span>
+                        </a>
+                    @endcanany
 
                 </nav>
 
@@ -1236,7 +1242,7 @@
     @canany(['support.manage', 'support.view', 'support.transfer_approve'])
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            let lastNotifiedId = parseInt(sessionStorage.getItem('nhmp_last_notified_support_id') || '0', 10);
+            let lastNotifiedId = parseInt(sessionStorage.getItem('nhmp_last_notified_support_id_u{{ (int) auth()->id() }}') || '0', 10);
             let isInitialCheck = true;
 
             async function checkPendingSupportRequests() {
@@ -1263,14 +1269,14 @@
                         if (isInitialCheck) {
                             if (lastNotifiedId !== data.latest_id) {
                                 lastNotifiedId = data.latest_id;
-                                sessionStorage.setItem('nhmp_last_notified_support_id', lastNotifiedId.toString());
+                                sessionStorage.setItem('nhmp_last_notified_support_id_u{{ (int) auth()->id() }}', lastNotifiedId.toString());
                                 if (window.showInfo) {
                                     window.showInfo(`There are ${data.count} pending request(s) awaiting review in Support Center.`, 'Pending Support Alert', 6000);
                                 }
                             }
                         } else if (data.latest_id > lastNotifiedId) {
                             lastNotifiedId = data.latest_id;
-                            sessionStorage.setItem('nhmp_last_notified_support_id', lastNotifiedId.toString());
+                            sessionStorage.setItem('nhmp_last_notified_support_id_u{{ (int) auth()->id() }}', lastNotifiedId.toString());
                             const subject = data.subject || 'New Support Request';
                             if (window.showWarning) {
                                 window.showWarning(`New Support Request: "${subject}". Awaiting operational decision.`, 'Support Center Dispatch', 7000);

@@ -12,9 +12,13 @@ use Illuminate\View\View;
 
 class AuthenticatedSessionController extends Controller
 {
-    public function create(): View
+    /**
+     * Zero cross-user bleed: whenever the login page is shown (fresh visit, idle timeout, expired session),
+     * tell the browser to drop everything the previous person left behind (HTTP cache, localStorage, sessionStorage).
+     */
+    public function create(): \Illuminate\Http\Response
     {
-        return view('auth.login');
+        return response()->view('auth.login')->header('Clear-Site-Data', '"cache", "storage"');
     }
 
     public function store(LoginRequest $request): RedirectResponse
@@ -125,6 +129,7 @@ class AuthenticatedSessionController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        // Wipe the browser-side state of the person who just logged out (shared workstations).
+        return redirect('/')->header('Clear-Site-Data', '"cache", "storage"');
     }
 }
