@@ -4,7 +4,7 @@
 # --no-deps + explicit service names guarantee existing services are not recreated.
 services:
   app-octane-1:
-    image: 130-app-octane:phase2-rc12
+    image: 130-app-octane:phase2-rc15
     build:
       context: .
       dockerfile: Dockerfile.octane
@@ -53,7 +53,7 @@ services:
 
 
   app-octane-2:
-    image: 130-app-octane:phase2-rc12
+    image: 130-app-octane:phase2-rc15
     build:
       context: .
       dockerfile: Dockerfile.octane
@@ -134,7 +134,7 @@ services:
   # EXACTLY ONE instance. Serves no HTTP and takes no traffic. Queue workers are intentionally not run:
   # the app currently dispatches no queued jobs (see docker/supervisor/worker-isolated.conf for when that changes).
   scheduler:
-    image: 130-app-octane:phase2-rc12
+    image: 130-app-octane:phase2-rc15
     restart: unless-stopped
     command: ["php", "artisan", "schedule:work"]
     read_only: false
