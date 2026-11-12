@@ -40,3 +40,7 @@ putenv('APP_ROUTES_CACHE=' . __DIR__ . '/../bootstrap/cache/routes.testing_disab
 $_ENV['APP_ROUTES_CACHE'] = __DIR__ . '/../bootstrap/cache/routes.testing_disabled.php';
 $_SERVER['APP_ROUTES_CACHE'] = __DIR__ . '/../bootstrap/cache/routes.testing_disabled.php';
 
+putenv('TRUSTED_PROXIES=10.1.2.62,172.16.0.0/12');
+$_ENV['TRUSTED_PROXIES'] = '10.1.2.62,172.16.0.0/12';
+$_SERVER['TRUSTED_PROXIES'] = '10.1.2.62,172.16.0.0/12';
+

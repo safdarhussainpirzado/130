@@ -58,7 +58,8 @@ class LoginRequest extends FormRequest
         // Mitigation for account enumeration timing differences
         if (!$user) {
             Hash::check($password, '$argon2id$v=19$m=19456,t=2,p=1$dWFyZnRubzlXenRJQWJYTw$OhG5rNzPx9t7onw0PhHiSkw2OmhvsqL27w6+aLCEyE4');
-            RateLimiter::hit($this->throttleKey());
+            RateLimiter::hit($this->userThrottleKey());
+            RateLimiter::hit($this->ipThrottleKey());
             throw ValidationException::withMessages([
                 'username' => trans('auth.failed'),
             ]);
@@ -86,7 +87,8 @@ class LoginRequest extends FormRequest
         }
 
         if (!Hash::check($password, $user->password)) {
-            RateLimiter::hit($this->throttleKey());
+            RateLimiter::hit($this->userThrottleKey());
+            RateLimiter::hit($this->ipThrottleKey());
 
             $attempts = ($user->failed_attempts ?? 0) + 1;
             $lockUntil = $attempts >= 5 ? now()->addMinutes(30) : null;
@@ -117,7 +119,7 @@ class LoginRequest extends FormRequest
             ]);
         }
 
-        RateLimiter::clear($this->throttleKey());
+        RateLimiter::clear($this->userThrottleKey());
 
         if (($user->failed_attempts ?? 0) > 0) {
             $user->update(['failed_attempts' => 0]);
@@ -139,29 +141,58 @@ class LoginRequest extends FormRequest
      *
      * @throws ValidationException
      */
+    /**
+     * Ensure the login request is not rate limited.
+     *
+     * @throws ValidationException
+     */
     public function ensureIsNotRateLimited(): void
     {
-        if (! RateLimiter::tooManyAttempts($this->throttleKey(), 5)) {
-            return;
+        // 1. Per-username rate limit (5 attempts / minute default)
+        $userLimit = (int) config('geo_access.rate_limits.per_username_per_minute', 5);
+        if (RateLimiter::tooManyAttempts($this->userThrottleKey(), $userLimit)) {
+            event(new Lockout($this));
+            $seconds = RateLimiter::availableIn($this->userThrottleKey());
+            throw ValidationException::withMessages([
+                'username' => trans('auth.throttle', [
+                    'seconds' => $seconds,
+                    'minutes' => ceil($seconds / 60),
+                ]),
+            ]);
         }
 
-        event(new Lockout($this));
-
-        $seconds = RateLimiter::availableIn($this->throttleKey());
-
-        throw ValidationException::withMessages([
-            'username' => trans('auth.throttle', [
-                'seconds' => $seconds,
-                'minutes' => ceil($seconds / 60),
-            ]),
-        ]);
+        // 2. Per-IP rate limit with higher ceiling for mobile carrier NATs (60 attempts / minute default)
+        $ipLimit = (int) config('geo_access.rate_limits.per_ip_per_minute', 60);
+        if (RateLimiter::tooManyAttempts($this->ipThrottleKey(), $ipLimit)) {
+            event(new Lockout($this));
+            $seconds = RateLimiter::availableIn($this->ipThrottleKey());
+            throw ValidationException::withMessages([
+                'username' => "Too many connection attempts from this network. Please wait {$seconds} second(s).",
+            ]);
+        }
     }
 
     /**
-     * Get the rate limiting throttle key for the request.
+     * Rate limiting throttle key for the user account.
+     */
+    public function userThrottleKey(): string
+    {
+        return 'login_u|' . Str::transliterate(Str::lower($this->string('username')->trim()));
+    }
+
+    /**
+     * Rate limiting throttle key for the client IP address.
+     */
+    public function ipThrottleKey(): string
+    {
+        return 'login_ip|' . $this->ip();
+    }
+
+    /**
+     * Get the rate limiting throttle key for the request (backward compatibility).
      */
     public function throttleKey(): string
     {
-        return Str::transliterate(Str::lower($this->string('username')).'|'.$this->ip());
+        return $this->userThrottleKey();
     }
 }
