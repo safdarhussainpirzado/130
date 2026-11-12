@@ -15,6 +15,19 @@ class UserScope extends Model
         'is_active',
     ];
 
+    protected static function booted(): void
+    {
+        // A change of a user's operational assignment must not leave stale zone/beat context behind:
+        // drop their cached filter options and bump security_version (forces re-login with the new scope).
+        $refresh = function (UserScope $scope): void {
+            $uid = (int) $scope->user_id;
+            \Illuminate\Support\Facades\Cache::forget("crm:calls:filter_options:scope_{$uid}:v2");
+            \Illuminate\Support\Facades\DB::table('users')->where('id', $uid)->increment('security_version');
+        };
+        static::saved($refresh);
+        static::deleted($refresh);
+    }
+
     protected $casts = [
         'is_active' => 'boolean',
         'office_id' => 'integer',

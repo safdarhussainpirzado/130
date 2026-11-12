@@ -1,0 +1,21 @@
+<?php
+
+namespace App\Http\Middleware;
+
+use Closure;
+use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\Response;
+
+/** Per-request correlation id (never trusts a client-supplied one) for forensic audit/login log correlation. */
+class AssignRequestId
+{
+    public function handle(Request $request, Closure $next): Response
+    {
+        $id = (string) Str::uuid();
+        $request->attributes->set('request_id', $id);
+        $response = $next($request);
+        $response->headers->set('X-Request-Id', $id);
+        return $response;
+    }
+}

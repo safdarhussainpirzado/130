@@ -15,7 +15,15 @@ class LoginLog extends Model
         'user_agent',
         'login_at',
         'logout_at',
+        'session_hash',
+        'request_id',
+        'node',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(fn (LoginLog $l) => $l->forceFill(\App\Support\ForensicContext::all()));
+    }
 
     public function user(): BelongsTo
     {

@@ -25,8 +25,14 @@ class AuthenticatedSessionController extends Controller
     {
         $user = $request->validateCredentials();
 
-        // 1. Session fixation defense: regenerate session after password verification
-        $request->session()->regenerate();
+        // 1. Session fixation + cross-user defense: destroy the old session entirely (drops any previous user's
+        //    attributes and `intended` URL), keep `intended` only when the old session had no authenticated user.
+        $intended = Auth::guard('web')->check() ? null : $request->session()->get('url.intended');
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+        if ($intended) {
+            $request->session()->put('url.intended', $intended);
+        }
 
         // 2. Clear stale MFA state from prior sessions
         $request->session()->forget([

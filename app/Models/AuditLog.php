@@ -17,6 +17,9 @@ class AuditLog extends Model
         'user_agent',
         'previous_hash',
         'record_hash',
+        'session_hash',
+        'request_id',
+        'node',
     ];
 
     protected $casts = [
@@ -34,9 +37,33 @@ class AuditLog extends Model
 
     const UPDATED_AT = null;
 
+    /**
+     * Serialize chain writes across all app nodes (Redis lock) so two concurrent events cannot read the same
+     * previous hash and fork the chain. Fails open (logs) if the lock cannot be obtained so auditing never blocks users.
+     */
+    public static function create(array $attributes = [])
+    {
+        try {
+            $lock = \Illuminate\Support\Facades\Cache::lock('audit_chain_write', 10);
+            if ($lock->block(5)) {
+                try {
+                    return parent::create($attributes);
+                } finally {
+                    $lock->release();
+                }
+            }
+        } catch (\Illuminate\Contracts\Cache\LockTimeoutException $e) {
+            \Illuminate\Support\Facades\Log::warning('audit chain lock timeout; writing unlocked');
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('audit chain lock unavailable: '.$e->getMessage());
+        }
+        return parent::create($attributes);
+    }
+
     protected static function booted(): void
     {
         static::creating(function (AuditLog $log): void {
+            $log->forceFill(\App\Support\ForensicContext::all());
             $salt = config('app.audit_salt') ?: (function_exists('docker_secret') ? docker_secret('audit_salt', 'nhmp_130_audit_salt') : 'nhmp_130_audit_salt');
             
             // Retrieve the hash of the latest previous record
