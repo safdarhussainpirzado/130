@@ -14,7 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Trust only the real hops (front LB 10.1.2.62 + docker network). With '*' a forged leftmost X-Forwarded-For
         // value became $request->ip(); now the client is the right-most UNtrusted address. Override via TRUSTED_PROXIES.
-        $middleware->trustProxies(at: array_values(array_filter(array_map('trim', explode(',', (string) env('TRUSTED_PROXIES', '10.1.2.62,172.16.0.0/12'))))));
+        $middleware->trustProxies(at: array_values(array_filter(array_map('trim', explode(',', (string) (env('TRUSTED_PROXIES') ?: '10.1.2.62,172.16.0.0/12'))))));
         $middleware->alias([
             'hamsafar.access' => \App\Http\Middleware\EnsureHamsafarAccess::class,
             'mfa.fresh' => \App\Http\Middleware\RequireFreshMfa::class,
