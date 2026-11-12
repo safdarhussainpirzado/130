@@ -386,6 +386,12 @@ class User extends Authenticatable
         return $this->hasMany(UserScope::class)->where('is_active', true);
     }
 
+    /** Primary assigned operational office derived from active scopes */
+    public function getOfficeAttribute(): ?Office
+    {
+        return $this->activeScopes()->with('office')->first()?->office;
+    }
+
     /** Commuter citizen profile */
     public function commuterProfile(): HasOne
     {

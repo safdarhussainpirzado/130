@@ -1,0 +1,377 @@
+{
+  "info": {
+    "_postman_id": "98743d92-aedf-4155-ad1d-8ad0b68057e6",
+    "name": "NHMP Hamsafar - Public Travel Advisory APIs",
+    "description": "Read-only, high-performance Travel Advisory APIs for National Highways & Motorway Police (NHMP) Pakistan.\n\nProvides real-time motorway conditions, fog visibility alerts, road closures, emergency alerts, route queries, landmarks, and GeoJSON layers.\n\n### Setup Instructions\n1. Import this collection into Postman (`File` -> `Import`).\n2. Import `NHMP_Dev_Shared.postman_environment.json` into Postman Environments.\n3. Select the environment **NHMP Dev Shared Gateway** in the top-right dropdown.\n4. Run the requests or run the whole collection!",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://192.168.137.196:8480",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Gateway Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/gateway-health",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "gateway-health"
+          ]
+        },
+        "description": "Verifies that the NHMP Dev API Gateway is active and reachable."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Health status is ok\", function () {",
+              "    pm.expect(pm.response.text().trim()).to.eql(\"ok\");",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Available Routes & Alert Counters",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/travel-advisory/routes",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "travel-advisory",
+            "routes"
+          ]
+        },
+        "description": "Returns all configured motorways and highways (M-1, M-2, M-3, M-4, M-5, E-35, N-5, etc.) with their length and active alert counts."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Response is JSON\", function () {",
+              "    pm.response.to.be.json;",
+              "});",
+              "pm.test(\"Contains routes array\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property(\"routes\");",
+              "    pm.expect(jsonData.routes).to.be.an(\"array\");",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Route Condition Query (e.g. Islamabad to Lahore on M-2)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/travel-advisory/query?from=Islamabad&to=Lahore&road=M-2",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "travel-advisory",
+            "query"
+          ],
+          "query": [
+            {
+              "key": "from",
+              "value": "Islamabad"
+            },
+            {
+              "key": "to",
+              "value": "Lahore"
+            },
+            {
+              "key": "road",
+              "value": "M-2"
+            }
+          ]
+        },
+        "description": "Queries live road conditions, category breakdown counters (fog, closures, roadworks), and active advisories for a specific origin and destination."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Response is JSON\", function () {",
+              "    pm.response.to.be.json;",
+              "});",
+              "pm.test(\"Contains route metadata and counters\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property(\"route\");",
+              "    pm.expect(jsonData).to.have.property(\"counters\");",
+              "    pm.expect(jsonData).to.have.property(\"advisories\");",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Live Advisory Ticker",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/travel-advisory/ticker",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "travel-advisory",
+            "ticker"
+          ]
+        },
+        "description": "High-priority ticker messages across all motorways suitable for electronic message boards, web tickers, or push updates."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Contains ticker_items and count\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property(\"ticker_items\");",
+              "    pm.expect(jsonData).to.have.property(\"count\");",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Emergency Alerts & Motorway Closures",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/advisories/emergency-alerts",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "advisories",
+            "emergency-alerts"
+          ]
+        },
+        "description": "Critical alerts and immediate emergency closures currently in effect across Pakistan motorways."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Status is success\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData.status).to.eql(\"success\");",
+              "    pm.expect(jsonData).to.have.property(\"alerts\");",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Active Advisories Feed (Paginated)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/advisories",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "advisories"
+          ]
+        },
+        "description": "Paginated list of all active travel advisories."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Status is success with data array\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData.status).to.eql(\"success\");",
+              "    pm.expect(jsonData).to.have.property(\"data\");",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Road Landmarks & Toll Plazas",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/travel-advisory/landmarks?road=M-2",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "travel-advisory",
+            "landmarks"
+          ],
+          "query": [
+            {
+              "key": "road",
+              "value": "M-2"
+            }
+          ]
+        },
+        "description": "Lists landmarks, interchanges, toll plazas, and KM markers along a corridor."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Contains road and landmarks list\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property(\"road\");",
+              "    pm.expect(jsonData).to.have.property(\"landmarks\");",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. GeoJSON Spatial Layer (For Map Rendering)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/travel-advisory/geojson",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "travel-advisory",
+            "geojson"
+          ]
+        },
+        "description": "GeoJSON FeatureCollection representing advisory coordinates and impacted segments for Leaflet, Mapbox, or Google Maps."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Valid GeoJSON FeatureCollection\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData.type).to.eql(\"FeatureCollection\");",
+              "    pm.expect(jsonData).to.have.property(\"features\");",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

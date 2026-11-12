@@ -68,15 +68,23 @@ versions:
 	@echo -n "  Node:     " && (node -v 2>/dev/null || echo "N/A")
 	@echo -n "  HAProxy:  " && docker exec $(HAPROXY_CONTAINER) haproxy -v | head -n 1
 
-# Synchronize application files into both app containers without restarting
+# Synchronize application files into all active app containers
 sync:
 	$(call guard-not-production)
-	@echo -e "$(CLR_BOLD)==> Synchronizing application code into $(APP1_CONTAINER) and $(APP2_CONTAINER)...$(CLR_RESET)"
-	@for node in $(APP1_CONTAINER) $(APP2_CONTAINER); do \
-		docker exec -u 0 $$node chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true; \
-		echo -e "  [$(CLR_GREEN)OK$(CLR_RESET)] $$node verified and synchronized."; \
+	@echo -e "$(CLR_BOLD)==> Synchronizing application code into active application nodes...$(CLR_RESET)"
+	@for container in $(OCTANE_APP_CONTAINER) $(APP1_CONTAINER) $(APP2_CONTAINER); do \
+		if docker ps --format '{{.Names}}' | grep -q "^$$container$$"; then \
+			docker cp routes/. $$container:/var/www/html/routes/ 2>/dev/null || true; \
+			docker cp app/. $$container:/var/www/html/app/ 2>/dev/null || true; \
+			docker cp resources/views/. $$container:/var/www/html/resources/views/ 2>/dev/null || true; \
+			docker cp public/. $$container:/var/www/html/public/ 2>/dev/null || true; \
+			docker cp config/. $$container:/var/www/html/config/ 2>/dev/null || true; \
+			docker cp database/. $$container:/var/www/html/database/ 2>/dev/null || true; \
+			docker cp tests/. $$container:/var/www/html/tests/ 2>/dev/null || true; \
+			echo -e "  [$(CLR_GREEN)OK$(CLR_RESET)] $$container synced"; \
+		fi; \
 	done
-	@echo -e "$(CLR_GREEN)$(CLR_BOLD)==> Code synchronization complete on both nodes.$(CLR_RESET)"
+	@echo -e "$(CLR_GREEN)$(CLR_BOLD)==> Code synchronization complete.$(CLR_RESET)"
 
 # Synchronize vendor dependencies into both app containers
 sync-vendor:
@@ -108,34 +116,36 @@ sync-check:
 sync-assets:
 	$(call guard-not-production)
 	@echo -e "$(CLR_BOLD)==> Syncing frontend assets to web and app nodes...$(CLR_RESET)"
-	@for c in $(APP1_CONTAINER) $(APP2_CONTAINER); do \
-		docker cp public/build/. $$c:/var/www/html/public/build/ 2>/dev/null || true; \
+	@for c in $(OCTANE_APP_CONTAINER) $(OCTANE_WEB_CONTAINER) $(APP1_CONTAINER) $(APP2_CONTAINER); do \
+		if docker ps --format '{{.Names}}' | grep -q "^$$c$$"; then \
+			docker cp public/build/. $$c:/var/www/html/public/build/ 2>/dev/null && echo -e "  [$(CLR_GREEN)OK$(CLR_RESET)] $$c build synced"; \
+		fi; \
 	done
 	@echo -e "  [$(CLR_GREEN)OK$(CLR_RESET)] Frontend assets distributed."
 
 # Sync code and rebuild caches cleanly with rolling zero-downtime RoadRunner worker reload
 sync-clear: sync sync-assets
 	@echo -e "$(CLR_BOLD)==> Executing rolling zero-downtime cache refresh & RoadRunner worker reload...$(CLR_RESET)"
-	@for c in $(APP1_CONTAINER) $(APP2_CONTAINER); do \
-		echo -e "  -> Rolling refresh on $$c..."; \
-		docker exec $$c php artisan optimize:clear; \
-		docker exec $$c php artisan config:cache; \
-		docker exec $$c php artisan event:cache; \
-		docker exec $$c php artisan route:cache; \
-		docker exec $$c php artisan view:clear; \
-		docker exec $$c rr reset 2>/dev/null || true; \
-		sleep 1; \
+	@for c in $(OCTANE_APP_CONTAINER) $(APP1_CONTAINER) $(APP2_CONTAINER); do \
+		if docker ps --format '{{.Names}}' | grep -q "^$$c$$"; then \
+			echo -e "  -> Refreshing $$c..."; \
+			docker exec $$c php artisan optimize:clear 2>/dev/null || true; \
+			docker exec $$c php artisan optimize 2>/dev/null || true; \
+			docker exec $$c php artisan view:cache 2>/dev/null || true; \
+			docker exec $$c sh -c 'if [ -x /usr/local/bin/rr ]; then /usr/local/bin/rr reset -c .rr.prod.yaml; fi' 2>/dev/null || true; \
+		fi; \
 	done
 	@echo -e "$(CLR_GREEN)$(CLR_BOLD)==> Application nodes refreshed, workers reloaded, and zero-downtime maintained.$(CLR_RESET)"
 
 # Warm optimized framework caches and reload RoadRunner workers
 optimize:
-	@for c in $(APP1_CONTAINER) $(APP2_CONTAINER); do \
-		docker exec $$c php artisan config:cache; \
-		docker exec $$c php artisan event:cache; \
-		docker exec $$c php artisan route:cache; \
-		docker exec $$c php artisan view:clear; \
-		docker exec $$c rr reset 2>/dev/null || true; \
+	@for c in $(OCTANE_APP_CONTAINER) $(APP1_CONTAINER) $(APP2_CONTAINER); do \
+		if docker ps --format '{{.Names}}' | grep -q "^$$c$$"; then \
+			docker exec $$c php artisan optimize 2>/dev/null || true; \
+			docker exec $$c php artisan view:cache 2>/dev/null || true; \
+			docker exec $$c php artisan event:cache 2>/dev/null || true; \
+			docker exec $$c sh -c 'if [ -x /usr/local/bin/rr ]; then /usr/local/bin/rr reset -c .rr.prod.yaml; fi' 2>/dev/null || true; \
+		fi; \
 	done
 
 # Fast RoadRunner worker reload without cache recreation

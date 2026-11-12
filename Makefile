@@ -31,28 +31,29 @@ quality-gate: test-security security-audit
 migrate: sync
 	docker compose exec app-1 php artisan migrate --force
 
-# Sync local code changes into both running app containers
-# Use this when docker-compose volumes are commented out (production image mode)
+# Sync local code changes into running app containers (Octane + Legacy)
 sync:
-	@echo "==> Syncing code into app-1 and app-2..."
-	@for container in app-1 app-2; do \
-		echo "  -> $$container: routes..."; \
-		docker cp routes/. 130-$$container-1:/var/www/html/routes/; \
-		echo "  -> $$container: app/..."; \
-		docker cp app/. 130-$$container-1:/var/www/html/app/; \
-		echo "  -> $$container: resources/views/..."; \
-		docker cp resources/views/. 130-$$container-1:/var/www/html/resources/views/; \
-		echo "  -> $$container: public/..."; \
-		docker cp public/. 130-$$container-1:/var/www/html/public/; \
-		echo "  -> $$container: config/..."; \
-		docker cp config/. 130-$$container-1:/var/www/html/config/; \
-		echo "  -> $$container: database/..."; \
-		docker cp database/. 130-$$container-1:/var/www/html/database/; \
-		echo "  -> $$container: tests/..."; \
-		docker cp tests/. 130-$$container-1:/var/www/html/tests/; \
-		echo "  [OK] $$container synced"; \
+	@echo "==> Syncing code into application containers..."
+	@for container in 130-app-octane-1-1 130-app-1-1 130-app-2-1; do \
+		if docker ps --format '{{.Names}}' | grep -q "^$$container$$"; then \
+			echo "  -> $$container: routes..."; \
+			docker cp routes/. $$container:/var/www/html/routes/; \
+			echo "  -> $$container: app/..."; \
+			docker cp app/. $$container:/var/www/html/app/; \
+			echo "  -> $$container: resources/views/..."; \
+			docker cp resources/views/. $$container:/var/www/html/resources/views/; \
+			echo "  -> $$container: public/..."; \
+			docker cp public/. $$container:/var/www/html/public/; \
+			echo "  -> $$container: config/..."; \
+			docker cp config/. $$container:/var/www/html/config/; \
+			echo "  -> $$container: database/..."; \
+			docker cp database/. $$container:/var/www/html/database/; \
+			echo "  -> $$container: tests/..."; \
+			docker cp tests/. $$container:/var/www/html/tests/; \
+			echo "  [OK] $$container synced"; \
+		fi; \
 	done
-	@echo "==> All containers synced!"
+	@echo "==> All active containers synced!"
 
 # Deploy to Production Cluster
 deploy:
@@ -99,18 +100,25 @@ assets:
 	docker compose cp app-1:/var/www/html/public/build ./public/
 	@echo "Assets synced!"
 
-# Sync code AND clear all caches on both nodes (use after any code change)
+# Sync code AND clear all caches across all active nodes (including Octane & RoadRunner)
 sync_clear: sync
-	@echo "==> Clearing and rebuilding caches on both nodes..."
-	docker compose exec app-1 php artisan optimize:clear
-	docker compose exec app-2 php artisan optimize:clear
-	docker compose exec app-1 php artisan optimize
-	docker compose exec app-2 php artisan optimize
-	@echo "==> Syncing build assets to app nodes..."
-	@for c in app-1 app-2; do \
-		docker cp public/build/. 130-$$c-1:/var/www/html/public/build/ && echo "  [OK] $$c build synced"; \
+	@echo "==> Clearing and rebuilding caches on all active nodes..."
+	@for c in 130-app-octane-1-1 130-app-1-1 130-app-2-1; do \
+		if docker ps --format '{{.Names}}' | grep -q "^$$c$$"; then \
+			echo "  -> Clearing caches on $$c..."; \
+			docker exec $$c php artisan optimize:clear; \
+			docker exec $$c php artisan optimize 2>/dev/null || true; \
+			docker exec $$c php artisan view:cache 2>/dev/null || true; \
+			docker exec $$c sh -c 'if [ -x /usr/local/bin/rr ]; then /usr/local/bin/rr reset -c .rr.prod.yaml; fi' 2>/dev/null || true; \
+		fi; \
 	done
-	@echo "==> Done! All nodes are up to date."
+	@echo "==> Syncing build assets to web and app nodes..."
+	@for c in 130-app-octane-1-1 130-web-octane-1-1 130-app-1-1 130-app-2-1; do \
+		if docker ps --format '{{.Names}}' | grep -q "^$$c$$"; then \
+			docker cp public/build/. $$c:/var/www/html/public/build/ 2>/dev/null && echo "  [OK] $$c build synced"; \
+		fi; \
+	done
+	@echo "==> Done! All active nodes are updated, caches rebuilt, and workers reloaded."
 
 # Full Legacy Migration Process
 migrate-legacy:
@@ -154,11 +162,17 @@ migrate-legacy:
 	docker compose exec app-1 php artisan optimize:clear
 	@echo "Migration Process Complete!"
 
-# Optimize caches
+# Optimize caches and reload RoadRunner workers
 optimize:
-	docker compose exec app-1 php artisan optimize
-	docker compose exec app-1 php artisan view:cache
-	docker compose exec app-1 php artisan event:cache
+	@for c in 130-app-octane-1-1 130-app-1-1 130-app-2-1; do \
+		if docker ps --format '{{.Names}}' | grep -q "^$$c$$"; then \
+			echo "  -> Optimizing $$c..."; \
+			docker exec $$c php artisan optimize 2>/dev/null || true; \
+			docker exec $$c php artisan view:cache 2>/dev/null || true; \
+			docker exec $$c php artisan event:cache 2>/dev/null || true; \
+			docker exec $$c sh -c 'if [ -x /usr/local/bin/rr ]; then /usr/local/bin/rr reset -c .rr.prod.yaml; fi' 2>/dev/null || true; \
+		fi; \
+	done
 
 
 # Exec inside Primary Application Container

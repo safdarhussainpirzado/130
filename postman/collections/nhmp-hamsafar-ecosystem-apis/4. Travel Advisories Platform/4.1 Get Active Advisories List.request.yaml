@@ -1,7 +1,0 @@
-$kind: http-request
-description: High-concurrency cached travel advisories.
-url: "{{base_url}}/api/v1/advisories"
-method: GET
-headers:
-  Accept: application/json
-order: 1000

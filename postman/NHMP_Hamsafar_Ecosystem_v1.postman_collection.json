@@ -1,0 +1,2749 @@
+{
+  "info": {
+    "_postman_id": "8d3f11a4-9e72-4b82-bf56-c09a471e9812",
+    "name": "NHMP Hamsafar - Full Ecosystem Mobile & Operations APIs (v1)",
+    "description": "# National Highways & Motorway Police (NHMP) Pakistan\n## Hamsafar Ecosystem - Authoritative Postman API Collection (v1.0)\n\nThis collection contains all official RESTful APIs for the NHMP Hamsafar platform.\n\n### Included Modules:\n1. **Gateway & Discovery**: Connectivity check and high-concurrency SSE stream.\n2. **Commuter Road User App**: 1-Tap Google Sign-In, Email auth, profile & vehicle setup, roadside emergency SOS, real-time patrol GPS tracking, and bidirectional case chat.\n3. **Uniformed Patrol Operations**: Patrol tablet authentication, Screen 02 Duty Setup with vehicle callsign binding (e.g. `P-12`), Screen 03 high-speed Redis GPS telemetry buffer, Screens 04-16 incident response lifecycle (acknowledge, en-route, arrived, request support, complete assistance, close & release), and duty conclusion.\n4. **Women's Journey Safety Module (WJ-204)**: Specialized transit monitoring for female passengers aboard PSVs, milestone check-ins, silent emergency alarm, safe arrival confirmation, and 130 Control Female Desk Queue.\n5. **Tablet Travel Advisories**: Fast cached advisory feeds, road closures, and emergency broadcasts.\n6. **Public Travel Advisory Portal**: Public endpoints for `nhmp.gov.pk/travel-advisory` (routes, weather/fog conditions, ticker, landmarks, and GeoJSON layers).\n7. **RBAC & Security Boundaries**: Zero-trust test suite verifying role boundaries (HTTP 403 for unauthorized cross-role access and HTTP 401 for missing/invalid tokens).\n\n### Quick Start Instructions:\n1. Import this file (`NHMP_Hamsafar_Ecosystem_v1.postman_collection.json`) into Postman.\n2. Import `NHMP_Hamsafar_Dev.postman_environment.json` (or `NHMP_Dev_Shared.postman_environment.json`) into Postman Environments.\n3. In the top-right environment selector, choose **NHMP Hamsafar Dev & Staging** (or **NHMP Dev Shared Gateway**).\n4. Run **1.2 Auth: Email Registration** or **1.3 Auth: Email Login** — the Bearer token will be auto-saved to `{{commuter_token}}`.\n5. Run **2.1 Auth: Official Tactical Login** — the Bearer token will be auto-saved to `{{patrol_token}}`.\n6. Follow the numbered sequence to run SOS, Case lifecycle, and Women's Journey tracking!",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://10.229.157.59:8480",
+      "type": "string"
+    },
+    {
+      "key": "commuter_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "patrol_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "duty_session_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "case_uuid",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "journey_uuid",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Gateway & Discovery",
+      "description": "API Gateway connectivity check, server-sent events (SSE) real-time stream, and rapid emergency check delta.",
+      "item": [
+        {
+          "name": "0.1 Gateway Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/gateway-health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "gateway-health"
+              ]
+            },
+            "description": "Verifies that the NHMP Dev API Gateway / Reverse Proxy is operational."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Health status is ok', function () {",
+                  "    pm.expect(pm.response.text().trim()).to.eql('ok');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "0.2 Real-Time Fast Emergency Delta Check",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/realtime/emergency-check",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "realtime",
+                "emergency-check"
+              ]
+            },
+            "description": "Ultra-fast emergency check endpoint polled by operations displays and patrol tablets."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "0.3 Real-Time SSE Stream (Server-Sent Events)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/realtime/stream",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "realtime",
+                "stream"
+              ]
+            },
+            "description": "Continuous SSE stream for live advisories, active incidents, and patrol dispatch events."
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Commuter Road User Mobile App",
+      "description": "Public and authenticated APIs for Pakistani road users (Commuter Mobile App). Includes 1-Tap Google & Email registration, user profiles, roadside emergency SOS, live patrol GPS tracking, and bidirectional case messaging.",
+      "item": [
+        {
+          "name": "1.1 Auth: 1-Tap Google Sign-In",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/commuter/google",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "commuter",
+                "google"
+              ]
+            },
+            "description": "Authenticates or registers a commuter using their Google Account (1-tap Gmail OAuth ID Token).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_token\": \"eyJhbGciOiJSUzI1NiIsImtpZCI6Ij...YOUR_GOOGLE_ID_TOKEN_HERE\",\n  \"device_fcm_token\": \"fcm_push_token_optional\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.access_token) {",
+                  "        pm.environment.set('commuter_token', json.access_token);",
+                  "        console.log('Commuter Token saved to environment.');",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.2 Auth: Email Registration",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/commuter/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "commuter",
+                "register"
+              ]
+            },
+            "description": "Standard self-service registration for commuters using email & password.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Zainab Bibi\",\n  \"email\": \"zainab.bibi@example.com\",\n  \"password\": \"SecurePassword123!\",\n  \"password_confirmation\": \"SecurePassword123!\",\n  \"device_fcm_token\": \"fcm_token_optional_string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 201', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "pm.test('Response is valid JSON', function () {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.access_token) {",
+                  "        pm.environment.set('commuter_token', json.access_token);",
+                  "        pm.collectionVariables.set('commuter_token', json.access_token);",
+                  "        console.log('✅ Commuter Bearer Token stored to environment & collection: ' + json.access_token.substring(0, 15) + '...');",
+                  "    }",
+                  "    if (json.user && json.user.uuid) {",
+                  "        pm.environment.set('commuter_uuid', json.user.uuid);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.3 Auth: Email Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/commuter/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "commuter",
+                "login"
+              ]
+            },
+            "description": "Commuter email and password login.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"zainab.bibi@example.com\",\n  \"password\": \"SecurePassword123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 201', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "pm.test('Response is valid JSON', function () {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.access_token) {",
+                  "        pm.environment.set('commuter_token', json.access_token);",
+                  "        pm.collectionVariables.set('commuter_token', json.access_token);",
+                  "        console.log('✅ Commuter Bearer Token stored to environment & collection: ' + json.access_token.substring(0, 15) + '...');",
+                  "    }",
+                  "    if (json.user && json.user.uuid) {",
+                  "        pm.environment.set('commuter_uuid', json.user.uuid);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.4 Profile: Get Safety Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/commuter/profile",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "commuter",
+                "profile"
+              ]
+            },
+            "description": "Retrieves the authenticated commuter profile.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.5 Profile: Complete / Update Safety Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/commuter/profile",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "commuter",
+                "profile"
+              ]
+            },
+            "description": "Completes the commuter safety profile (mobile, gender, CNIC, emergency contacts).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobile_no\": \"03001234567\",\n  \"gender\": \"female\",\n  \"cnic\": \"37405-1234567-2\",\n  \"blood_group\": \"B+\",\n  \"preferred_language\": \"ur\",\n  \"emergency_contacts\": [\n    {\n      \"name\": \"Guardian / Next of Kin\",\n      \"phone\": \"03007654321\",\n      \"relationship\": \"parent\"\n    }\n  ],\n  \"primary_vehicle\": {\n    \"registration_no\": \"ICT-LE-921\",\n    \"make_model\": \"Toyota Corolla\",\n    \"color\": \"white\",\n    \"type\": \"car\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "1.6 SOS: Trigger Roadside Emergency SOS",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/commuter/sos",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "commuter",
+                "sos"
+              ]
+            },
+            "description": "View 08/14: Commuter triggers emergency SOS. Creates Call entity in 130 CRM.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 32.7812,\n  \"longitude\": 72.7049,\n  \"problem_type\": \"Vehicle Breakdown\",\n  \"details\": \"Engine stalled near KM 231 south of Kallar Kahar interchange.\",\n  \"carriageway\": \"Southbound (Lahore Bound)\",\n  \"km_marker\": \"KM 231\",\n  \"vehicle_no\": \"ICT-LE-921\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "if (json.case_uuid) {",
+                  "    pm.environment.set('case_uuid', json.case_uuid);",
+                  "    pm.collectionVariables.set('case_uuid', json.case_uuid);",
+                  "    pm.environment.set('case_reference', json.case_reference);",
+                  "    console.log('🚨 Active Emergency Case UUID: ' + json.case_uuid + ' (' + json.case_reference + ')');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.7 Cases: Get Active Emergency Case & Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/commuter/cases/active",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "commuter",
+                "cases",
+                "active"
+              ]
+            },
+            "description": "View 07/08: Returns commuter's current active assistance case and assigned patrol callsign.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.8 Tracking: Live Assigned Patrol GPS Tracking",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cases/{{case_uuid}}/tracking",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cases",
+                "{{case_uuid}}",
+                "tracking"
+              ]
+            },
+            "description": "View 08/09: Returns real-time GPS coordinates, bearing, speed, and distance of assigned patrol P-12.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.9 Case Chat: Get Messages in Shared Case",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cases/{{case_uuid}}/messages",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cases",
+                "{{case_uuid}}",
+                "messages"
+              ]
+            },
+            "description": "Screen 09/10: Retrieves messages in shared case conversation.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.10 Case Chat: Send Message / Location Card",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cases/{{case_uuid}}/messages",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cases",
+                "{{case_uuid}}",
+                "messages"
+              ]
+            },
+            "description": "Screen 10: Commuter sends message or location card to assigned patrol.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message_type\": \"text\",\n  \"audience\": \"shared_case\",\n  \"content\": \"We are parked on emergency shoulder near KM 231 with hazard lights on.\",\n  \"latitude\": 32.7812,\n  \"longitude\": 72.7049\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "1.11 Cases: Get Commuter Case History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/commuter/cases/history",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "commuter",
+                "cases",
+                "history"
+              ]
+            },
+            "description": "Retrieves resolved case history for this commuter.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Uniformed Patrol Field Operations",
+      "description": "APIs powering the NHMP In-Vehicle Patrol Tablet & Officer App. Covers tactical login, Screen 02 Duty Setup with vehicle callsign binding (e.g. P-12), Screen 03 high-frequency GPS telemetry buffer, Screens 04-16 incident response lifecycle (acknowledge, en-route, arrived, request support, complete assistance, close & release), and duty conclusion.",
+      "item": [
+        {
+          "name": "2.1 Auth: Official Tactical Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/patrol/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "patrol",
+                "login"
+              ]
+            },
+            "description": "Screen 01: Tactical sign-in for patrolling police staff.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{patrol_username}}\",\n  \"password\": \"{{patrol_password}}\",\n  \"device_uuid\": \"android_tab_p12_official\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Login returns official access token', function () {",
+                  "    pm.response.to.be.json;",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('access_token');",
+                  "    pm.environment.set('patrol_token', json.access_token);",
+                  "    pm.environment.set('staff_token', json.access_token);",
+                  "    pm.collectionVariables.set('patrol_token', json.access_token);",
+                  "    console.log('✅ Patrol Tactical Token stored: ' + json.access_token.substring(0, 15) + '...');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.2 Auth: Get Officer Profile & Duty Status (/me)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/patrol/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "patrol",
+                "me"
+              ]
+            },
+            "description": "Returns officer identity, designation, assigned beat, and active duty status.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patrol_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.3 Duty: Screen 02 Roster Context",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/patrol/duty/roster-context",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "patrol",
+                "duty",
+                "roster-context"
+              ]
+            },
+            "description": "Screen 02: Fetches assigned beat, recent vehicle callsigns (e.g. P-12), and eligible assisting officers.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patrol_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.4 Duty: Screen 02 Start Duty (P-12 Callsign Binding)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/patrol/duty/start",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "patrol",
+                "duty",
+                "start"
+              ]
+            },
+            "description": "Screen 02: Mandatory duty check-in. Binds vehicle callsign P-12, sets status to AVAILABLE.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patrol_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vehicle_callsign\": \"P-12\",\n  \"vehicle_reg_no\": \"NHMP-8821\",\n  \"beat_office_id\": 1,\n  \"assisting_officer_id\": null,\n  \"initial_latitude\": 32.78214,\n  \"initial_longitude\": 72.70512\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 201', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.duty_session_id) {",
+                  "        pm.environment.set('duty_session_id', json.duty_session_id);",
+                  "        pm.collectionVariables.set('duty_session_id', json.duty_session_id);",
+                  "        console.log('✅ Active Duty Session ID bound: ' + json.duty_session_id);",
+                  "    }",
+                  "    pm.test('Duty Status is AVAILABLE', function () {",
+                  "        pm.expect(json.status).to.eql('AVAILABLE');",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.5 Duty: Screen 03 GPS Telemetry Stream (Redis Buffer)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/patrol/duty/telemetry",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "patrol",
+                "duty",
+                "telemetry"
+              ]
+            },
+            "description": "Screen 03: High-frequency vehicle GPS updates. Buffered in Redis GEOADD and rolled up to MySQL.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patrol_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"duty_session_id\": \"{{duty_session_id}}\",\n  \"latitude\": 32.7915,\n  \"longitude\": 72.7142,\n  \"speed_kph\": 78.5,\n  \"bearing_degrees\": 185.0,\n  \"carriageway\": \"Southbound (Lahore Bound)\",\n  \"accuracy_meters\": 3.2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "2.6 Duty: Screen 03 Query Patrol Readiness & Live Position",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/patrol/duty/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "patrol",
+                "duty",
+                "status"
+              ]
+            },
+            "description": "Screen 03: Returns active duty status, vehicle callsign, beat, assisting partner, and active case.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patrol_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.7 Duty: Screen 03 Update Readiness (AVAILABLE / BUSY)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/patrol/duty/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "patrol",
+                "duty",
+                "status"
+              ]
+            },
+            "description": "Screen 03: Officer toggles readiness status.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patrol_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"AVAILABLE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "2.8 Cases: Screen 04/05 Review Assigned Case",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/patrol/cases/assigned",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "patrol",
+                "cases",
+                "assigned"
+              ]
+            },
+            "description": "Screen 04/05: Displays pending or active case assigned by 130 Control (e.g. H-1042).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patrol_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.9 Cases: Screen 05 Get Case Details by UUID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cases/{{case_uuid}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cases",
+                "{{case_uuid}}"
+              ]
+            },
+            "description": "Screen 05: Complete case file review (category, location, caller, timestamps).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patrol_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.10 Cases: Screen 06 Acknowledge Assignment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cases/{{case_uuid}}/acknowledge",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cases",
+                "{{case_uuid}}",
+                "acknowledge"
+              ]
+            },
+            "description": "Screen 06: Officer accepts responsibility. Sets case status to acknowledged.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patrol_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.11 Cases: Screen 06 Cannot Respond (Return to Control)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cases/{{case_uuid}}/cannot-respond",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cases",
+                "{{case_uuid}}",
+                "cannot-respond"
+              ]
+            },
+            "description": "Screen 06: Officer declines assignment with mandatory reason. Returns case to Control.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patrol_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Engaged with fatal collision on opposite carriageway KM 229.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "2.12 Cases: Screen 08 Start Response (Patrol En-Route)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cases/{{case_uuid}}/start-response",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cases",
+                "{{case_uuid}}",
+                "start-response"
+              ]
+            },
+            "description": "Screen 08: Patrol is moving to scene. Status becomes in_progress; unlocks live tracking.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patrol_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.13 Cases: Screen 11 Confirm Arrival On Scene",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cases/{{case_uuid}}/mark-arrived",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cases",
+                "{{case_uuid}}",
+                "mark-arrived"
+              ]
+            },
+            "description": "Screen 11: Patrol marks physical attendance. Records tiger_reached_at and calculates response time.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patrol_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.14 Cases: Screen 12 Request Support / Handover",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cases/{{case_uuid}}/request-support",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cases",
+                "{{case_uuid}}",
+                "request-support"
+              ]
+            },
+            "description": "Screen 12: Requests backup/crane without abandoning case.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patrol_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"support_type\": \"recovery_crane\",\n  \"internal_note\": \"Heavy axle damage requires hydraulic lift recovery crane.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "2.15 Cases: Screen 13 Submit Completion Report",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cases/{{case_uuid}}/complete-assistance",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cases",
+                "{{case_uuid}}",
+                "complete-assistance"
+              ]
+            },
+            "description": "Screen 13: Officer submits report. Enters review_pending state for Control Room.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patrol_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"outcome\": \"resolved\",\n  \"public_summary\": \"Vehicle escorted safely to Bhera service area. Minor coolant leak repaired.\",\n  \"internal_control_note\": \"Driver was cooperative. Incident caused no blockage.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "2.16 Cases: Screen 15 Control Closure & Patrol Release",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cases/{{case_uuid}}/close-and-release",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cases",
+                "{{case_uuid}}",
+                "close-and-release"
+              ]
+            },
+            "description": "Screen 15: 130 Control formally closes case (completed) and releases patrol to AVAILABLE.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patrol_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.17 Duty: Screen 18 Conclude Duty Session (End Duty)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/patrol/duty/end",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "patrol",
+                "duty",
+                "end"
+              ]
+            },
+            "description": "Screen 18: Concludes duty session. Marks officer OFF DUTY.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patrol_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Women's Journey Safety Module (WJ-204)",
+      "description": "Specialized transit monitoring module for female passengers traveling aboard Public Service Vehicles (PSVs/buses). Covers journey registration, active journey queries, milestone check-ins, silent emergency alerts, safe arrival confirmation, and 130 Control Female Desk Queue.",
+      "item": [
+        {
+          "name": "3.1 Register PSV Transit Journey",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/womens-journey/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "womens-journey",
+                "register"
+              ]
+            },
+            "description": "Screens W01-W05: Registers PSV travel parameters. Starts active transit monitoring.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"origin_city\": \"Rawalpindi\",\n  \"origin_stop\": \"Faizabad Bus Terminal\",\n  \"destination_city\": \"Lahore\",\n  \"destination_stop\": \"Thokar Niaz Baig Terminal\",\n  \"psv_company_name\": \"Daewoo Express\",\n  \"psv_reg_no\": \"BS-942\",\n  \"psv_seat_no\": \"14-B\",\n  \"notes\": \"Traveling solo on night executive coach.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 201', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "if (json.journey_uuid) {",
+                  "    pm.environment.set('journey_uuid', json.journey_uuid);",
+                  "    pm.collectionVariables.set('journey_uuid', json.journey_uuid);",
+                  "    pm.environment.set('journey_code', json.journey_code);",
+                  "    console.log('🛡️ Women Transit Journey UUID saved: ' + json.journey_uuid + ' (' + json.journey_code + ')');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3.2 Query Active Transit Journey",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/womens-journey/active",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "womens-journey",
+                "active"
+              ]
+            },
+            "description": "Screen W07: Returns current active transit journey and milestone history.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "3.3 Post Milestone Check-In / In-Transit Note",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/womens-journey/{{journey_uuid}}/updates",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "womens-journey",
+                "{{journey_uuid}}",
+                "updates"
+              ]
+            },
+            "description": "Screen W08/W10: Passenger posts transit note or milestone check-in.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"update_type\": \"check_in\",\n  \"content\": \"Bus stopped at Bhera rest area for 15 minutes break.\",\n  \"location_name\": \"Bhera Rest Area M-2\",\n  \"latitude\": 32.48201,\n  \"longitude\": 72.9124\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "3.4 Trigger Discreet Silent Alert",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/womens-journey/{{journey_uuid}}/alert",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "womens-journey",
+                "{{journey_uuid}}",
+                "alert"
+              ]
+            },
+            "description": "Screen W11: Discreet silent alert. Triggers Priority 1 Alarm at 130 Women's Desk.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 32.214,\n  \"longitude\": 73.201\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "3.5 Confirm Safe Destination Arrival",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/womens-journey/{{journey_uuid}}/safe-arrival",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "womens-journey",
+                "{{journey_uuid}}",
+                "safe-arrival"
+              ]
+            },
+            "description": "Screen W12/W13: Safely concludes journey and terminates location sharing.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"arrival_stop\": \"Thokar Niaz Baig Terminal, Lahore\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "3.6 130 Control Female Desk Queue",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/womens-journey/desk-queue",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "womens-journey",
+                "desk-queue"
+              ]
+            },
+            "description": "Dedicated monitoring queue for 130 Control Room Female Operators.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patrol_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Tablet Travel Advisories & Emergency Broadcasts",
+      "description": "Advisory endpoints consumed by patrol tablets and electronic signage. High-concurrency, Redis tagged cache, and emergency closure alerts.",
+      "item": [
+        {
+          "name": "4.1 Get Active Advisories List",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/advisories",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "advisories"
+              ]
+            },
+            "description": "High-concurrency cached travel advisories."
+          }
+        },
+        {
+          "name": "4.2 Get Emergency Alerts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/advisories/emergency-alerts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "advisories",
+                "emergency-alerts"
+              ]
+            },
+            "description": "Active critical travel and fog emergency alerts."
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Public Travel Advisory Portal (Web & App)",
+      "description": "Read-only travel advisory portal endpoints for nhmp.gov.pk/travel-advisory. Includes route queries, fog alerts, road closure counters, live ticker, landmarks, and GIS GeoJSON layers.",
+      "item": [
+        {
+          "name": "5.1 List Routes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/travel-advisory/routes",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "travel-advisory",
+                "routes"
+              ]
+            },
+            "description": "Highway routes and carriageways."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('JSON response', () => pm.response.to.be.json);",
+                  "pm.test('Responds under 5s (cold local cache)', () => pm.expect(pm.response.responseTime).to.be.below(5000));",
+                  "const j = pm.response.json(); pm.test('Returns a non-empty route list', () => pm.expect(JSON.stringify(j).length).to.be.above(100));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.2 Query Route Advisories (Islamabad to Lahore, M-2)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/travel-advisory/query?from=Islamabad&to=Lahore&road=M-2",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "travel-advisory",
+                "query"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "Islamabad"
+                },
+                {
+                  "key": "to",
+                  "value": "Lahore"
+                },
+                {
+                  "key": "road",
+                  "value": "M-2"
+                }
+              ]
+            },
+            "description": "Advisories for a route; empty list with sample_mode when none exist."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('JSON response', () => pm.response.to.be.json);",
+                  "pm.test('Responds under 5s (cold local cache)', () => pm.expect(pm.response.responseTime).to.be.below(5000));",
+                  "const j = pm.response.json(); pm.test('Has route, counters, advisories', () => { pm.expect(j).to.have.property('route'); pm.expect(j).to.have.property('counters'); pm.expect(j.advisories).to.be.an('array'); });",
+                  "pm.test('Route is M-2', () => pm.expect(j.route.code).to.eql('M-2'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.3 Ticker",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/travel-advisory/ticker",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "travel-advisory",
+                "ticker"
+              ]
+            },
+            "description": "Live alert ticker feed."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('JSON response', () => pm.response.to.be.json);",
+                  "pm.test('Responds under 5s (cold local cache)', () => pm.expect(pm.response.responseTime).to.be.below(5000));",
+                  "const j = pm.response.json(); pm.test('Has ticker_items array and count', () => { pm.expect(j.ticker_items).to.be.an('array'); pm.expect(j.count).to.be.a('number'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.4 GeoJSON",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/travel-advisory/geojson",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "travel-advisory",
+                "geojson"
+              ]
+            },
+            "description": "Map geometry for Leaflet."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('JSON response', () => pm.response.to.be.json);",
+                  "pm.test('Responds under 5s (cold local cache)', () => pm.expect(pm.response.responseTime).to.be.below(5000));",
+                  "const j = pm.response.json(); pm.test('Valid FeatureCollection', () => { pm.expect(j.type).to.eql('FeatureCollection'); pm.expect(j.features).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.5 Landmarks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/travel-advisory/landmarks",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "travel-advisory",
+                "landmarks"
+              ]
+            },
+            "description": "Geospatial landmarks (caller-location helper)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('JSON response', () => pm.response.to.be.json);",
+                  "pm.test('Responds under 5s (cold local cache)', () => pm.expect(pm.response.responseTime).to.be.below(5000));",
+                  "pm.test('Returns landmark data', () => pm.expect(pm.response.text().length).to.be.above(100));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6. RBAC & Security Boundary Tests",
+      "description": "Zero-trust validation suite ensuring role-based access control. Validates that commuter tokens cannot access patrol/admin endpoints (HTTP 403) and unauthenticated requests are rejected (HTTP 401).",
+      "item": [
+        {
+          "name": "A1 Register fresh commuter",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/commuter/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "commuter",
+                "register"
+              ]
+            },
+            "description": "Register fresh commuter",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Postman E2E Test\",\n  \"email\": \"{{test_email}}\",\n  \"password\": \"LocalTest#2026pw\",\n  \"password_confirmation\": \"LocalTest#2026pw\",\n  \"device_name\": \"postman-e2e\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('test_email', 'pmtest+' + Date.now() + '@example.com');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "const j=pm.response.json();",
+                  "pm.test('Returns access_token', () => pm.expect(j.access_token).to.be.a('string').and.not.empty);",
+                  "pm.collectionVariables.set('access_token', j.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A2 Get profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/commuter/profile",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "commuter",
+                "profile"
+              ]
+            },
+            "description": "Get profile",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('JSON body', () => pm.response.to.be.json);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A3 Active case (none expected)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/commuter/cases/active",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "commuter",
+                "cases",
+                "active"
+              ]
+            },
+            "description": "Active case (none expected)",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A4 Case history",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/commuter/cases/history",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "commuter",
+                "cases",
+                "history"
+              ]
+            },
+            "description": "Case history",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A5 Active womens journey (none expected)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/womens-journey/active",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "womens-journey",
+                "active"
+              ]
+            },
+            "description": "Active womens journey (none expected)",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B1 Patrol profile -> 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/patrol/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "patrol",
+                "me"
+              ]
+            },
+            "description": "Patrol profile -> 403",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('No personal data in body', () => pm.expect(pm.response.text()).to.not.match(/cnic|emergency_contacts|passenger/i));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B2 Patrol duty status -> 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/patrol/duty/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "patrol",
+                "duty",
+                "status"
+              ]
+            },
+            "description": "Patrol duty status -> 403",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('No personal data in body', () => pm.expect(pm.response.text()).to.not.match(/cnic|emergency_contacts|passenger/i));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B3 Patrol assigned cases -> 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/patrol/cases/assigned",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "patrol",
+                "cases",
+                "assigned"
+              ]
+            },
+            "description": "Patrol assigned cases -> 403",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('No personal data in body', () => pm.expect(pm.response.text()).to.not.match(/cnic|emergency_contacts|passenger/i));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B4 Women journey desk queue -> 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/womens-journey/desk-queue",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "womens-journey",
+                "desk-queue"
+              ]
+            },
+            "description": "Women journey desk queue -> 403",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('No personal data in body', () => pm.expect(pm.response.text()).to.not.match(/cnic|emergency_contacts|passenger/i));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B5 Case details by uuid -> 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cases/00000000-0000-4000-8000-000000000000",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cases",
+                "00000000-0000-4000-8000-000000000000"
+              ]
+            },
+            "description": "Case details by uuid -> 403",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('No personal data in body', () => pm.expect(pm.response.text()).to.not.match(/cnic|emergency_contacts|passenger/i));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B6 Acknowledge case -> 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cases/00000000-0000-4000-8000-000000000000/acknowledge",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cases",
+                "00000000-0000-4000-8000-000000000000",
+                "acknowledge"
+              ]
+            },
+            "description": "Acknowledge case -> 403",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('No personal data in body', () => pm.expect(pm.response.text()).to.not.match(/cnic|emergency_contacts|passenger/i));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B7 Close and release case -> 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cases/00000000-0000-4000-8000-000000000000/close-and-release",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cases",
+                "00000000-0000-4000-8000-000000000000",
+                "close-and-release"
+              ]
+            },
+            "description": "Close and release case -> 403",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('No personal data in body', () => pm.expect(pm.response.text()).to.not.match(/cnic|emergency_contacts|passenger/i));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "C1 Commuter profile, no token -> 401",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/commuter/profile",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "commuter",
+                "profile"
+              ]
+            },
+            "description": "Commuter profile, no token -> 401"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "C2 Patrol profile, no token -> 401",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/patrol/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "patrol",
+                "me"
+              ]
+            },
+            "description": "Patrol profile, no token -> 401"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "C3 Desk queue, no token -> 401",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/womens-journey/desk-queue",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "womens-journey",
+                "desk-queue"
+              ]
+            },
+            "description": "Desk queue, no token -> 401"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "C4 Commuter profile, bad token -> 401",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer invalid-token"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/commuter/profile",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "commuter",
+                "profile"
+              ]
+            },
+            "description": "Commuter profile, bad token -> 401"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
