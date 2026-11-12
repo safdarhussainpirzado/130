@@ -625,7 +625,7 @@
                 <div class="ci bg-sky-100"><i class="fa-solid fa-fire-flame-curved text-sky-600"></i></div>
                 <div class="flex-1 min-w-0">
                     <div class="ct">Activity Heatmap</div>
-                    <div class="cst">Hourly Density · Last 7 Days</div>
+                    <div class="cst">Hourly Density · Last 7 Days · Helps only (excl. junk &amp; information)</div>
                 </div>
                 {{-- Legend --}}
                 <div class="flex items-center gap-1 text-[8px] font-black text-slate-400 shrink-0 ml-2">
@@ -662,7 +662,7 @@
                 <div class="ci bg-emerald-100 text-emerald-600 shadow-sm"><i class="fa-solid fa-braille text-lg"></i></div>
                 <div class="flex-1 min-w-0">
                     <div class="ct text-sm">Helpline Call Volume & Density</div>
-                    <div class="cst">QUANTIZED TEMPORAL MATRIX</div>
+                    <div class="cst">QUANTIZED TEMPORAL MATRIX · ALL CALLS</div>
                 </div>
 
                 {{-- Range Filters: 1D, 7D, 30D --}}
@@ -751,7 +751,7 @@
                             <span class="text-[9px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">+45%</span>
                         </div>
                         <div class="text-base font-black text-slate-800 leading-tight mt-0.5" id="slaWaitTime">
-                            {{ round($helpLineMetrics->wait_time) }} <span class="text-[10px] font-bold text-slate-400">sec</span>
+                            {!! $helpLineMetrics->wait_time !== null ? round($helpLineMetrics->wait_time).' <span class="text-[10px] font-bold text-slate-400">sec</span>' : '—' !!}
                         </div>
                     </div>
 
@@ -1144,7 +1144,7 @@ async function setSlaRange(r, btn) {
             }
 
             const wt = document.getElementById('slaWaitTime');
-            if (wt) wt.innerHTML = `${Math.round(d.wait_time)} <span class="text-[10px] font-bold text-slate-400">sec</span>`;
+            if (wt) wt.innerHTML = (d.wait_time === null || d.wait_time === undefined) ? '—' : `${Math.round(d.wait_time)} <span class="text-[10px] font-bold text-slate-400">sec</span>`;
 
             const ci = document.getElementById('slaCreatedToInit');
             if (ci) ci.textContent = d.created_to_init_formatted;
