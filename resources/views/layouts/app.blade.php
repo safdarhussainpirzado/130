@@ -1075,8 +1075,6 @@
                                     {{ $headerUser->full_name ?: strtoupper(str_replace('_', ' ', $headerUser->username ?? 'Administrator')) }}
                                 </span>
                                 <div class="flex items-center gap-1.5 text-[10px] font-medium text-slate-500 truncate justify-end">
-                                    <span class="font-semibold text-slate-700">{{ $headerUser->getRoleTitle() }}</span>
-                                    <span class="text-slate-300">•</span>
                                     <span class="text-blue-600 font-semibold truncate">{{ $headerUser->getJurisdictionText() }}</span>
                                 </div>
                                 @if($headerUser?->designation?->name)
