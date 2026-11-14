@@ -795,7 +795,8 @@
                             || (Auth::user() && Auth::user()->hasPermission('travel_advisory.view'));
                     @endphp
 
-                    @if ($isSectorOperatorOrAdmin)
+                    {{-- Travel Advisory sidebar links hidden by request (2026-11-15). Routes remain; remove `false &&` to show again. --}}
+                    @if (false && $isSectorOperatorOrAdmin)
                         <div class="nav-section">Travel Advisory</div>
                         <div class="nav-section-divider"></div>
 
