@@ -55,6 +55,16 @@ class CommuterProfile extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function getFullNameAttribute(): ?string
+    {
+        return $this->user?->full_name;
+    }
+
+    public function getNameAttribute(): ?string
+    {
+        return $this->user?->full_name;
+    }
+
     /**
      * Check if safety profile contains basic requirements (mobile, gender, contacts).
      */

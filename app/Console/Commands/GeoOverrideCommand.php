@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Services\Geo\EmergencyOverrideService;
 use Illuminate\Console\Command;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
 
 class GeoOverrideCommand extends Command
 {
@@ -28,14 +29,14 @@ class GeoOverrideCommand extends Command
 
         if ($showStatus && !$enable && !$disable) {
             $this->displayStatus($overrideService);
-            return Command::SUCCESS;
+            return SymfonyCommand::SUCCESS;
         }
 
         if ($enable) {
             $hours = (int) $this->option('hours');
             if ($hours < 1 || $hours > 24) {
                 $this->error('Override duration must be between 1 and 24 hours.');
-                return Command::FAILURE;
+                return SymfonyCommand::FAILURE;
             }
 
             $reason = (string) $this->option('reason');
@@ -43,7 +44,7 @@ class GeoOverrideCommand extends Command
                 $reason = (string) $this->ask('Please enter the mandatory operational justification / reason for this override');
                 if (empty(trim($reason))) {
                     $this->error('A valid operational reason is required for forensic audit logging.');
-                    return Command::FAILURE;
+                    return SymfonyCommand::FAILURE;
                 }
             }
 
@@ -53,7 +54,7 @@ class GeoOverrideCommand extends Command
             $this->line("Expires at: {$state['expires_at']} (in {$hours} hours)");
             $this->line("Audit row written to audit_logs table.");
 
-            return Command::SUCCESS;
+            return SymfonyCommand::SUCCESS;
         }
 
         if ($disable) {
@@ -61,10 +62,10 @@ class GeoOverrideCommand extends Command
             $overrideService->disable('artisan_cli:super_admin', $reason);
 
             $this->info("Emergency override DISABLED. Normal geo access enforcement resumed.");
-            return Command::SUCCESS;
+            return SymfonyCommand::SUCCESS;
         }
 
-        return Command::SUCCESS;
+        return SymfonyCommand::SUCCESS;
     }
 
     private function displayStatus(EmergencyOverrideService $overrideService): void

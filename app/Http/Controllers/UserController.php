@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules;
 
@@ -347,7 +348,7 @@ class UserController extends Controller
      *
      * @param Request $request
      * @param User $user
-     * @return \Illuminate\Http\JsonResponse
+     * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\RedirectResponse
      */
     public function clearLockout(Request $request, User $user)
     {
@@ -362,7 +363,13 @@ class UserController extends Controller
             'locked_until'    => null,
             'failed_attempts' => 0,
             'is_active'       => true,
+            'is_blocked'      => false,
         ])->save();
+
+        // Flush per-username rate limiter
+        try {
+            RateLimiter::clear('login_u|' . Str::transliterate(strtolower($user->username)));
+        } catch (\Throwable $e) {}
 
         // Administrative Audit Log
         try {
@@ -375,6 +382,7 @@ class UserController extends Controller
                     'action'          => 'Administrative Security Lockout Cleared and Restored by ' . ($currentUser?->username ?? 'Administrator'),
                     'target_user'     => $user->username,
                     'is_active'       => true,
+                    'is_blocked'      => false,
                     'locked_until'    => null,
                     'failed_attempts' => 0,
                 ],
@@ -385,15 +393,96 @@ class UserController extends Controller
             \Illuminate\Support\Facades\Log::warning('AuditLog creation failed in clearLockout: ' . $e->getMessage());
         }
 
-        return response()->json([
-            'success'            => true,
-            'is_active'          => true,
-            'locked_until'       => null,
-            'is_security_locked' => false,
-            'status_state'       => 'active',
-            'status_label'       => 'Active',
-            'message'            => "Security lockout cleared. User [{$user->username}] has been restored to Active status.",
-        ]);
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success'            => true,
+                'is_active'          => true,
+                'locked_until'       => null,
+                'is_security_locked' => false,
+                'status_state'       => 'active',
+                'status_label'       => 'Active',
+                'message'            => "Security lockout cleared. User [{$user->username}] has been restored to Active status.",
+            ]);
+        }
+
+        return redirect()->back()->with('status', "Security lockout cleared. User [{$user->username}] restored to Active.");
+    }
+
+    /**
+     * Flush rate limiting throttles for the user account and associated IPs.
+     * Clears RateLimiter keys for username and recent failed login IPs from audit trail.
+     *
+     * @param Request $request
+     * @param User $user
+     * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\RedirectResponse
+     */
+    public function flushRateLimits(Request $request, User $user)
+    {
+        $this->authorize('manageStatus', $user);
+
+        // Security Barrier: Prevent modifying own account security counters
+        abort_if($user->id === Auth::id(), 403, 'You cannot modify security rate limits on your own account.');
+
+        $currentUser = Auth::user();
+
+        // 1. Clear per-username login throttle
+        $userKey = 'login_u|' . Str::transliterate(strtolower($user->username));
+        RateLimiter::clear($userKey);
+
+        // 2. Clear IP rate limits from recent audit logs (last 6 hours)
+        $clearedIps = [];
+        try {
+            $recentIps = AuditLog::where('user_id', $user->id)
+                ->orWhere(function ($q) use ($user) {
+                    $q->where('table_name', 'users')->where('record_id', $user->id);
+                })
+                ->whereNotNull('ip_address')
+                ->where('created_at', '>=', now()->subHours(6))
+                ->pluck('ip_address')
+                ->unique();
+
+            foreach ($recentIps as $ip) {
+                if (!empty($ip)) {
+                    RateLimiter::clear('login_ip|' . $ip);
+                    RateLimiter::clear(sha1($ip));
+                    $clearedIps[] = $ip;
+                }
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Failed resolving IPs in flushRateLimits: ' . $e->getMessage());
+        }
+
+        // 3. Administrative Audit Log
+        try {
+            AuditLog::create([
+                'user_id'    => $currentUser?->id ?? $user->id,
+                'action'     => 'ADMIN_RATE_LIMITS_FLUSHED',
+                'table_name' => 'users',
+                'record_id'  => $user->id,
+                'new_values' => [
+                    'action'       => 'Rate limits and throttle cache flushed by ' . ($currentUser?->username ?? 'Administrator'),
+                    'target_user'  => $user->username,
+                    'user_key'     => $userKey,
+                    'cleared_ips'  => $clearedIps,
+                ],
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('AuditLog creation failed in flushRateLimits: ' . $e->getMessage());
+        }
+
+        $msg = "Rate limits and connection throttles flushed for user [{$user->username}] (" . count($clearedIps) . " IP addresses reset).";
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success'     => true,
+                'message'     => $msg,
+                'cleared_ips' => $clearedIps,
+            ]);
+        }
+
+        return redirect()->back()->with('status', $msg);
     }
 
     public function resetPassword(Request $request, User $user)

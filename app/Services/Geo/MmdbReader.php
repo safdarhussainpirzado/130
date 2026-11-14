@@ -14,7 +14,12 @@ class MmdbReader
     private const METADATA_MARKER = "\xab\xcd\xefMaxMind.com";
 
     private string $filePath;
+
+    /**
+     * @var resource|null
+     */
     private $handle = null;
+
     private int $fileSize = 0;
     private int $nodeCount = 0;
     private int $recordSize = 0;

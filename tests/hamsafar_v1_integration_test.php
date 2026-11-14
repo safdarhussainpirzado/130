@@ -167,6 +167,7 @@ class HamsafarV1TestRunner
     private function testCommuterProfileCompletion(): void
     {
         $res = $this->put('/api/v1/commuter/profile', [
+            'full_name'          => 'Ayesha Khan',
             'mobile_no'          => $this->commuterMobile,
             'gender'             => 'female',
             'cnic'               => $this->commuterCnic,
@@ -186,6 +187,9 @@ class HamsafarV1TestRunner
         $this->assert('Commuter profile update returns HTTP 200', $res['status'] === 200, "Got status {$res['status']}");
         $this->assert('Profile is now marked complete', ($res['json']['is_profile_complete'] ?? false) === true, 'Profile incomplete');
         $this->assert('Gender is stored as female', ($res['json']['profile']['gender'] ?? null) === 'female', 'Gender mismatch');
+        $this->assert('User full_name is updated', ($res['json']['user']['full_name'] ?? null) === 'Ayesha Khan', 'full_name mismatch');
+        $this->assert('User name is updated', ($res['json']['user']['name'] ?? null) === 'Ayesha Khan', 'name mismatch');
+        $this->assert('Profile object also includes full_name', ($res['json']['profile']['full_name'] ?? null) === 'Ayesha Khan', 'profile full_name mismatch');
     }
 
     private function testCommuterLogin(): void
@@ -205,6 +209,8 @@ class HamsafarV1TestRunner
         $res = $this->get('/api/v1/commuter/profile', $this->commuterToken);
 
         $this->assert('Get commuter profile returns HTTP 200', $res['status'] === 200, "Got status {$res['status']}");
+        $this->assert('Profile contains full_name', ($res['json']['user']['full_name'] ?? null) === 'Ayesha Khan', 'full_name missing');
+        $this->assert('Profile contains name', ($res['json']['user']['name'] ?? null) === 'Ayesha Khan', 'name missing');
         $this->assert('Profile contains mobile number', ($res['json']['user']['mobile_no'] ?? null) === $this->commuterMobile, 'Mobile missing');
         $this->assert('Profile contains saved vehicle', count($res['json']['profile']['vehicle_profiles'] ?? []) > 0, 'Vehicle missing');
     }

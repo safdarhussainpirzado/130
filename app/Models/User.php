@@ -392,6 +392,12 @@ class User extends Authenticatable
         return $this->activeScopes()->with('office')->first()?->office;
     }
 
+    /** Compatibility accessor for user name */
+    public function getNameAttribute(): ?string
+    {
+        return $this->full_name;
+    }
+
     /** Commuter citizen profile */
     public function commuterProfile(): HasOne
     {

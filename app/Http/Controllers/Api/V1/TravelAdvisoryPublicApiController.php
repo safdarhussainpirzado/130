@@ -85,23 +85,45 @@ class TravelAdvisoryPublicApiController extends Controller
     public function query(Request $request): Response|JsonResponse
     {
         $road = $request->query('road', 'M-2');
-        $from = $request->query('from', 'Islamabad');
-        $to = $request->query('to', 'Lahore');
+        $from = $request->query('from');
+        $to = $request->query('to');
         $type = $request->query('type', 'all'); // all, road_closure, fog, weather, traffic, road_works, diversion
         $direction = $request->query('direction', 'both'); // both, northbound, southbound
+
+        $cleanRoad = strtoupper(trim((string)$road));
+        $isAllRoads = ($cleanRoad === 'ALL' || empty($cleanRoad));
+
+        $carriageway = null;
+        if (! $isAllRoads) {
+            $carriageway = Carriageway::where('road', str_replace('-', '', $cleanRoad))
+                ->orWhere('road_short', $cleanRoad)
+                ->first();
+        }
+
+        $from = $request->query('from');
+        $to = $request->query('to');
+
+        if ($isAllRoads) {
+            $from = $from ?: 'All Origins';
+            $to = $to ?: 'All Destinations';
+        } else {
+            $from = $from ?: ($carriageway?->road_from ?: 'Islamabad');
+            $to = $to ?: ($carriageway?->road_to ?: 'Lahore');
+        }
 
         $cacheKey = 'travel_advisory:query:' . md5(json_encode([$road, $from, $to, $type, $direction]));
 
         $payload = ResilientCacheService::rememberWithStampedeProtection(
             $cacheKey,
             60, // 60s TTL
-            function () use ($road, $from, $to, $type, $direction) {
-                // Determine clean road key
-                $cleanRoad = strtoupper(trim((string)$road));
+            function () use ($road, $cleanRoad, $isAllRoads, $carriageway, $from, $to, $type, $direction) {
+                // 1. Fetch active advisories for this route (or all active if ALL)
+                $query = TabletAdvisory::active();
+                if (! $isAllRoads) {
+                    $query->forRoute($cleanRoad);
+                }
 
-                // 1. Fetch all active advisories for this route for counter calculations
-                $allRouteAdvisories = TabletAdvisory::active()
-                    ->forRoute($cleanRoad)
+                $allRouteAdvisories = $query
                     ->orderBy('published_at', 'desc')
                     ->get();
 
@@ -144,20 +166,41 @@ class TravelAdvisoryPublicApiController extends Controller
                 });
 
                 // Corridor route metadata
-                $carriageway = Carriageway::where('road', str_replace('-', '', $cleanRoad))
-                    ->orWhere('road_short', $cleanRoad)
-                    ->first();
+                if ($isAllRoads) {
+                    $routeCode = 'ALL';
+                    $routeName = 'All National Highways & Motorways';
+                    $summaryBadge = $advisoriesList->count() > 0
+                        ? "{$advisoriesList->count()} active advisories nationwide"
+                        : 'Normal conditions across all routes';
+                } else {
+                    $routeCode = $carriageway ? ($carriageway->road_short ?: $carriageway->road) : $cleanRoad;
+                    $routeName = $carriageway ? ($carriageway->road_name ?: ($cleanRoad . ' Motorway')) : ($cleanRoad . ' Motorway');
+                    $summaryBadge = $advisoriesList->count() > 0
+                        ? "{$advisoriesList->count()} advisories on your selected route"
+                        : 'Normal conditions on selected route';
+                }
+
+                $earliestExpiry = $filtered->whereNotNull('expires_at')->min('expires_at');
+                $earliestExpiryIso = null;
+                $earliestExpiryPkt = null;
+                if ($earliestExpiry) {
+                    $c = $earliestExpiry instanceof Carbon ? $earliestExpiry : Carbon::parse($earliestExpiry);
+                    $earliestExpiryIso = $c->toIso8601String();
+                    $earliestExpiryPkt = $c->timezone('Asia/Karachi')->format('H:i \P\K\T');
+                }
 
                 return [
                     'route' => [
-                        'code'           => $carriageway ? ($carriageway->road_short ?: $carriageway->road) : $cleanRoad,
-                        'name'           => $carriageway ? $carriageway->road_name : ($cleanRoad . ' Motorway'),
-                        'from'           => $from ?: ($carriageway ? $carriageway->road_from : 'Islamabad'),
-                        'to'             => $to ?: ($carriageway ? $carriageway->road_to : 'Lahore'),
-                        'direction'      => $direction,
+                        'code'             => $routeCode,
+                        'name'             => $routeName,
+                        'from'             => $from,
+                        'to'               => $to,
+                        'direction'        => $direction,
                         'advisories_count' => $advisoriesList->count(),
-                        'summary_badge'  => $advisoriesList->count() > 0 ? "{$advisoriesList->count()} advisories on your selected route" : 'Normal conditions on selected route',
-                        'last_updated'   => Carbon::now()->timezone('Asia/Karachi')->format('H:i \P\K\T'),
+                        'summary_badge'    => $summaryBadge,
+                        'last_updated'     => Carbon::now()->timezone('Asia/Karachi')->format('H:i \P\K\T'),
+                        'expires_at'       => $earliestExpiryIso,
+                        'expires_time'     => $earliestExpiryPkt ? "Expires {$earliestExpiryPkt}" : null,
                     ],
                     'counters'   => $counters,
                     'advisories' => $advisoriesList,
@@ -247,11 +290,17 @@ class TravelAdvisoryPublicApiController extends Controller
             120,
             function () use ($road) {
                 $cleanRoad = strtoupper(trim((string)$road));
-                $advisories = TabletAdvisory::active()
-                    ->forRoute($cleanRoad)
+                $isAllRoads = ($cleanRoad === 'ALL' || empty($cleanRoad));
+
+                $query = TabletAdvisory::active()
                     ->whereNotNull('start_lat')
-                    ->whereNotNull('start_lng')
-                    ->get();
+                    ->whereNotNull('start_lng');
+
+                if (! $isAllRoads) {
+                    $query->forRoute($cleanRoad);
+                }
+
+                $advisories = $query->get();
 
                 $features = [];
 
@@ -275,6 +324,8 @@ class TravelAdvisoryPublicApiController extends Controller
                             'message'           => $adv->message,
                             'icon_type'         => $this->mapIconType($adv->advisory_type),
                             'pin_color'         => $this->mapPinColor($adv->advisory_type, $adv->severity),
+                            'published_at'      => $adv->published_at?->toIso8601String(),
+                            'expires_at'        => $adv->expires_at?->toIso8601String(),
                         ],
                     ];
 
@@ -365,6 +416,10 @@ class TravelAdvisoryPublicApiController extends Controller
             ? $adv->published_at->timezone('Asia/Karachi')->format('H:i \P\K\T')
             : Carbon::now()->timezone('Asia/Karachi')->format('H:i \P\K\T');
 
+        $expiresPkt = $adv->expires_at
+            ? $adv->expires_at->timezone('Asia/Karachi')->format('H:i \P\K\T')
+            : null;
+
         return [
             'id'                 => $adv->id,
             'uuid'               => $adv->uuid,
@@ -389,6 +444,10 @@ class TravelAdvisoryPublicApiController extends Controller
             'badge_color'        => $this->mapPinColor($adv->advisory_type, $adv->severity),
             'start_coords'       => ($adv->start_lat && $adv->start_lng) ? [(float)$adv->start_lat, (float)$adv->start_lng] : null,
             'end_coords'         => ($adv->end_lat && $adv->end_lng) ? [(float)$adv->end_lat, (float)$adv->end_lng] : null,
+            'published_at'       => $adv->published_at?->toIso8601String(),
+            'expires_at'         => $adv->expires_at?->toIso8601String(),
+            'expires_at_pkt'     => $expiresPkt,
+            'expires_time'       => $expiresPkt ? "Expires {$expiresPkt}" : null,
             'updated_time'       => "Updated {$updatedPkt}",
             'sample_tag'         => 'Sample',
         ];

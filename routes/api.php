@@ -112,6 +112,14 @@ Route::prefix('v1/auth')->group(function () {
     // Uniformed Patrol Officer Tactical Login
     Route::middleware('throttle:10,1')->post('/patrol/login', [\App\Http\Controllers\Api\V1\PatrolAuthController::class, 'login'])
         ->name('api.v1.auth.patrol.login');
+
+    // Authenticated Logout Endpoints
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/commuter/logout', [\App\Http\Controllers\Api\V1\CommuterAuthController::class, 'logout'])
+            ->name('api.v1.auth.commuter.logout');
+        Route::post('/patrol/logout', [\App\Http\Controllers\Api\V1\PatrolAuthController::class, 'logout'])
+            ->name('api.v1.auth.patrol.logout');
+    });
 });
 
 // ==============================================================================
@@ -124,12 +132,16 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->prefix('v1')->group(funct
             ->name('api.v1.commuter.profile');
         Route::put('/profile', [\App\Http\Controllers\Api\V1\CommuterAuthController::class, 'updateProfile'])
             ->name('api.v1.commuter.profile.update');
+        Route::post('/logout', [\App\Http\Controllers\Api\V1\CommuterAuthController::class, 'logout'])
+            ->name('api.v1.commuter.logout');
     });
 
     // Patrol Officer Identity & Screen 02 Duty Setup
     Route::prefix('patrol')->middleware('hamsafar.access:field')->group(function () {
         Route::get('/me', [\App\Http\Controllers\Api\V1\PatrolAuthController::class, 'me'])
             ->name('api.v1.patrol.me');
+        Route::post('/logout', [\App\Http\Controllers\Api\V1\PatrolAuthController::class, 'logout'])
+            ->name('api.v1.patrol.logout');
 
         Route::prefix('duty')->group(function () {
             Route::get('/roster-context', [\App\Http\Controllers\Api\V1\PatrolDutyController::class, 'getRosterContext'])

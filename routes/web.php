@@ -93,8 +93,9 @@ Route::middleware('auth')->group(function () {
         Route::middleware('can:users.view')->group(function() {
             Route::resource('users', UserController::class);
             Route::post('users/{user}/toggle-status',  [UserController::class, 'toggleStatus'])->name('users.toggleStatus')->middleware('can:users.manage_status');
-            Route::post('users/{user}/clear-lockout',   [UserController::class, 'clearLockout'])->name('users.clearLockout')->middleware('can:users.manage_status');
-            Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.resetPassword')->middleware('can:users.manage_password');
+            Route::post('users/{user}/clear-lockout',       [UserController::class, 'clearLockout'])->name('users.clearLockout')->middleware('can:users.manage_status');
+            Route::post('users/{user}/flush-rate-limits',   [UserController::class, 'flushRateLimits'])->name('users.flushRateLimits')->middleware('can:users.manage_status');
+            Route::post('users/{user}/reset-password',     [UserController::class, 'resetPassword'])->name('users.resetPassword')->middleware('can:users.manage_password');
 
             // Password reset requests management
             Route::get('password-requests',                        [UserController::class, 'getPasswordRequests'])->name('users.passwordRequests.index');

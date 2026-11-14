@@ -22,7 +22,7 @@ env:
 health:
 	@echo -e "$(CLR_BOLD)==> Verifying System & Container Health ($(ENV))...$(CLR_RESET)"
 	@FAIL=0; \
-	for c in $(HAPROXY_CONTAINER) $(WEB1_CONTAINER) $(WEB2_CONTAINER) $(APP1_CONTAINER) $(APP2_CONTAINER) $(DB1_CONTAINER) $(DB2_CONTAINER) $(DB3_CONTAINER) $(REDIS_PRIMARY_CONTAINER); do \
+	for c in $(HAPROXY_CONTAINER) $(OCTANE_WEB1_CONTAINER) $(OCTANE_APP1_CONTAINER) $(DB1_CONTAINER) $(DB2_CONTAINER) $(DB3_CONTAINER) $(REDIS_PRIMARY_CONTAINER); do \
 		STATUS=$$(docker inspect --format '{{.State.Status}}' $$c 2>/dev/null || echo "missing"); \
 		if [ "$$STATUS" = "running" ]; then \
 			echo -e "  [$(CLR_GREEN)PASS$(CLR_RESET)] Container $$c is running"; \
@@ -32,11 +32,11 @@ health:
 		fi; \
 	done; \
 	echo -e "\n$(CLR_BOLD)==> Testing HTTP Ingress Health Endpoints...$(CLR_RESET)"; \
-	HTTP_HEALTH=$$(curl -s -o /dev/null -w "%{http_code}" http://$(LOCAL_IP):8085/healthz || echo "000"); \
-	if [ "$$HTTP_HEALTH" = "200" ]; then \
-		echo -e "  [$(CLR_GREEN)PASS$(CLR_RESET)] HAProxy / Nginx /healthz returned HTTP 200 OK"; \
+	HTTP_HEALTH=$$(curl -s -o /dev/null -w "%{http_code}" http://$(LOCAL_IP):8085/up || echo "000"); \
+	if [ "$$HTTP_HEALTH" = "200" ] || [ "$$HTTP_HEALTH" = "204" ]; then \
+		echo -e "  [$(CLR_GREEN)PASS$(CLR_RESET)] HAProxy / Nginx /up returned HTTP $$HTTP_HEALTH"; \
 	else \
-		echo -e "  [$(CLR_RED)FAIL$(CLR_RESET)] HAProxy /healthz returned HTTP $$HTTP_HEALTH"; \
+		echo -e "  [$(CLR_RED)FAIL$(CLR_RESET)] HAProxy /up returned HTTP $$HTTP_HEALTH"; \
 		FAIL=1; \
 	fi; \
 	ADVISORY_HEALTH=$$(curl -s -o /dev/null -w "%{http_code}" http://$(LOCAL_IP):8085/api/v1/advisories || echo "000"); \
@@ -72,7 +72,7 @@ versions:
 sync:
 	$(call guard-not-production)
 	@echo -e "$(CLR_BOLD)==> Synchronizing application code into active application nodes...$(CLR_RESET)"
-	@for container in $(OCTANE_APP_CONTAINER) $(APP1_CONTAINER) $(APP2_CONTAINER); do \
+	@for container in $(ALL_APP_CONTAINERS); do \
 		if docker ps --format '{{.Names}}' | grep -q "^$$container$$"; then \
 			docker cp routes/. $$container:/var/www/html/routes/ 2>/dev/null || true; \
 			docker cp app/. $$container:/var/www/html/app/ 2>/dev/null || true; \
@@ -116,7 +116,7 @@ sync-check:
 sync-assets:
 	$(call guard-not-production)
 	@echo -e "$(CLR_BOLD)==> Syncing frontend assets to web and app nodes...$(CLR_RESET)"
-	@for c in $(OCTANE_APP_CONTAINER) $(OCTANE_WEB_CONTAINER) $(APP1_CONTAINER) $(APP2_CONTAINER); do \
+	@for c in $(ALL_APP_CONTAINERS) $(ALL_WEB_CONTAINERS); do \
 		if docker ps --format '{{.Names}}' | grep -q "^$$c$$"; then \
 			docker cp public/build/. $$c:/var/www/html/public/build/ 2>/dev/null && echo -e "  [$(CLR_GREEN)OK$(CLR_RESET)] $$c build synced"; \
 		fi; \
@@ -126,7 +126,7 @@ sync-assets:
 # Sync code and rebuild caches cleanly with rolling zero-downtime RoadRunner worker reload
 sync-clear: sync sync-assets
 	@echo -e "$(CLR_BOLD)==> Executing rolling zero-downtime cache refresh & RoadRunner worker reload...$(CLR_RESET)"
-	@for c in $(OCTANE_APP_CONTAINER) $(APP1_CONTAINER) $(APP2_CONTAINER); do \
+	@for c in $(ALL_APP_CONTAINERS); do \
 		if docker ps --format '{{.Names}}' | grep -q "^$$c$$"; then \
 			echo -e "  -> Refreshing $$c..."; \
 			docker exec $$c php artisan optimize:clear 2>/dev/null || true; \
@@ -139,7 +139,7 @@ sync-clear: sync sync-assets
 
 # Warm optimized framework caches and reload RoadRunner workers
 optimize:
-	@for c in $(OCTANE_APP_CONTAINER) $(APP1_CONTAINER) $(APP2_CONTAINER); do \
+	@for c in $(ALL_APP_CONTAINERS); do \
 		if docker ps --format '{{.Names}}' | grep -q "^$$c$$"; then \
 			docker exec $$c php artisan optimize 2>/dev/null || true; \
 			docker exec $$c php artisan view:cache 2>/dev/null || true; \
@@ -177,7 +177,7 @@ logs-workers:
 # Safe container lifecycle with ingress health readiness wait
 up:
 	$(call guard-not-production)
-	docker compose up -d --remove-orphans
+	docker compose $(COMPOSE_FILES) up -d --remove-orphans
 	@echo -e "$(CLR_BOLD)==> Waiting for ingress and RoadRunner backends to become ready...$(CLR_RESET)"
 	@for i in $$(seq 1 20); do \
 		STATUS=$$(curl -k -s -o /dev/null -w "%{http_code}" https://127.0.0.1/up 2>/dev/null || echo "000"); \
@@ -192,12 +192,12 @@ up:
 down:
 	$(call guard-not-production)
 	@if [ "$(ENV)" != "local" ]; then $(call guard-confirm,Stop stack containers,yes-stop-stack); fi
-	docker compose down
+	docker compose $(COMPOSE_FILES) down
 
 restart:
 	$(call guard-not-production)
 	@if [ "$(ENV)" != "local" ]; then $(call guard-confirm,Restart stack containers,yes-restart-stack); fi
-	docker compose down && $(MAKE) up
+	docker compose $(COMPOSE_FILES) down && $(MAKE) up
 
 # Zero-Downtime Rolling Deployment & Rollback Targets
 rolling-deploy:

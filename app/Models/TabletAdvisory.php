@@ -125,10 +125,14 @@ class TabletAdvisory extends Model
     }
 
     /**
-     * Scope by route (e.g. M-2, M-1, N-5).
+     * Scope by route (e.g. M-2, M-1, N-5, or 'ALL' for nationwide).
      */
-    public function scopeForRoute(Builder $query, string $route): Builder
+    public function scopeForRoute(Builder $query, ?string $route): Builder
     {
+        if (empty($route) || strtoupper(trim($route)) === 'ALL') {
+            return $query;
+        }
+
         $normalized = strtoupper(trim(str_replace('-', '', $route)));
         return $query->where(function ($q) use ($route, $normalized) {
             $q->where('route_name', strtoupper(trim($route)))

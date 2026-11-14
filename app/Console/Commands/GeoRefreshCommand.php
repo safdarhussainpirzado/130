@@ -7,6 +7,7 @@ use App\Services\Geo\GeoLookup;
 use App\Services\Geo\MmdbReader;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
 
 class GeoRefreshCommand extends Command
 {
@@ -136,7 +137,7 @@ class GeoRefreshCommand extends Command
         $this->table(['Dataset', 'Records', 'File'], $summary);
         $this->info("Geo refresh complete. Files successfully written to [{$targetDir}].");
 
-        return Command::SUCCESS;
+        return SymfonyCommand::SUCCESS;
     }
 
     private function fetchUrl(string $url, int $timeout = 15): ?string

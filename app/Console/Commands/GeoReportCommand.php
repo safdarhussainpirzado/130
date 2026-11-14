@@ -8,6 +8,7 @@ use App\Services\Geo\EmergencyOverrideService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
 
 class GeoReportCommand extends Command
 {
@@ -163,6 +164,6 @@ class GeoReportCommand extends Command
         }
 
         $this->newLine();
-        return Command::SUCCESS;
+        return SymfonyCommand::SUCCESS;
     }
 }

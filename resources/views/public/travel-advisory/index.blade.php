@@ -1524,7 +1524,10 @@
                                     <span class="pill-tag-sample">Sample</span>
                                 </div>
                                 <div class="adv-timestamp">
-                                    Updated {{ $adv->published_at ? $adv->published_at->timezone('Asia/Karachi')->format('H:i \P\K\T') : '10:20 PKT' }}
+                                    <span>Updated {{ $adv->published_at ? $adv->published_at->timezone('Asia/Karachi')->format('H:i \P\K\T') : '10:20 PKT' }}</span>
+                                    @if ($adv->expires_at)
+                                        <span style="margin-left: 8px; opacity: 0.85;">• Expires {{ $adv->expires_at->timezone('Asia/Karachi')->format('H:i \P\K\T') }}</span>
+                                    @endif
                                 </div>
                             </div>
                             <i class="fa-solid fa-chevron-right adv-chevron"></i>

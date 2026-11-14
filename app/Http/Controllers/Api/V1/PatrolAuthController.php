@@ -178,4 +178,23 @@ class PatrolAuthController extends Controller
             ],
         ]);
     }
+
+    /**
+     * Terminate the tactical session and revoke personal access token.
+     */
+    public function logout(Request $request): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+
+        $token = $user?->currentAccessToken();
+        if ($token instanceof \Laravel\Sanctum\PersonalAccessToken) {
+            $token->delete();
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Patrol officer logged out successfully.',
+        ]);
+    }
 }
