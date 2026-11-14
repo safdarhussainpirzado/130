@@ -22,6 +22,8 @@ class GeoAccessReportController extends Controller
      */
     public function index(Request $request): View
     {
+        // Super Admin only; everyone else sees a 404 so the page is not discoverable.
+        abort_unless($request->user()?->role?->name === \App\Models\Role::SUPER_ADMIN, 404);
         $this->authorize('system.audit_view');
 
         $days = (int) $request->input('days', 7);

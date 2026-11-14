@@ -923,12 +923,14 @@
                         @endcan
 
                         @canany(['system.audit_view', 'roles.view'])
+                            @if (Auth::user()?->role?->name === \App\Models\Role::SUPER_ADMIN)
                             <a href="{{ route('admin.geo-access.report') }}"
                                 class="nav-item {{ request()->routeIs('admin.geo-access.*') ? 'active' : '' }}">
                                 <span class="nav-icon text-teal-600"><i class="fa-solid fa-earth-asia"></i></span>
                                 <span class="nav-label">Geo Access Control</span>
                                 <span class="nav-tooltip">Geo Access Control</span>
                             </a>
+                            @endif
 
                             <a href="{{ route('admin.audit.index') }}"
                                 class="nav-item {{ request()->routeIs('admin.audit.*') ? 'active' : '' }}">

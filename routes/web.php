@@ -118,7 +118,9 @@ Route::middleware('auth')->group(function () {
         });
 
         Route::middleware('can:system.audit_view')->group(function() {
-            Route::get('geo-access/report', [\App\Http\Controllers\Admin\GeoAccessReportController::class, 'index'])->name('geo-access.report');
+            // Super Admin only (enforced in GeoAccessReportController::index, everyone else gets 404).
+            Route::get('geo-access/report', [\App\Http\Controllers\Admin\GeoAccessReportController::class, 'index'])
+                ->name('geo-access.report');
             Route::get('audit', [AuditController::class, 'index'])->name('audit.index');
             Route::get('audit/{log}', [AuditController::class, 'show'])->name('audit.show');
         });
