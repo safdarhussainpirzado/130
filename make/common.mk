@@ -21,9 +21,13 @@ LOCAL_IP := 127.0.0.1
 APP1_CONTAINER := 130-app-1-1
 APP2_CONTAINER := 130-app-2-1
 OCTANE_APP_CONTAINER := 130-app-octane-1-1
+OCTANE_APP1_CONTAINER := 130-app-octane-1-1
+OCTANE_APP2_CONTAINER := 130-app-octane-2-1
 WEB1_CONTAINER := 130-web-1-1
 WEB2_CONTAINER := 130-web-2-1
 OCTANE_WEB_CONTAINER := 130-web-octane-1-1
+OCTANE_WEB1_CONTAINER := 130-web-octane-1-1
+OCTANE_WEB2_CONTAINER := 130-web-octane-2-1
 HAPROXY_CONTAINER := 130-haproxy-1
 DB1_CONTAINER := 130-db-1-1
 DB2_CONTAINER := 130-db-2-1
@@ -33,6 +37,11 @@ REDIS_REPLICA_CONTAINER := 130-redis-replica
 SENTINEL1_CONTAINER := 130-sentinel-1
 SENTINEL2_CONTAINER := 130-sentinel-2
 SENTINEL3_CONTAINER := 130-sentinel-3
+
+# Full application container inventory
+ALL_APP_CONTAINERS := 130-app-octane-1-1 130-app-octane-2-1 130-app-1-1 130-app-2-1
+ALL_WEB_CONTAINERS := 130-web-octane-1-1 130-web-octane-2-1 130-web-1-1 130-web-2-1
+COMPOSE_FILES := -f docker-compose.yml -f docker-compose.octane.yml
 
 # Database configuration (dynamic resolution without hardcoded passwords)
 DB_USER ?= crm_user

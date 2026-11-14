@@ -93,8 +93,9 @@ Route::middleware('auth')->group(function () {
         Route::middleware('can:users.view')->group(function() {
             Route::resource('users', UserController::class);
             Route::post('users/{user}/toggle-status',  [UserController::class, 'toggleStatus'])->name('users.toggleStatus')->middleware('can:users.manage_status');
-            Route::post('users/{user}/clear-lockout',   [UserController::class, 'clearLockout'])->name('users.clearLockout')->middleware('can:users.manage_status');
-            Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.resetPassword')->middleware('can:users.manage_password');
+            Route::post('users/{user}/clear-lockout',       [UserController::class, 'clearLockout'])->name('users.clearLockout')->middleware('can:users.manage_status');
+            Route::post('users/{user}/flush-rate-limits',   [UserController::class, 'flushRateLimits'])->name('users.flushRateLimits')->middleware('can:users.manage_status');
+            Route::post('users/{user}/reset-password',     [UserController::class, 'resetPassword'])->name('users.resetPassword')->middleware('can:users.manage_password');
 
             // Password reset requests management
             Route::get('password-requests',                        [UserController::class, 'getPasswordRequests'])->name('users.passwordRequests.index');
@@ -115,6 +116,7 @@ Route::middleware('auth')->group(function () {
             Route::post('permissions/{permission}/toggle-status', [\App\Http\Controllers\PermissionController::class, 'toggleStatus'])->name('permissions.toggleStatus');
             Route::get('audit', [AuditController::class, 'index'])->name('audit.index')->middleware('can:system.audit_view');
             Route::get('audit/{log}', [AuditController::class, 'show'])->name('audit.show')->middleware('can:system.audit_view');
+            Route::get('geo-access/report', [\App\Http\Controllers\Admin\GeoAccessReportController::class, 'index'])->name('geo-access.report')->middleware('can:system.audit_view');
             Route::resource('tts-scripts', TtsScriptController::class)->except(['show', 'edit', 'update'])->middleware('can:system.tts_scripts.manage');
         });
 

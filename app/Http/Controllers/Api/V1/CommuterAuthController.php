@@ -119,12 +119,15 @@ class CommuterAuthController extends Controller
             'user'                => [
                 'uuid'       => $user->uuid,
                 'full_name'  => $user->full_name,
+                'name'       => $user->full_name,
                 'email'      => $user->email,
                 'mobile_no'  => $user->mobile_no,
                 'role'       => 'commuter',
                 'avatar_url' => $profile?->avatar_url,
             ],
             'profile'             => [
+                'full_name'          => $user->full_name,
+                'name'               => $user->full_name,
                 'gender'             => $profile?->gender,
                 'blood_group'        => $profile?->blood_group,
                 'is_cnic_verified'   => (bool) $profile?->is_cnic_verified,
@@ -174,6 +177,7 @@ class CommuterAuthController extends Controller
             'user'                => [
                 'uuid'      => $user->uuid,
                 'full_name' => $user->full_name,
+                'name'      => $user->full_name,
                 'email'     => $user->email,
                 'role'      => 'commuter',
             ],
@@ -230,11 +234,14 @@ class CommuterAuthController extends Controller
             'user'                => [
                 'uuid'      => $user->uuid,
                 'full_name' => $user->full_name,
+                'name'      => $user->full_name,
                 'email'     => $user->email,
                 'mobile_no' => $user->mobile_no,
                 'role'      => 'commuter',
             ],
             'profile'             => [
+                'full_name'          => $user->full_name,
+                'name'               => $user->full_name,
                 'gender'             => $profile?->gender,
                 'blood_group'        => $profile?->blood_group,
                 'is_cnic_verified'   => (bool) $profile?->is_cnic_verified,
@@ -260,12 +267,15 @@ class CommuterAuthController extends Controller
             'user'                => [
                 'uuid'      => $user->uuid,
                 'full_name' => $user->full_name,
+                'name'      => $user->full_name,
                 'email'     => $user->email,
                 'mobile_no' => $user->mobile_no,
                 'cnic'      => $user->cnic,
                 'role'      => 'commuter',
             ],
             'profile'             => [
+                'full_name'          => $user->full_name,
+                'name'               => $user->full_name,
                 'gender'             => $profile?->gender,
                 'blood_group'        => $profile?->blood_group,
                 'is_cnic_verified'   => (bool) $profile?->is_cnic_verified,
@@ -289,8 +299,9 @@ class CommuterAuthController extends Controller
         DB::transaction(function () use ($user, $validated) {
             // Update User core fields
             $userUpdates = [];
-            if (! empty($validated['full_name'])) {
-                $userUpdates['full_name'] = $validated['full_name'];
+            $fullName = $validated['full_name'] ?? $validated['name'] ?? null;
+            if ($fullName !== null && trim((string) $fullName) !== '') {
+                $userUpdates['full_name'] = trim((string) $fullName);
             }
             if (! empty($validated['mobile_no'])) {
                 $userUpdates['mobile_no'] = $validated['mobile_no'];
@@ -327,6 +338,7 @@ class CommuterAuthController extends Controller
             $profile->save();
         });
 
+        $user->refresh();
         $freshProfile = $user->commuterProfile()->first();
 
         return response()->json([
@@ -336,15 +348,42 @@ class CommuterAuthController extends Controller
             'user'                => [
                 'uuid'      => $user->uuid,
                 'full_name' => $user->full_name,
+                'name'      => $user->full_name,
+                'email'     => $user->email,
                 'mobile_no' => $user->mobile_no,
                 'cnic'      => $user->cnic,
+                'role'      => 'commuter',
             ],
             'profile'             => [
+                'full_name'          => $user->full_name,
+                'name'               => $user->full_name,
                 'gender'             => $freshProfile?->gender,
                 'blood_group'        => $freshProfile?->blood_group,
+                'is_cnic_verified'   => (bool) $freshProfile?->is_cnic_verified,
+                'preferred_language' => $freshProfile?->preferred_language ?? 'ur',
                 'emergency_contacts' => $freshProfile?->emergency_contacts ?? [],
                 'vehicle_profiles'   => $freshProfile?->vehicle_profiles ?? [],
+                'saved_routes'       => $freshProfile?->saved_routes ?? [],
             ],
+        ]);
+    }
+
+    /**
+     * Terminate commuter session and revoke personal access token.
+     */
+    public function logout(Request $request): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+
+        $token = $user?->currentAccessToken();
+        if ($token instanceof \Laravel\Sanctum\PersonalAccessToken) {
+            $token->delete();
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Commuter logged out successfully.',
         ]);
     }
 }

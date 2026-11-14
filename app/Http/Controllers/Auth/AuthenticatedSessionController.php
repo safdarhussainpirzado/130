@@ -25,7 +25,27 @@ class AuthenticatedSessionController extends Controller
     {
         $user = $request->validateCredentials();
 
-        // 1. Session fixation + cross-user defense: destroy the old session entirely (drops any previous user's
+        // 1. Geo / ASN Access Policy Evaluation (Password Step)
+        $geoPolicy = app(\App\Services\Geo\GeoPolicyEngine::class);
+        $geoEval = $geoPolicy->evaluate($user, $request);
+
+        if ($geoEval['should_block']) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'username' => 'Access denied: Logins to the NHMP 130 Helpline are restricted to authorized operational locations.',
+            ]);
+        }
+
+        if ($geoEval['device_cookie'] !== null) {
+            cookie()->queue($geoEval['device_cookie']);
+        }
+
+        // Single active session for privileged admin roles (super_admin, operation_admin)
+        $roleName = strtolower((string) ($user->role?->name ?? ''));
+        if (config('geo_access.strict_admin_sessions', true) && in_array($roleName, ['super_admin', 'operation_admin'], true)) {
+            $user->increment('security_version');
+        }
+
+        // 2. Session fixation + cross-user defense: destroy the old session entirely (drops any previous user's
         //    attributes and `intended` URL), keep `intended` only when the old session had no authenticated user.
         $intended = Auth::guard('web')->check() ? null : $request->session()->get('url.intended');
         $request->session()->invalidate();
@@ -34,7 +54,7 @@ class AuthenticatedSessionController extends Controller
             $request->session()->put('url.intended', $intended);
         }
 
-        // 2. Clear stale MFA state from prior sessions
+        // 3. Clear stale MFA state from prior sessions
         $request->session()->forget([
             'mfa_pending_user_id',
             'mfa_challenge_id',
@@ -47,7 +67,7 @@ class AuthenticatedSessionController extends Controller
             'sensitive_reauth_at',
         ]);
 
-        // 3. Centralized Policy Resolution: Check if MFA is required for this account
+        // 4. Centralized Policy Resolution: Check if MFA is required for this account
         $mfaResolver = app(\App\Services\TwoFactor\MfaPolicyResolver::class);
         $mfaRequired = $mfaResolver->isMfaRequiredForUser($user);
 
@@ -76,10 +96,20 @@ class AuthenticatedSessionController extends Controller
             ]);
 
             LoginLog::create([
-                'user_id'    => $user->id,
-                'ip_address' => $request->ip(),
-                'user_agent' => $request->userAgent(),
-                'login_at'   => now(),
+                'user_id'         => $user->id,
+                'ip_address'      => $request->ip(),
+                'user_agent'      => $request->userAgent(),
+                'login_at'        => now(),
+                'country'         => $geoEval['country'],
+                'asn'             => $geoEval['asn'],
+                'org'             => $geoEval['org'],
+                'is_datacenter'   => $geoEval['is_datacenter'],
+                'is_vpn_or_proxy' => $geoEval['is_vpn_or_proxy'],
+                'is_tor'          => $geoEval['is_tor'],
+                'geo_decision'    => $geoEval['decision'],
+                'risk_score'      => $geoEval['risk_score'],
+                'risk_reasons'    => $geoEval['risk_reasons'],
+                'device_hash'     => $geoEval['device_hash'],
             ]);
 
             $user->update([

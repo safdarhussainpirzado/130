@@ -31,6 +31,9 @@ $kernel = $app->make(Kernel::class);
 $app->instance('request', Request::create('/'));
 $kernel->bootstrap();
 
+// Pre-warm Pakistan geo datasets, Tor nodes, and ASN tables into read-only memory once per worker
+\App\Services\Geo\GeoLookup::warmup();
+
 $baseConfig = $app['config']->all();
 $baseLocale = $app->getLocale();
 

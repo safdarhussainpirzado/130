@@ -90,6 +90,32 @@
             </div>
 
             <div class="flex flex-wrap items-center gap-2.5 shrink-0">
+                @can('users.manage_status')
+                    @if($user->id !== auth()->id())
+                        {{-- 🔓 Clear Security Lockout --}}
+                        <button type="button"
+                                @click="clearSecurityLockout()"
+                                :disabled="clearingLockout"
+                                class="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 border border-amber-400 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-md active:scale-95 disabled:opacity-50 text-white cursor-pointer"
+                                title="Clear Database Security Lockout & Reset Failed Password Counters">
+                            <span>🔓</span>
+                            <span x-text="clearingLockout ? 'Clearing...' : 'Clear Security Lockout'"></span>
+                            <i class="fa-solid fa-circle-notch animate-spin text-[10px]" x-show="clearingLockout" x-cloak></i>
+                        </button>
+
+                        {{-- ⚡ Flush Rate Limits --}}
+                        <button type="button"
+                                @click="flushRateLimits()"
+                                :disabled="flushingLimits"
+                                class="px-3.5 py-2 rounded-xl bg-teal-500 hover:bg-teal-600 border border-teal-400 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-md active:scale-95 disabled:opacity-50 text-white cursor-pointer"
+                                title="Flush Login Rate Limit and IP Throttles from Cache">
+                            <span>⚡</span>
+                            <span x-text="flushingLimits ? 'Flushing...' : 'Flush Rate Limits'"></span>
+                            <i class="fa-solid fa-circle-notch animate-spin text-[10px]" x-show="flushingLimits" x-cloak></i>
+                        </button>
+                    @endif
+                @endcan
+
                 {{-- View Mode Toggle --}}
                 <div class="inline-flex rounded-xl bg-white/15 border border-white/20 p-1">
                     <button type="button" @click="viewMode = 'table'"
@@ -585,6 +611,84 @@
             viewMode: 'table',
             showInspectModal: false,
             selectedLog: null,
+            clearingLockout: false,
+            flushingLimits: false,
+            async clearSecurityLockout() {
+                if (this.clearingLockout) return;
+                this.clearingLockout = true;
+                try {
+                    const response = await fetch('{{ route("admin.users.clearLockout", $user) }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                        }
+                    });
+                    const data = await response.json();
+                    if (response.ok && data.success) {
+                        if (typeof window.showSuccess === 'function') {
+                            window.showSuccess(data.message || 'Security lockout cleared successfully.');
+                        } else {
+                            window.dispatchEvent(new CustomEvent('toast', { detail: { message: data.message || 'Security lockout cleared.', type: 'success' } }));
+                        }
+                        setTimeout(() => window.location.reload(), 1200);
+                    } else {
+                        const errMsg = data.message || 'Failed to clear security lockout.';
+                        if (typeof window.showError === 'function') {
+                            window.showError(errMsg);
+                        } else {
+                            window.dispatchEvent(new CustomEvent('toast', { detail: { message: errMsg, type: 'error' } }));
+                        }
+                    }
+                } catch (err) {
+                    if (typeof window.showError === 'function') {
+                        window.showError('Communication failure while clearing lockout.');
+                    } else {
+                        window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Communication failure.', type: 'error' } }));
+                    }
+                } finally {
+                    this.clearingLockout = false;
+                }
+            },
+            async flushRateLimits() {
+                if (this.flushingLimits) return;
+                this.flushingLimits = true;
+                try {
+                    const response = await fetch('{{ route("admin.users.flushRateLimits", $user) }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                        }
+                    });
+                    const data = await response.json();
+                    if (response.ok && data.success) {
+                        if (typeof window.showSuccess === 'function') {
+                            window.showSuccess(data.message || 'Rate limits flushed successfully.');
+                        } else {
+                            window.dispatchEvent(new CustomEvent('toast', { detail: { message: data.message || 'Rate limits flushed.', type: 'success' } }));
+                        }
+                        setTimeout(() => window.location.reload(), 1200);
+                    } else {
+                        const errMsg = data.message || 'Failed to flush rate limits.';
+                        if (typeof window.showError === 'function') {
+                            window.showError(errMsg);
+                        } else {
+                            window.dispatchEvent(new CustomEvent('toast', { detail: { message: errMsg, type: 'error' } }));
+                        }
+                    }
+                } catch (err) {
+                    if (typeof window.showError === 'function') {
+                        window.showError('Communication failure while flushing rate limits.');
+                    } else {
+                        window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Communication failure.', type: 'error' } }));
+                    }
+                } finally {
+                    this.flushingLimits = false;
+                }
+            },
             openInspectModal(log) {
                 this.selectedLog = log;
                 this.showInspectModal = true;

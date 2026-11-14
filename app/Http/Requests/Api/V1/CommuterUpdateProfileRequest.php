@@ -17,7 +17,8 @@ class CommuterUpdateProfileRequest extends FormRequest
         $userId = $this->user()?->id;
 
         return [
-            'full_name'                          => ['nullable', 'string', 'min:2', 'max:100'],
+            'full_name'                          => ['nullable', 'string', 'min:2', 'max:150'],
+            'name'                               => ['nullable', 'string', 'min:2', 'max:150'],
             'mobile_no'                          => [
                 'nullable', 
                 'string', 

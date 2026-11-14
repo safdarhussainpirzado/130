@@ -813,12 +813,12 @@
                             <span class="nav-tooltip">Corridor Management</span>
                         </a>
 
-                        <!-- <a href="{{ route('public.travel-advisory') }}" target="_blank"
-                            class="nav-item">
+                        <a href="{{ route('public.travel-advisory') }}" target="_blank"
+                            class="nav-item {{ request()->routeIs('public.travel-advisory') ? 'active' : '' }}">
                             <span class="nav-icon text-emerald-500"><i class="fa-solid fa-earth-asia"></i></span>
                             <span class="nav-label">Commuter Portal</span>
                             <span class="nav-tooltip">Humsafar Public View</span>
-                        </a> -->
+                        </a>
                     @endif
 
                     <!-- SUPPORT MANAGEMENT -->

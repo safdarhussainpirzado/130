@@ -18,6 +18,26 @@ class LoginLog extends Model
         'session_hash',
         'request_id',
         'node',
+        'country',
+        'asn',
+        'org',
+        'is_datacenter',
+        'is_vpn_or_proxy',
+        'is_tor',
+        'geo_decision',
+        'risk_score',
+        'risk_reasons',
+        'device_hash',
+    ];
+
+    protected $casts = [
+        'is_datacenter'   => 'boolean',
+        'is_vpn_or_proxy' => 'boolean',
+        'is_tor'          => 'boolean',
+        'risk_reasons'    => 'array',
+        'risk_score'      => 'integer',
+        'login_at'        => 'datetime',
+        'logout_at'       => 'datetime',
     ];
 
     protected static function booted(): void

@@ -675,6 +675,65 @@
               ]
             }
           }
+        },
+        {
+          "name": "1.12 Auth: Commuter Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/commuter/logout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "commuter",
+                "logout"
+              ]
+            },
+            "description": "Logs out the authenticated commuter and revokes the active Sanctum Bearer token.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commuter_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "pm.test('Response is valid JSON', function () {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "pm.test('Logout confirmed', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.be.true;",
+                  "});",
+                  "pm.environment.unset('commuter_token');",
+                  "pm.collectionVariables.unset('commuter_token');",
+                  "console.log('✅ Commuter token cleared from environment.');"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -1418,6 +1477,65 @@
               ]
             }
           }
+        },
+        {
+          "name": "2.18 Auth: Patrol Officer Tactical Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/patrol/logout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "patrol",
+                "logout"
+              ]
+            },
+            "description": "Screen 19: Official tactical logout. Revokes patrol officer active Sanctum Bearer token.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patrol_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "pm.test('Response is valid JSON', function () {",
+                  "    pm.response.to.be.json;",
+                  "});",
+                  "pm.test('Patrol logout confirmed', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.be.true;",
+                  "});",
+                  "pm.environment.unset('patrol_token');",
+                  "pm.collectionVariables.unset('patrol_token');",
+                  "console.log('✅ Patrol officer token cleared from environment.');"
+                ]
+              }
+            }
+          ]
         }
       ]
     },

@@ -145,7 +145,7 @@ class TwoFactorEnforcement
             ]);
         }
 
-        // 7. Human Inactivity Timeout (30 Minutes default)
+        // 7. Human Inactivity Timeout (15 Minutes for Admin Roles, 30 Minutes default)
         $lastActivity = (int) $request->session()->get('last_activity_at', 0);
         $isHeartbeatActive = $request->is('auth/heartbeat*') && $request->boolean('active');
         $isBackground = ! $isHeartbeatActive && (
@@ -154,7 +154,14 @@ class TwoFactorEnforcement
             || $request->is('auth/heartbeat*')
         );
 
-        if ($lastActivity > 0 && (now()->timestamp - $lastActivity) > 1800) { // 30 minutes
+        $roleName = strtolower((string) ($user->role?->name ?? ''));
+        $maxIdleMinutes = 30;
+        if (in_array($roleName, ['super_admin', 'operation_admin'], true)) {
+            $maxIdleMinutes = (int) config("geo_access.roles.{$roleName}.max_idle_minutes", 15);
+        }
+        $maxIdleSeconds = $maxIdleMinutes * 60;
+
+        if ($lastActivity > 0 && (now()->timestamp - $lastActivity) > $maxIdleSeconds) {
             Auth::guard('web')->logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
@@ -164,7 +171,7 @@ class TwoFactorEnforcement
             }
 
             return redirect()->route('login')->withErrors([
-                'username' => 'Session expired due to 30 minutes of inactivity.',
+                'username' => "Session expired due to {$maxIdleMinutes} minutes of inactivity.",
             ]);
         }
 
