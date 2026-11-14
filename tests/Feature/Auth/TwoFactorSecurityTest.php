@@ -10,7 +10,6 @@ use App\Models\User;
 use App\Models\WebAuthnCredential;
 use App\Services\TwoFactor\EnrollmentAuthorizationService;
 use App\Services\TwoFactor\MfaPolicyResolver;
-use App\Services\TwoFactor\RecoveryService;
 use App\Services\TwoFactor\TotpService;
 use App\Services\TwoFactor\WebAuthnService;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -31,7 +30,6 @@ class TwoFactorSecurityTest extends TestCase
 
     private WebAuthnService $webAuthnService;
 
-    private RecoveryService $recoveryService;
 
     private EnrollmentAuthorizationService $enrollmentAuthService;
 
@@ -58,7 +56,6 @@ class TwoFactorSecurityTest extends TestCase
 
         $this->totpService = app(TotpService::class);
         $this->webAuthnService = app(WebAuthnService::class);
-        $this->recoveryService = app(RecoveryService::class);
         $this->enrollmentAuthService = app(EnrollmentAuthorizationService::class);
     }
 
@@ -393,46 +390,6 @@ class TwoFactorSecurityTest extends TestCase
         $response->assertRedirect(route('login'));
         $response->assertSessionHasErrors('username');
         $this->assertGuest('web');
-    }
-
-    /* ---------------------------------------------------------------------- */
-    /*  10. Recovery Code Grants Restricted Mode & Consumes Code */
-    /* ---------------------------------------------------------------------- */
-
-    public function test_recovery_code_grants_restricted_mode_and_consumes_code(): void
-    {
-        $user = $this->createStaffUser();
-        $codeResult = $this->recoveryService->generateCodes($user->id);
-        $plainCodes = $codeResult['plain_codes'];
-        $firstCode = $plainCodes[0];
-
-        $this->withSession([
-            'mfa_pending_user_id' => $user->id,
-            'mfa_challenge_id' => 'test-challenge',
-            'mfa_challenge_expires_at' => now()->addMinutes(5)->timestamp,
-        ]);
-
-        // Submit recovery code
-        $response = $this->post(route('2fa.recovery.verify'), [
-            'password' => 'TestPassword!130',
-            'recovery_code' => $firstCode,
-        ]);
-
-        // Must redirect to replacement screen in restricted recovery mode
-        $response->assertRedirect(route('2fa.replace.show'));
-        $this->assertTrue(session('recovery_restricted'));
-        $this->assertAuthenticatedAs($user);
-
-        // Code must be consumed (marked as used in DB)
-        $dbCode = TwoFactorRecoveryCode::where('user_id', $user->id)->first();
-        $this->assertNotNull($dbCode->consumed_at);
-
-        // Attempting to reuse the exact same recovery code must fail
-        $reverify = $this->recoveryService->verifyAndConsumeCode($user->id, $firstCode);
-        $this->assertFalse($reverify['success']);
-
-        // User in recovery_restricted mode attempting to access standard CRM dashboard must be blocked
-        $this->get('/dashboard')->assertRedirect(route('2fa.replace.show'));
     }
 
     /* ---------------------------------------------------------------------- */

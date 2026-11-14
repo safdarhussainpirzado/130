@@ -69,7 +69,7 @@ class BootstrapSuperAdminMfa extends Command
         $this->line("  1. Navigate to the enrollment URL in an authorized browser.");
         $this->line("  2. Scan the locally rendered QR code with your authenticator device (or register WebAuthn).");
         $this->line("  3. Prove possession with a valid 6-digit code.");
-        $this->line("  4. Securely store your 10 single-use emergency recovery codes.");
+        $this->line("  4. No recovery codes are issued; use the dual-control recovery process if the device is lost.");
         $this->info("===============================================================================");
 
         return self::SUCCESS;

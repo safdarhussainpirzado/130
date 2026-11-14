@@ -77,12 +77,6 @@
                         <span id="loadingSpinner" class="login-spinner" hidden aria-hidden="true"></span>
                     </button>
                     <p id="loginProgress" class="sr-only" role="status" aria-live="polite"></p>
-
-                    <div class="form-options">
-                        <a href="{{ route('2fa.recovery.show') }}">
-                            Lost authenticator? Use Emergency Recovery Code &rarr;
-                        </a>
-                    </div>
                 </form>
 
                 <div class="card-footer">

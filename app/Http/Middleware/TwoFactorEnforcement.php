@@ -41,8 +41,6 @@ class TwoFactorEnforcement
         '2fa.challenge.totp',
         '2fa.challenge.webauthn.options',
         '2fa.challenge.webauthn.verify',
-        '2fa.recovery.show',
-        '2fa.recovery.verify',
         '2fa.enroll.required',
         '2fa.enroll.show',
         '2fa.enroll.confirm',

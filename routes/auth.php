@@ -63,12 +63,6 @@ Route::prefix('2fa')->group(function () use ($authThrottle) {
         ->middleware('throttle:30,1')
         ->name('2fa.challenge.webauthn.verify');
 
-    // Emergency Recovery Code Verification
-    Route::get('recovery', [TwoFactorAuthenticatedController::class, 'showRecovery'])->name('2fa.recovery.show');
-    Route::post('recovery', [TwoFactorAuthenticatedController::class, 'verifyRecovery'])
-        ->middleware('throttle:30,1')
-        ->name('2fa.recovery.verify');
-
     // State 3: Controlled First-Time Enrollment
     Route::get('enroll-required', [TwoFactorEnrollmentController::class, 'showEnrollmentRequired'])->name('2fa.enroll.required');
     Route::get('enroll', [TwoFactorEnrollmentController::class, 'showEnroll'])->name('2fa.enroll.show');
@@ -108,11 +102,6 @@ Route::middleware('auth')->group(function () {
 
     Route::put('password', [PasswordController::class, 'update'])->name('password.update');
 
-    // Optional recovery codes: only users who completed 2FA setup can generate them (replaces any previous set).
-    Route::get('2fa/recovery-codes', [TwoFactorEnrollmentController::class, 'manageRecoveryCodes'])->name('2fa.recovery.manage');
-    Route::post('2fa/recovery-codes', [TwoFactorEnrollmentController::class, 'generateRecoveryCodes'])
-        ->middleware(['mfa.fresh:recovery_codes', 'throttle:5,1'])
-        ->name('2fa.recovery.generate');
 
     // 15-Day Mandatory Password Expiration Enforcement
     Route::get('password/expired', [PasswordExpiredController::class, 'show'])->name('password.expired');

@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\User;
 use App\Services\TwoFactor\EnrollmentAuthorizationService;
-use App\Services\TwoFactor\RecoveryService;
 use App\Services\TwoFactor\TotpService;
 use App\Services\TwoFactor\WebAuthnService;
 use Illuminate\Http\JsonResponse;
@@ -22,7 +21,6 @@ class TwoFactorEnrollmentController extends Controller
     public function __construct(
         private TotpService $totpService,
         private WebAuthnService $webAuthnService,
-        private RecoveryService $recoveryService,
         private EnrollmentAuthorizationService $enrollmentAuthService
     ) {}
 
@@ -151,8 +149,7 @@ class TwoFactorEnrollmentController extends Controller
         }
 
         // Atomically activate credential, consume authorization, generate recovery codes
-        $recoveryResult = ['plain_codes' => []];
-        DB::transaction(function () use ($user, $pendingSecret, $verifyResult, $authorization, &$recoveryResult) {
+        DB::transaction(function () use ($user, $pendingSecret, $verifyResult, $authorization) {
             // Activate encrypted TOTP secret and record consumed confirmation step
             $user->setEncryptedTotpSecret($pendingSecret);
             $user->totp_last_step = $verifyResult['matched_step'];
@@ -198,7 +195,6 @@ class TwoFactorEnrollmentController extends Controller
             'last_activity_at' => now()->timestamp,
             'session_created_at' => now()->timestamp,
             'sensitive_reauth_at' => now()->timestamp,
-            'mfa_new_recovery_codes' => $recoveryResult['plain_codes'] ?? [], // Available ONCE
         ]);
 
         return redirect()->route('2fa.enroll.success');
@@ -287,8 +283,7 @@ class TwoFactorEnrollmentController extends Controller
         }
 
         // Consume authorization if present and generate recovery codes
-        $recoveryResult = ['plain_codes' => []];
-        DB::transaction(function () use ($user, $authorization, &$recoveryResult) {
+        DB::transaction(function () use ($user, $authorization) {
             $user->mfa_enrolled_at = now();
             $user->save();
 
@@ -325,7 +320,6 @@ class TwoFactorEnrollmentController extends Controller
             'last_activity_at' => now()->timestamp,
             'session_created_at' => now()->timestamp,
             'sensitive_reauth_at' => now()->timestamp,
-            'mfa_new_recovery_codes' => $recoveryResult['plain_codes'],
         ]);
 
         return response()->json([
@@ -335,26 +329,14 @@ class TwoFactorEnrollmentController extends Controller
     }
 
     /**
-     * Show recovery codes display screen (presented ONCE).
+     * Legacy endpoint: recovery codes are no longer issued or displayed.
+     * Drops any stale session payload and sends the user on.
      */
-    public function showSuccess(Request $request): View|RedirectResponse
+    public function showSuccess(Request $request): RedirectResponse
     {
-        $codes = $request->session()->get('mfa_new_recovery_codes');
-        if (empty($codes)) {
-            /** @var User|null $authUser */
-            $authUser = Auth::user();
-            return redirect()->to($authUser ? $authUser->getLandingPageRoute() : route('dashboard'));
-        }
-
-        return view('auth.two-factor-recovery-codes', [
-            'recoveryCodes' => $codes,
-            'user' => Auth::user(),
-        ]);
+        return $this->acknowledgeSuccess($request);
     }
 
-    /**
-     * Acknowledge recovery codes and proceed to dashboard.
-     */
     public function acknowledgeSuccess(Request $request): RedirectResponse
     {
         $request->session()->forget('mfa_new_recovery_codes');
@@ -416,8 +398,7 @@ class TwoFactorEnrollmentController extends Controller
         }
 
         // Atomically replace factor, revoke old credentials, generate new recovery codes, bump security version
-        $recoveryResult = ['plain_codes' => []];
-        DB::transaction(function () use ($user, $newSecret, $verifyResult, &$recoveryResult) {
+        DB::transaction(function () use ($user, $newSecret, $verifyResult) {
             $user->setEncryptedTotpSecret($newSecret);
             $user->totp_last_step = $verifyResult['matched_step'];
             $user->security_version = ($user->security_version ?? 1) + 1;
@@ -441,51 +422,7 @@ class TwoFactorEnrollmentController extends Controller
         $request->session()->put([
             'recovery_restricted' => false, // Normal access restored!
             'security_version' => (int) $user->security_version,
-            'mfa_new_recovery_codes' => $recoveryResult['plain_codes'],
         ]);
-
-        return redirect()->route('2fa.enroll.success');
-    }
-
-    /**
-     * Optional: page where an enrolled user may generate recovery codes.
-     */
-    public function manageRecoveryCodes(Request $request): View|RedirectResponse
-    {
-        /** @var User $user */
-        $user = Auth::user();
-        if (! $user->hasMfaEnrolled()) {
-            abort(403, 'Complete two-factor setup first.');
-        }
-
-        return view('auth.two-factor-recovery-manage', [
-            'remaining' => $this->recoveryService->getRemainingCount($user->id),
-        ]);
-    }
-
-    /**
-     * Generate a fresh set of 10 codes (invalidates all earlier ones) and show them once.
-     */
-    public function generateRecoveryCodes(Request $request): RedirectResponse
-    {
-        /** @var User $user */
-        $user = Auth::user();
-        if (! $user->hasMfaEnrolled()) {
-            abort(403, 'Complete two-factor setup first.');
-        }
-
-        $result = $this->recoveryService->generateCodes($user->id);
-
-        AuditLog::create([
-            'user_id' => $user->id,
-            'action' => 'recovery_codes_generated',
-            'table_name' => 'two_factor_recovery_codes',
-            'record_id' => $user->id,
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-        ]);
-
-        $request->session()->put('mfa_new_recovery_codes', $result['plain_codes']);
 
         return redirect()->route('2fa.enroll.success');
     }

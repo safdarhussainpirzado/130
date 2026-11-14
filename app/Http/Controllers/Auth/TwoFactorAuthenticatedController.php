@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\LoginLog;
 use App\Models\User;
-use App\Services\TwoFactor\RecoveryService;
 use App\Services\TwoFactor\TotpService;
 use App\Services\TwoFactor\WebAuthnService;
 use Illuminate\Http\JsonResponse;
@@ -20,8 +19,7 @@ class TwoFactorAuthenticatedController extends Controller
 {
     public function __construct(
         private TotpService $totpService,
-        private WebAuthnService $webAuthnService,
-        private RecoveryService $recoveryService
+        private WebAuthnService $webAuthnService
     ) {}
 
     /**
@@ -241,92 +239,6 @@ class TwoFactorAuthenticatedController extends Controller
             'success' => true,
             'redirect' => $user->getLandingPageRoute(),
         ]);
-    }
-
-    /**
-     * Show recovery code entry view.
-     */
-    public function showRecovery(Request $request): View|RedirectResponse
-    {
-        $userId = $request->session()->get('mfa_pending_user_id');
-        if (! $userId) {
-            return redirect()->route('login');
-        }
-
-        /** @var User|null $user */
-        $user = User::find($userId);
-
-        return view('auth.two-factor-recovery', [
-            'user' => $user,
-        ]);
-    }
-
-    /**
-     * Verify single-use recovery code.
-     */
-    public function verifyRecovery(Request $request): RedirectResponse
-    {
-        $request->validate([
-            'password' => ['required', 'string'],
-            'recovery_code' => ['required', 'string'],
-        ]);
-
-        $userId = (int) $request->session()->get('mfa_pending_user_id');
-        /** @var User|null $user */
-        $user = User::find($userId);
-
-        if (! $user || ! $user->is_active) {
-            return redirect()->route('login')->withErrors(['username' => 'Session expired.']);
-        }
-
-        // Recovery requires password confirmation
-        if (! Hash::check((string) $request->input('password'), $user->password)) {
-            return back()->withErrors(['password' => 'Password is incorrect.']);
-        }
-
-        $result = $this->recoveryService->verifyAndConsumeCode($user->id, (string) $request->input('recovery_code'));
-
-        if (! $result['success']) {
-            AuditLog::create([
-                'user_id' => $user->id,
-                'action' => 'recovery_code_failed',
-                'table_name' => 'two_factor_recovery_codes',
-                'record_id' => $user->id,
-                'new_values' => ['reason' => $result['reason']],
-                'ip_address' => $request->ip(),
-                'user_agent' => $request->userAgent(),
-            ]);
-
-            return back()->withErrors(['recovery_code' => 'The provided emergency recovery code is invalid or has already been used.']);
-        }
-
-        // Successful recovery code consumption:
-        // Enter State 5: Restricted Recovery Mode
-        $request->session()->regenerate();
-        $this->clearChallengeState($request);
-
-        Auth::guard('web')->login($user, false);
-
-        $request->session()->put([
-            'auth_method' => 'recovery_code',
-            'mfa_completed_at' => now()->timestamp,
-            'security_version' => (int) $user->security_version,
-            'last_activity_at' => now()->timestamp,
-            'session_created_at' => now()->timestamp,
-            'recovery_restricted' => true, // Strictly restricted until re-enrollment
-        ]);
-
-        AuditLog::create([
-            'user_id' => $user->id,
-            'action' => 'recovery_code_used',
-            'table_name' => 'two_factor_recovery_codes',
-            'record_id' => $user->id,
-            'new_values' => ['remaining_codes' => $result['remaining_count']],
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-        ]);
-
-        return redirect()->route('2fa.replace.show')->with('warning', 'You have authenticated using an emergency recovery code. Standard CRM features are restricted until a replacement authenticator is enrolled.');
     }
 
     /**

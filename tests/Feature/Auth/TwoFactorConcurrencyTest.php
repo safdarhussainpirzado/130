@@ -8,7 +8,6 @@ use App\Models\Role;
 use App\Models\TwoFactorRecoveryCode;
 use App\Models\User;
 use App\Services\TwoFactor\MfaPolicyResolver;
-use App\Services\TwoFactor\RecoveryService;
 use App\Services\TwoFactor\TotpService;
 use Illuminate\Support\Facades\DB;
 use PragmaRX\Google2FA\Google2FA;
@@ -18,7 +17,6 @@ class TwoFactorConcurrencyTest extends TestCase
 {
     private TotpService $totpService;
 
-    private RecoveryService $recoveryService;
 
     private MfaPolicyResolver $policyResolver;
 
@@ -32,7 +30,6 @@ class TwoFactorConcurrencyTest extends TestCase
         // are strictly prohibited by TestCase::enforceTestDatabaseIsolation()
 
         $this->totpService = app(TotpService::class);
-        $this->recoveryService = app(RecoveryService::class);
         $this->policyResolver = app(MfaPolicyResolver::class);
     }
 
@@ -102,43 +99,6 @@ class TwoFactorConcurrencyTest extends TestCase
 
         // Confirm step in DB remains unchanged
         $this->assertSame($freshUser->totp_last_step, User::find($user->id)->totp_last_step);
-    }
-
-    /**
-     * Test 2: Concurrency on Recovery Code Redemption in MySQL (SELECT ... FOR UPDATE)
-     * Verifies that two concurrent redemption attempts of the same recovery code
-     * results in exactly one consumer succeeding and one failing.
-     */
-    public function test_mysql_concurrent_recovery_code_redemption_allows_only_one_consumer(): void
-    {
-        $user = $this->createMySqlUser();
-
-        // Generate 10 recovery codes
-        $codeResult = $this->recoveryService->generateCodes($user->id);
-        $plainCodes = $codeResult['plain_codes'];
-        $targetCode = $plainCodes[0];
-
-        // Process 1 consumes code
-        $redeem1 = $this->recoveryService->verifyAndConsumeCode($user->id, $targetCode);
-        $this->assertTrue($redeem1['success'], 'First consumer must successfully redeem recovery code on MySQL');
-
-        // Verify database state in MySQL
-        $dbCode = TwoFactorRecoveryCode::where('user_id', $user->id)
-            ->whereNotNull('consumed_at')
-            ->first();
-        $this->assertNotNull($dbCode);
-        $this->assertNotNull($dbCode->consumed_at);
-
-        // Process 2 concurrently attempts to redeem the exact same code
-        $redeem2 = $this->recoveryService->verifyAndConsumeCode($user->id, $targetCode);
-        $this->assertFalse($redeem2['success'], 'Second concurrent attempt must fail on MySQL');
-        $this->assertSame('INVALID_RECOVERY_CODE', $redeem2['reason']);
-
-        // Total consumed codes in MySQL for this user must remain exactly 1
-        $consumedCount = TwoFactorRecoveryCode::where('user_id', $user->id)
-            ->whereNotNull('consumed_at')
-            ->count();
-        $this->assertSame(1, $consumedCount, 'Only one recovery code record may be consumed');
     }
 
     /**

@@ -18,14 +18,24 @@ class RememberMeAndRecoveryCodesTest extends TestCase
         $this->assertStringNotContainsString("boolean('remember')", $src);
     }
 
-    public function test_enrollment_does_not_generate_recovery_codes(): void
+    public function test_no_code_generation_or_display_exists(): void
     {
-        $src = file_get_contents(app_path('Http/Controllers/Auth/TwoFactorEnrollmentController.php'));
-        $this->assertSame(0, substr_count($src, 'generateCodes(') - 1, 'only generateRecoveryCodes() may call generateCodes');
+        $this->assertFalse(class_exists(\App\Services\TwoFactor\RecoveryService::class));
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('2fa.recovery.show'));
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('2fa.recovery.verify'));
+        $this->assertFileDoesNotExist(resource_path('views/auth/two-factor-recovery-codes.blade.php'));
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('2fa.recovery.generate'));
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('2fa.recovery.manage'));
     }
 
-    public function test_recovery_manage_requires_login(): void
+    public function test_recovery_entry_page_is_gone(): void
     {
-        $this->get('/2fa/recovery-codes')->assertRedirect();
+        $this->get('/2fa/recovery')->assertStatus(404);
+        $this->post('/2fa/recovery', ['recovery_code' => 'AAAA-BBBB-CCCC-DDDD'])->assertStatus(404);
+    }
+
+    public function test_recovery_codes_page_is_gone(): void
+    {
+        $this->get('/2fa/recovery-codes')->assertStatus(404);
     }
 }
