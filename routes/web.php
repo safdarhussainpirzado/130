@@ -114,10 +114,13 @@ Route::middleware('auth')->group(function () {
             Route::post('roles/{role}/toggle-status', [RoleController::class, 'toggleStatus'])->name('roles.toggleStatus');
             Route::resource('permissions', \App\Http\Controllers\PermissionController::class)->middleware('can:permissions.view');
             Route::post('permissions/{permission}/toggle-status', [\App\Http\Controllers\PermissionController::class, 'toggleStatus'])->name('permissions.toggleStatus');
-            Route::get('audit', [AuditController::class, 'index'])->name('audit.index')->middleware('can:system.audit_view');
-            Route::get('audit/{log}', [AuditController::class, 'show'])->name('audit.show')->middleware('can:system.audit_view');
-            Route::get('geo-access/report', [\App\Http\Controllers\Admin\GeoAccessReportController::class, 'index'])->name('geo-access.report')->middleware('can:system.audit_view');
             Route::resource('tts-scripts', TtsScriptController::class)->except(['show', 'edit', 'update'])->middleware('can:system.tts_scripts.manage');
+        });
+
+        Route::middleware('can:system.audit_view')->group(function() {
+            Route::get('geo-access/report', [\App\Http\Controllers\Admin\GeoAccessReportController::class, 'index'])->name('geo-access.report');
+            Route::get('audit', [AuditController::class, 'index'])->name('audit.index');
+            Route::get('audit/{log}', [AuditController::class, 'show'])->name('audit.show');
         });
 
         // MFA & Security Settings (Restricted to Super Admin & Operations Manager)

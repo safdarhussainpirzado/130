@@ -919,6 +919,15 @@
                                 <span class="nav-label">Permission Management</span>
                                 <span class="nav-tooltip">Permissions</span>
                             </a>
+                        @endcan
+
+                        @canany(['system.audit_view', 'roles.view'])
+                            <a href="{{ route('admin.geo-access.report') }}"
+                                class="nav-item {{ request()->routeIs('admin.geo-access.*') ? 'active' : '' }}">
+                                <span class="nav-icon text-teal-600"><i class="fa-solid fa-earth-asia"></i></span>
+                                <span class="nav-label">Geo Access Control</span>
+                                <span class="nav-tooltip">Geo Access Control</span>
+                            </a>
 
                             <a href="{{ route('admin.audit.index') }}"
                                 class="nav-item {{ request()->routeIs('admin.audit.*') ? 'active' : '' }}">
@@ -926,7 +935,7 @@
                                 <span class="nav-label">Security Audit Logs</span>
                                 <span class="nav-tooltip">Security Audit Logs</span>
                             </a>
-                        @endcan
+                        @endcanany
                     @endif
 
                     @canany(['geography.offices.view', 'geography.carriageways.view', 'geography.geospatial.view'])
@@ -1038,10 +1047,107 @@
                             <span class="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full animate-pulse"></span>
                         </template>
                     </button>
-                    <div class="hidden md:flex flex-col items-end leading-none">
-                        <span
-                            class="text-[11px] font-black text-navy-900 uppercase tracking-tight">{{ strtoupper(str_replace('_', ' ', Auth::user()->username ?? 'nhmp_admin')) }}</span>
-                        <span class="text-[7px] font-black text-blue-600 uppercase tracking-widest mt-0.5">{{ Auth::user()?->getRoleTitle() ?? 'System Commander' }}</span>
+
+                    @php
+                        $headerUser = Auth::user();
+                        $headerInitials = 'UA';
+                        if ($headerUser) {
+                            $rawName = trim($headerUser->full_name ?: $headerUser->username ?: 'User');
+                            $nameParts = preg_split('/\s+/', $rawName);
+                            if (count($nameParts) >= 2) {
+                                $headerInitials = strtoupper(substr($nameParts[0], 0, 1) . substr(end($nameParts), 0, 1));
+                            } else {
+                                $headerInitials = strtoupper(substr($rawName, 0, 2));
+                            }
+                        }
+                    @endphp
+
+                    {{-- Top-Right Profile Button & Dropdown --}}
+                    <div x-data="{ userMenuOpen: false }" class="relative">
+                        <button @click="userMenuOpen = !userMenuOpen" 
+                            class="flex items-center gap-3 p-1 rounded-2xl hover:bg-slate-50 transition-all text-left focus:outline-none"
+                            aria-expanded="false" :aria-expanded="userMenuOpen.toString()">
+                            <div class="hidden sm:flex flex-col items-end leading-tight min-w-0 max-w-[190px]">
+                                <span class="text-xs font-bold text-slate-800 truncate">
+                                    {{ $headerUser->full_name ?: strtoupper(str_replace('_', ' ', $headerUser->username ?? 'Administrator')) }}
+                                </span>
+                                <span class="text-[10px] font-medium text-slate-500 truncate">
+                                    {{ $headerUser?->designation?->name ?? ($headerUser?->role?->name === 'super_admin' ? 'Super Administrator' : ($headerUser?->getRoleTitle() ?? 'Staff Member')) }}
+                                </span>
+                            </div>
+                            <div class="w-10 h-10 rounded-full border-2 border-blue-600 bg-white flex items-center justify-center text-blue-600 font-bold text-xs tracking-wider shadow-sm hover:ring-2 hover:ring-blue-100 transition-all shrink-0">
+                                {{ $headerInitials }}
+                            </div>
+                        </button>
+
+                        {{-- Dropdown Card --}}
+                        <div x-show="userMenuOpen" 
+                            @click.outside="userMenuOpen = false"
+                            x-transition:enter="transition ease-out duration-150"
+                            x-transition:enter-start="opacity-0 transform scale-95 -translate-y-1"
+                            x-transition:enter-end="opacity-100 transform scale-100 translate-y-0"
+                            x-transition:leave="transition ease-in duration-100"
+                            x-transition:leave-start="opacity-100 transform scale-100 translate-y-0"
+                            x-transition:leave-end="opacity-0 transform scale-95 -translate-y-1"
+                            x-cloak
+                            class="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 overflow-hidden">
+                            
+                            {{-- Dropdown User Header --}}
+                            <div class="px-4 py-3 border-b border-slate-100">
+                                <p class="text-sm font-bold text-slate-800 truncate">
+                                    {{ $headerUser->full_name ?: ($headerUser->username ?? 'User') }}
+                                </p>
+                                <p class="text-xs text-slate-500 truncate mt-0.5 font-medium">
+                                    {{ $headerUser->email ?? 'no-email@hms.com' }}
+                                </p>
+                            </div>
+
+                            {{-- Menu Links --}}
+                            <div class="py-1">
+                                <a href="{{ route('profile.edit') }}" 
+                                    @click="userMenuOpen = false"
+                                    class="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-blue-50/60 hover:text-blue-600 transition-colors">
+                                    <i class="fa-solid fa-circle-user text-slate-400 text-sm w-4 text-center"></i>
+                                    <span>Profile</span>
+                                </a>
+
+                                @can('settings.view')
+                                    <a href="{{ route('admin.settings.index') }}" 
+                                        @click="userMenuOpen = false"
+                                        class="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-blue-50/60 hover:text-blue-600 transition-colors">
+                                        <i class="fa-solid fa-gear text-slate-400 text-sm w-4 text-center"></i>
+                                        <span>Settings</span>
+                                    </a>
+                                @else
+                                    <a href="{{ route('profile.edit') }}#settings" 
+                                        @click="userMenuOpen = false"
+                                        class="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-blue-50/60 hover:text-blue-600 transition-colors">
+                                        <i class="fa-solid fa-gear text-slate-400 text-sm w-4 text-center"></i>
+                                        <span>Settings</span>
+                                    </a>
+                                @endcan
+
+                                <a href="{{ route('profile.edit', ['action' => 'password']) }}" 
+                                    @click="userMenuOpen = false"
+                                    class="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-blue-50/60 hover:text-blue-600 transition-colors">
+                                    <i class="fa-solid fa-key text-slate-400 text-sm w-4 text-center"></i>
+                                    <span>Change Password</span>
+                                </a>
+                            </div>
+
+                            <div class="h-px bg-slate-100 my-1"></div>
+
+                            {{-- Logout Action --}}
+                            <form method="POST" action="{{ route('logout') }}" data-no-pjax>
+                                @csrf
+                                <button type="submit" 
+                                    onclick="if(window.SessionGuard) window.SessionGuard.triggerGlobalLogout();"
+                                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors text-left">
+                                    <i class="fa-solid fa-arrow-right-from-bracket text-rose-500 text-sm w-4 text-center"></i>
+                                    <span>Logout</span>
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 </div>
             </header>
