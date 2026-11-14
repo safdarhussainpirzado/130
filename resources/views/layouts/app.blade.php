@@ -1070,13 +1070,20 @@
                         <button @click="userMenuOpen = !userMenuOpen" 
                             class="flex items-center gap-3 p-1 rounded-2xl hover:bg-slate-50 transition-all text-left focus:outline-none"
                             aria-expanded="false" :aria-expanded="userMenuOpen.toString()">
-                            <div class="hidden sm:flex flex-col items-end leading-tight min-w-0 max-w-[190px]">
+                            <div class="hidden sm:flex flex-col items-end leading-tight min-w-0 max-w-[280px]">
                                 <span class="text-xs font-bold text-slate-800 truncate">
                                     {{ $headerUser->full_name ?: strtoupper(str_replace('_', ' ', $headerUser->username ?? 'Administrator')) }}
                                 </span>
-                                <span class="text-[10px] font-medium text-slate-500 truncate">
-                                    {{ $headerUser?->designation?->name ?? ($headerUser?->role?->name === 'super_admin' ? 'Super Administrator' : ($headerUser?->getRoleTitle() ?? 'Staff Member')) }}
-                                </span>
+                                <div class="flex items-center gap-1.5 text-[10px] font-medium text-slate-500 truncate justify-end">
+                                    <span class="font-semibold text-slate-700">{{ $headerUser->getRoleTitle() }}</span>
+                                    <span class="text-slate-300">•</span>
+                                    <span class="text-blue-600 font-semibold truncate">{{ $headerUser->getJurisdictionText() }}</span>
+                                </div>
+                                @if($headerUser?->designation?->name)
+                                    <span class="text-[9px] text-slate-400 font-medium truncate">
+                                        {{ $headerUser->designation->name }}
+                                    </span>
+                                @endif
                             </div>
                             <div class="w-10 h-10 rounded-full border-2 border-blue-600 bg-white flex items-center justify-center text-blue-600 font-bold text-xs tracking-wider shadow-sm hover:ring-2 hover:ring-blue-100 transition-all shrink-0">
                                 {{ $headerInitials }}
@@ -1093,19 +1100,36 @@
                             x-transition:leave-start="opacity-100 transform scale-100 translate-y-0"
                             x-transition:leave-end="opacity-0 transform scale-95 -translate-y-1"
                             x-cloak
-                            class="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 overflow-hidden">
+                            class="absolute right-0 top-full mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 overflow-hidden">
                             
                             {{-- Dropdown User Header --}}
-                            <div class="px-4 py-3 border-b border-slate-100">
-                                <p class="text-sm font-bold text-slate-800 truncate">
-                                    {{ $headerUser->full_name ?: ($headerUser->username ?? 'User') }}
-                                </p>
-                                <p class="text-xs text-slate-500 truncate mt-0.5 font-medium">
-                                    {{ $headerUser->email ?? 'no-email@hms.com' }}
-                                </p>
+                            <div class="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="min-w-0">
+                                        <p class="text-sm font-bold text-slate-800 truncate">
+                                            {{ $headerUser->full_name ?: ($headerUser->username ?? 'User') }}
+                                        </p>
+                                        <p class="text-xs text-slate-500 truncate mt-0.5 font-medium">
+                                            {{ $headerUser->email ?? 'no-email@hms.com' }}
+                                        </p>
+                                    </div>
+                                    <span class="px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full bg-blue-100 text-blue-700 shrink-0">
+                                        {{ $headerUser->getRoleTitle() }}
+                                    </span>
+                                </div>
+                                <div class="mt-2 pt-2 border-t border-slate-200/60 flex items-center gap-1.5 text-[11px] text-slate-700 font-semibold">
+                                    <i class="fa-solid fa-location-dot text-blue-500 text-[10px] shrink-0"></i>
+                                    <span class="truncate">{{ $headerUser->getJurisdictionText() }}</span>
+                                </div>
+                                @if($headerUser?->designation?->name)
+                                    <div class="mt-1 flex items-center gap-1.5 text-[10px] text-slate-400 font-medium">
+                                        <i class="fa-solid fa-id-badge text-slate-400 text-[9px] shrink-0"></i>
+                                        <span class="truncate">{{ $headerUser->designation->name }}</span>
+                                    </div>
+                                @endif
                             </div>
 
-                            {{-- Menu Links --}}
+                            {{-- Menu Links (Settings removed per user request) --}}
                             <div class="py-1">
                                 <a href="{{ route('profile.edit') }}" 
                                     @click="userMenuOpen = false"
@@ -1113,22 +1137,6 @@
                                     <i class="fa-solid fa-circle-user text-slate-400 text-sm w-4 text-center"></i>
                                     <span>Profile</span>
                                 </a>
-
-                                @can('settings.view')
-                                    <a href="{{ route('admin.settings.index') }}" 
-                                        @click="userMenuOpen = false"
-                                        class="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-blue-50/60 hover:text-blue-600 transition-colors">
-                                        <i class="fa-solid fa-gear text-slate-400 text-sm w-4 text-center"></i>
-                                        <span>Settings</span>
-                                    </a>
-                                @else
-                                    <a href="{{ route('profile.edit') }}#settings" 
-                                        @click="userMenuOpen = false"
-                                        class="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-blue-50/60 hover:text-blue-600 transition-colors">
-                                        <i class="fa-solid fa-gear text-slate-400 text-sm w-4 text-center"></i>
-                                        <span>Settings</span>
-                                    </a>
-                                @endcan
 
                                 <a href="{{ route('profile.edit', ['action' => 'password']) }}" 
                                     @click="userMenuOpen = false"

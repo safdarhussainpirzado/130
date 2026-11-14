@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class LoginLog extends Model
 {
     public $timestamps = false;
+    const CREATED_AT = 'login_at';
 
     protected $fillable = [
         'user_id',

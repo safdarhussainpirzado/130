@@ -574,16 +574,106 @@ class User extends Authenticatable
         $role = $this->role?->name;
 
         return match ($role) {
-            'super_admin'     => 'System Administrator',
+            'super_admin'     => 'Super Administrator',
             'operation_admin', 'operation' => 'Operation Manager',
             'agent'           => 'Call Center Agent',
             'agent_supervisor'=> 'Shift Supervisor',
-            'zone_admin', 'sector_admin' => 'Zone and Sector Incharge',
+            'zone_admin'      => 'Zone Incharge',
+            'sector_admin'    => 'Sector Incharge',
             'beat_operator'   => 'Wireless Operator',
             'patrol_officer'  => 'Patrol Officer',
             'commuter'        => 'Commuter / Road User',
-            default           => 'System Commander',
+            default           => 'System Officer',
         };
+    }
+
+    /**
+     * Get the formatted jurisdiction text (Beat, Sector, Zone, Call Center, National Level).
+     */
+    public function getJurisdictionText(): string
+    {
+        $role = $this->role?->name;
+
+        // 1. Super Admin & National Headquarters
+        if ($role === 'super_admin') {
+            return 'National Level · Headquarter';
+        }
+
+        // 2. Call Center Agents & Supervisors
+        if (in_array($role, ['agent', 'agent_supervisor'], true)) {
+            return 'Call Center · Helpline 130';
+        }
+
+        // 3. Patrol Officer (check PatrolOfficerProfile first, then scopes)
+        if ($role === 'patrol_officer') {
+            $assignedBeat = $this->patrolOfficerProfile?->assignedBeat;
+            if ($assignedBeat) {
+                return $this->formatUnitHierarchy($assignedBeat);
+            }
+        }
+
+        // 4. Scope-based operational jurisdiction
+        $scope = $this->activeScopes()->with(['office.parent.parent'])->first();
+        $office = $scope?->office;
+
+        if (!$office) {
+            if (in_array($role, ['operation_admin', 'operation'], true)) {
+                return 'National Level · Operations';
+            }
+            return 'National Level';
+        }
+
+        return $this->formatUnitHierarchy($office);
+    }
+
+    /**
+     * Format an Office model into its complete Beat · Sector · Zone hierarchy.
+     */
+    protected function formatUnitHierarchy(Office $office): string
+    {
+        if ($office->type === 'beat') {
+            $beat = $office->name;
+            $sector = $office->parent?->name;
+            $zone = $office->parent?->parent?->name;
+            return $this->buildJurisdictionString($beat, $sector, $zone);
+        }
+
+        if ($office->type === 'sector') {
+            $sector = $office->name;
+            $zone = $office->parent?->name;
+            return $this->buildJurisdictionString(null, $sector, $zone);
+        }
+
+        if ($office->type === 'zone') {
+            return $this->buildJurisdictionString(null, null, $office->name);
+        }
+
+        if ($office->type === 'plhq' || $office->type === 'region') {
+            return 'National Level · ' . $office->name;
+        }
+
+        return $office->name;
+    }
+
+    /**
+     * Helper to build clean 'Beat-X · Sector Y · Z Zone' string.
+     */
+    protected function buildJurisdictionString(?string $beat, ?string $sector, ?string $zone): string
+    {
+        $parts = [];
+        if ($beat) {
+            $parts[] = trim($beat);
+        }
+        if ($sector) {
+            $cleanS = trim(preg_replace('/^Sector[\s\-_:]*/i', '', $sector));
+            $parts[] = 'Sector ' . $cleanS;
+        }
+        if ($zone) {
+            $cleanZ = trim(preg_replace('/[\s\-_:]*Zone$/i', '', $zone));
+            $parts[] = $cleanZ . ' Zone';
+        }
+
+        return !empty($parts) ? implode(' · ', $parts) : 'National Operations';
     }
 }
 

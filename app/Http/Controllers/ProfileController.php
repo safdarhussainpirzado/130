@@ -16,8 +16,31 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): View
     {
+        $user = $request->user();
+        if ($user) {
+            $user->loadMissing(['role', 'designation', 'activeScopes.office']);
+        }
+
+        $recentLogins = collect();
+        if ($user && class_exists(\App\Models\LoginLog::class)) {
+            try {
+                $recentLogins = \App\Models\LoginLog::where('user_id', $user->id)
+                    ->orderByDesc('login_at')
+                    ->limit(10)
+                    ->get();
+            } catch (\Throwable $e) {
+                // Graceful fallback if table/schema unavailable
+            }
+        }
+
+        $lastLogin = $recentLogins->first();
+        $prevLogin = $recentLogins->skip(1)->first();
+
         return view('profile.edit', [
-            'user' => $request->user(),
+            'user' => $user,
+            'recentLogins' => $recentLogins,
+            'lastLogin' => $lastLogin,
+            'prevLogin' => $prevLogin,
         ]);
     }
 
