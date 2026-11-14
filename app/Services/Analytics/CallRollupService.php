@@ -210,36 +210,45 @@ class CallRollupService
 
         $isNewCall = ($event->event_type === 'call_created');
         $isCompleted = ($status === 'completed');
-        $isPending = in_array($status, ['pending', 'in_progress', 'tiger_reached'], true);
+        $pendingStates = ['pending', 'in_progress', 'tiger_reached'];
+        $isPending = in_array($status, $pendingStates, true);
+        $oldStatus = $event->old_status;
+        $statusChanged = $isNewCall || ($oldStatus !== $status);
 
-        $respSec = (int) ($event->response_time_sec ?? 0);
+        // Every call produces several outbox events (created, in_progress, tiger_reached, completed...).
+        // Each counter must therefore move only on the TRANSITION it describes, never once per event
+        // (per-event counting inflated pending and SLA-eligible counts ~4x from 2026-11-10).
+        $enteredCompleted = $isCompleted && ($isNewCall || $oldStatus !== 'completed');
+
+        $respSec = $enteredCompleted ? (int) ($event->response_time_sec ?? 0) : 0;
         $hasResp = $respSec > 0 ? 1 : 0;
 
         $resSec = (int) ($event->resolution_time_sec ?? 0);
-        $hasRes = ($isCompleted && $resSec > 0) ? 1 : 0;
+        $hasRes = ($enteredCompleted && $resSec > 0) ? 1 : 0;
+        if (!$enteredCompleted) {
+            $resSec = 0;
+        }
 
-        $slaEligible = $event->is_sla_eligible ? 1 : 0;
-        $slaMet = ($event->is_sla_eligible && $event->is_sla_met) ? 1 : 0;
+        // SLA-eligible/met follow the backfill definition: counted once, when an eligible call is completed.
+        $slaEligible = ($enteredCompleted && $event->is_sla_eligible) ? 1 : 0;
+        $slaMet = ($slaEligible && $event->is_sla_met) ? 1 : 0;
 
         $deltaTotalCalls = $isNewCall ? 1 : 0;
-        $deltaCompleted = $isCompleted ? 1 : 0;
-        $deltaPending = $isPending ? 1 : 0;
+        $deltaCompleted = $enteredCompleted ? 1 : 0;
+        $deltaPending = ($isPending && $statusChanged) ? 1 : 0;
 
-        // If this is a reassignment or transition from an older status, adjust pending delta
-        if ($event->event_type === 'status_changed') {
-            if ($event->old_status && in_array($event->old_status, ['pending', 'in_progress', 'tiger_reached'], true) && $isCompleted) {
-                // Transitioned from pending to completed: decrement pending in existing rollup row
-                $this->decrementPendingRollup(
-                    $date,
-                    $hour,
-                    $event->old_zone_id,
-                    $event->old_sector_id,
-                    $event->old_beat_id,
-                    $typeId,
-                    $priority,
-                    $event->old_status
-                );
-            }
+        // Leaving a pending-type status (to completed OR to another pending-type status): decrement the old row once.
+        if (!$isNewCall && $statusChanged && $oldStatus && in_array($oldStatus, $pendingStates, true)) {
+            $this->decrementPendingRollup(
+                $date,
+                $hour,
+                $event->old_zone_id,
+                $event->old_sector_id,
+                $event->old_beat_id,
+                $typeId,
+                $priority,
+                $oldStatus
+            );
         }
 
         $sql = "
@@ -317,7 +326,9 @@ class CallRollupService
     {
         $hierarchyMap = $this->getOfficeHierarchyMap();
 
+        return DB::transaction(function () use ($startDate, $endDate, $hierarchyMap) {
         // Truncate or clean target date range to guarantee fresh, non-duplicated backfill
+        // (inside one transaction: dashboards keep reading the old rows until the new ones commit)
         DB::table('call_hourly_rollups')
             ->whereBetween('stat_date', [$startDate, $endDate])
             ->delete();
@@ -426,6 +437,7 @@ class CallRollupService
         }
 
         return $insertedCount;
+        });
     }
 
     /**
@@ -445,9 +457,27 @@ class CallRollupService
             ")
             ->first();
 
+        $rawSla = DB::table('calls')
+            ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
+            ->whereBetween('calls.created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+            ->where('calls.status', 'completed')
+            ->whereRaw('COALESCE(calls.office_id, 0) > 0')
+            ->whereNotIn('call_types.category', ['junk_silent', 'information'])
+            ->selectRaw("
+                COUNT(*) as eligible,
+                SUM(CASE
+                    WHEN calls.priority = 1 AND calls.resolution_time_sec <= 1800 THEN 1
+                    WHEN calls.priority = 2 AND calls.resolution_time_sec <= 3600 THEN 1
+                    WHEN calls.priority >= 3 AND calls.resolution_time_sec <= 7200 THEN 1
+                    ELSE 0 END) as met
+            ")
+            ->first();
+
         $rollup = DB::table('call_hourly_rollups')
             ->whereBetween('stat_date', [$startDate, $endDate])
             ->selectRaw("
+                SUM(sla_eligible_count) as elig_rollup,
+                SUM(sla_met_count) as met_rollup,
                 SUM(total_calls) as total_rollup,
                 SUM(completed_calls) as completed_rollup,
                 SUM(pending_calls) as pending_rollup,
@@ -461,7 +491,12 @@ class CallRollupService
         $diffResponseSec = ((int) $rawCalls->sum_resp_raw) - ((int) ($rollup->sum_resp_rollup ?? 0));
         $diffResolutionSec = ((int) $rawCalls->sum_res_raw) - ((int) ($rollup->sum_res_rollup ?? 0));
 
-        $isMatch = ($diffTotal === 0 && $diffCompleted === 0);
+        $diffPending  = ((int) $rawCalls->pending_raw) - ((int) ($rollup->pending_rollup ?? 0));
+        $diffEligible = ((int) $rawSla->eligible) - ((int) ($rollup->elig_rollup ?? 0));
+        $diffMet      = ((int) ($rawSla->met ?? 0)) - ((int) ($rollup->met_rollup ?? 0));
+
+        // pending and SLA counters are checked too: they drifted unnoticed (2026-11-10..12) while totals still matched
+        $isMatch = ($diffTotal === 0 && $diffCompleted === 0 && $diffPending === 0 && $diffEligible === 0 && $diffMet === 0);
 
         return [
             'is_consistent'       => $isMatch,
@@ -479,6 +514,13 @@ class CallRollupService
             'raw_sum_res_sec'     => (int) $rawCalls->sum_res_raw,
             'rollup_sum_res_sec'  => (int) ($rollup->sum_res_rollup ?? 0),
             'diff_res_sec'        => $diffResolutionSec,
+            'raw_pending'         => (int) $rawCalls->pending_raw,
+            'rollup_pending'      => (int) ($rollup->pending_rollup ?? 0),
+            'diff_pending'        => $diffPending,
+            'raw_sla_eligible'    => (int) $rawSla->eligible,
+            'rollup_sla_eligible' => (int) ($rollup->elig_rollup ?? 0),
+            'diff_sla_eligible'   => $diffEligible,
+            'diff_sla_met'        => $diffMet,
         ];
     }
 }

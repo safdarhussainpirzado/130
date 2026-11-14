@@ -494,7 +494,8 @@ class DashboardController extends Controller
                 'call_types.name as type',
                 DB::raw('count(*) as count')
             )
-            ->where('calls.created_at', '>=', now()->subDays(7));
+            // 7 distinct calendar dates (today and the 6 before). The old rolling now()-7d window made today's\n            // weekday collide with the same weekday last week, so cells for hours not yet reached today showed\n            // last week's data under today's date.
+            ->where('calls.created_at', '>=', now()->subDays(6)->startOfDay());
 
         $applyAnalyticalFilter($heatmapRawQuery);
         $heatmapRaw = $heatmapRawQuery->groupBy('day', 'hour', 'call_types.name')->get();
@@ -532,12 +533,40 @@ class DashboardController extends Controller
     }
 
     /**
+     * True SLA: of COMPLETED, office-assigned, non-junk/non-information calls, the share resolved within target
+     * (P1 30 min, P2 60 min, P3+ 120 min). Same definition as call_hourly_rollups.sla_met/eligible and the dot chart.
+     * (The old card showed completed/total, i.e. a completion rate labelled as SLA.)
+     *
+     * @return array{eligible:int, met:int, percent:int}
+     */
+    protected function computeTrueSla($from): array
+    {
+        $row = DB::table('calls')
+            ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
+            ->where('calls.created_at', '>=', $from)
+            ->where('calls.status', 'completed')
+            ->whereNotNull('calls.office_id')
+            ->where('calls.office_id', '>', 0)
+            ->whereNotIn('call_types.category', ['junk_silent', 'information'])
+            ->selectRaw("COUNT(*) as eligible, SUM(CASE
+                WHEN calls.priority = 1 AND calls.resolution_time_sec <= 1800 THEN 1
+                WHEN calls.priority = 2 AND calls.resolution_time_sec <= 3600 THEN 1
+                WHEN calls.priority >= 3 AND calls.resolution_time_sec <= 7200 THEN 1
+                ELSE 0 END) as met")
+            ->first();
+        $eligible = (int) ($row->eligible ?? 0);
+        $met = (int) ($row->met ?? 0);
+        return ['eligible' => $eligible, 'met' => $met, 'percent' => $eligible > 0 ? (int) round($met / $eligible * 100) : 0];
+    }
+
+    /**
      * Compute current day and 24h fallback SLA efficiency breakdown.
      *
      * @return array{slaValue: int, totalSlaCalls: int, completedCalls: int, slaBreakdown: \Illuminate\Support\Collection}
      */
     protected function computeSlaMetrics(Carbon $todayStart, array $junkSilentSubTypeIds): array
     {
+        $slaFrom = $todayStart;
         $slaQuery = DB::table('calls')
             ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
             ->where('calls.created_at', '>=', $todayStart)
@@ -564,6 +593,7 @@ class DashboardController extends Controller
         $slaValue = $totalSlaCalls > 0 ? (int) round(($completedCalls / $totalSlaCalls) * 100) : 0;
 
         if ($totalSlaCalls === 0) {
+            $slaFrom = now()->subHours(24);
             $slaQuery24h = DB::table('calls')
                 ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
                 ->where('calls.created_at', '>=', now()->subHours(24))
@@ -587,6 +617,9 @@ class DashboardController extends Controller
             $completedCalls = (int) $slaBreakdown->sum('completed_calls');
             $slaValue = $totalSlaCalls > 0 ? (int) round(($completedCalls / $totalSlaCalls) * 100) : 0;
         }
+
+        $trueSla = $this->computeTrueSla($slaFrom);
+        $slaValue = $trueSla['eligible'] > 0 ? $trueSla['percent'] : 0;
 
         return compact('slaValue', 'totalSlaCalls', 'completedCalls', 'slaBreakdown');
     }
@@ -844,13 +877,14 @@ class DashboardController extends Controller
             ')
             ->first();
 
-        $avgWaitTime        = round(($todayHelpline?->avg_wait ?: $baselineAverages?->avg_wait) ?: 14);
-        $avgTalkTime        = round(($todayHelpline?->avg_talk ?: $baselineAverages?->avg_talk) ?: 105);
-        $avgCreatedToInit   = round(($todayHelpline?->avg_created_to_init) ?: 626);
-        $avgInitToReached   = round(($todayHelpline?->avg_init_to_reached ?: $todayHelpline?->avg_response) ?: 3126);
-        $avgResponseTime    = round(($todayHelpline?->avg_response ?: $baselineAverages?->avg_response) ?: 2976);
+        $avgWaitTime        = ($v = ($todayHelpline?->avg_wait ?: $baselineAverages?->avg_wait)) ? (int) round($v) : null; // null = no data (was a fake 14s default)
+        $avgTalkTime        = ($v = ($todayHelpline?->avg_talk ?: $baselineAverages?->avg_talk)) ? (int) round($v) : null;
+        $avgCreatedToInit   = ($todayHelpline?->avg_created_to_init) ? (int) round($todayHelpline->avg_created_to_init) : null;
+        $avgInitToReached   = ($v = ($todayHelpline?->avg_init_to_reached ?: $todayHelpline?->avg_response)) ? (int) round($v) : null;
+        $avgResponseTime    = ($v = ($todayHelpline?->avg_response ?: $baselineAverages?->avg_response)) ? (int) round($v) : null;
 
-        $formatDuration = function(int $seconds): string {
+        $formatDuration = function(?int $seconds): string {
+            if ($seconds === null) return '—';
             if ($seconds < 60) return "{$seconds} sec";
             $mins = floor($seconds / 60);
             $secs = $seconds % 60;
@@ -1167,7 +1201,8 @@ class DashboardController extends Controller
 
         $totalSlaCalls = $slaBreakdown->sum('total_calls');
         $completedCalls = $slaBreakdown->sum('completed_calls');
-        $slaValue = $totalSlaCalls > 0 ? round(($completedCalls / $totalSlaCalls) * 100) : 0;
+        $trueSla = $this->computeTrueSla($startDate);
+        $slaValue = $trueSla['eligible'] > 0 ? $trueSla['percent'] : 0;
 
         $helplineTimes = DB::table('calls')
             ->where('calls.created_at', '>=', $startDate)
@@ -1179,11 +1214,12 @@ class DashboardController extends Controller
             ')
             ->first();
 
-        $avgWaitTime      = round(($helplineTimes?->avg_wait) ?: 14);
-        $avgCreatedToInit = round(($helplineTimes?->avg_created_to_init) ?: 626);
-        $avgInitToReached = round(($helplineTimes?->avg_init_to_reached ?: $helplineTimes?->avg_response) ?: 3126);
+        $avgWaitTime      = ($helplineTimes?->avg_wait) ? (int) round($helplineTimes->avg_wait) : null; // null = no data (was a fake 14s default)
+        $avgCreatedToInit = ($helplineTimes?->avg_created_to_init) ? (int) round($helplineTimes->avg_created_to_init) : null;
+        $avgInitToReached = ($v = ($helplineTimes?->avg_init_to_reached ?: $helplineTimes?->avg_response)) ? (int) round($v) : null;
 
-        $formatDuration = function(int $seconds): string {
+        $formatDuration = function(?int $seconds): string {
+            if ($seconds === null) return '—';
             if ($seconds < 60) return "{$seconds} sec";
             $mins = floor($seconds / 60);
             $secs = $seconds % 60;
