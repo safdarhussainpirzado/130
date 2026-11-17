@@ -148,12 +148,37 @@ class Office extends Model
     }
 
     /**
+     * Lightweight id => office row map (name, type, parent, KM range, phone) cached for 10 minutes.
+     * Used by hot AJAX lookups so they never eager-load Office relations (invalidated with the hierarchy tree).
+     *
+     * @return array<int, array{id:int,name:string,type:string,parent_id:?int,km_start:?float,km_end:?float,is_active:bool,phone:?string}>
+     */
+    public static function liteMap(): array
+    {
+        return \Illuminate\Support\Facades\Cache::remember('crm:offices_lite_v1', 600, function (): array {
+            $map = [];
+            foreach (static::query()->select('id', 'name', 'type', 'parent_id', 'km_start', 'km_end', 'is_active', 'phone')->get() as $o) {
+                $map[(int) $o->id] = [
+                    'id' => (int) $o->id, 'name' => (string) $o->name, 'type' => (string) $o->type,
+                    'parent_id' => $o->parent_id ? (int) $o->parent_id : null,
+                    'km_start' => $o->km_start !== null ? (float) $o->km_start : null,
+                    'km_end' => $o->km_end !== null ? (float) $o->km_end : null,
+                    'is_active' => (bool) $o->is_active,
+                    'phone' => $o->phone !== null && trim((string) $o->phone) !== '' ? trim((string) $o->phone) : null,
+                ];
+            }
+            return $map;
+        });
+    }
+
+    /**
      * Atomically invalidate the global office hierarchy cache across all workers.
      */
     public static function clearHierarchyCache(): void
     {
         try {
             \Illuminate\Support\Facades\Cache::forget('crm:all_offices_tree_v1');
+            \Illuminate\Support\Facades\Cache::forget('crm:offices_lite_v1');
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::warning('Failed to clear office hierarchy cache: ' . $e->getMessage());
         }

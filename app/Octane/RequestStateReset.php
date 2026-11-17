@@ -43,7 +43,8 @@ class RequestStateReset
                 }
             });
             $gate('permission-cache', fn () => \App\Models\User::clearPermissionCache());
-            $gate('office-cache', fn () => \App\Models\Office::clearHierarchyCache());
+            // (The shared office-hierarchy cache is NOT flushed per request any more: it lives in Redis, is invalidated on
+            //  Office saved/deleted, and flushing it every request forced a full offices reload for every scope check.)
             $gate('request-session-instances', function () use ($app) {
                 $app->forgetInstance('request');
                 if ($app->bound('session.store')) { $app->forgetInstance('session.store'); }

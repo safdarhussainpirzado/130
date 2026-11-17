@@ -1449,6 +1449,11 @@ class CallController extends Controller
         }
     }
 
+    /**
+     * KM / landmark lookup used by calls/create to auto-select Zone / Sector / Beat.
+     * Returns ONLY what the page uses (landmark text + office id/name chain beat->sector->zone + contacts); no Eloquent
+     * relations are loaded (office chain comes from the cached lite map) and the answer is cached for 2 minutes.
+     */
     public function geospatialLookup(Request $request)
     {
         $this->authorize('calls.api_lookup');
@@ -1456,94 +1461,146 @@ class CallController extends Controller
         $kmMarker = $request->input('km_marker');
         $direction = $request->input('direction');
 
-        $landmarkQuery = GeospatialLandmark::with('office.parent.parent');
+        $key = 'geo_lookup:v1:' . md5(json_encode([$road, $kmMarker, $direction]));
+        $landmarks = Cache::remember($key, 120, fn () => $this->buildGeospatialLookup($road, $kmMarker, $direction));
 
+        return response()->json(['success' => true, 'landmarks' => $landmarks]);
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function buildGeospatialLookup($road, $kmMarker, $direction): array
+    {
+        $offices = Office::liteMap();
+
+        // beat -> sector -> zone chain, only id + name (exactly what updateSpatialContext() reads)
+        $chain = function (?int $officeId) use ($offices): ?array {
+            $beat = $officeId ? ($offices[$officeId] ?? null) : null;
+            if (! $beat) {
+                return null;
+            }
+            $node = ['id' => $beat['id'], 'name' => $beat['name'], 'parent' => null];
+            $sector = $beat['parent_id'] ? ($offices[$beat['parent_id']] ?? null) : null;
+            if ($sector) {
+                $node['parent'] = ['id' => $sector['id'], 'name' => $sector['name'], 'parent' => null];
+                $zone = $sector['parent_id'] ? ($offices[$sector['parent_id']] ?? null) : null;
+                if ($zone) {
+                    $node['parent']['parent'] = ['id' => $zone['id'], 'name' => $zone['name']];
+                }
+            }
+            return $node;
+        };
+
+        // First non-empty phone going beat -> sector -> zone
+        $officePhone = function (int $officeId) use ($offices): ?string {
+            for ($i = 0, $cur = $offices[$officeId] ?? null; $cur && $i < 4; $i++) {
+                if ($cur['phone']) {
+                    return $cur['phone'];
+                }
+                $cur = $cur['parent_id'] ? ($offices[$cur['parent_id']] ?? null) : null;
+            }
+            return null;
+        };
+
+        $q = GeospatialLandmark::query()->select([
+            'id', 'office_id', 'road_name', 'km_marker', 'location_name', 'nearby_cities', 'contact_numbers', 'agent_prompt',
+        ]);
         if ($road) {
-            $landmarkQuery->where('road_name', 'like', "%{$road}%");
+            $q->where('road_name', 'like', "%{$road}%");
         }
-
         if ($kmMarker) {
-            $landmarkQuery->where('km_marker', 'like', "%{$kmMarker}%");
+            $q->where('km_marker', 'like', "%{$kmMarker}%");
         }
-
         if ($direction) {
-            $landmarkQuery->where('bound_direction', 'like', "%{$direction}%");
+            $q->where('bound_direction', 'like', "%{$direction}%");
         }
 
-        $landmarks = $landmarkQuery->limit(5)->get();
+        $out = [];
+        foreach ($q->limit(5)->get() as $lm) {
+            $out[] = [
+                'id'              => $lm->id,
+                'road_name'       => $lm->road_name,
+                'km_marker'       => $lm->km_marker,
+                'location_name'   => $lm->location_name,
+                'nearby_cities'   => $lm->nearby_cities,
+                'contact_numbers' => $lm->contact_numbers,
+                'agent_prompt'    => $lm->agent_prompt,
+                'office'          => $chain($lm->office_id ? (int) $lm->office_id : null),
+            ];
+        }
 
-        // Also search offices (Beats) by KM range if kmMarker is numeric
+        // Beats whose KM range contains the marker ("Jurisdiction" matches)
         if ($kmMarker && is_numeric($kmMarker)) {
-            $offices = Office::with('parent.parent')
-                ->where('type', 'beat')
-                ->where('is_active', true)
-                ->where('km_start', '<=', $kmMarker)
-                ->where('km_end', '>=', $kmMarker)
-                ->get();
-
-            foreach ($offices as $office) {
-                // Check if this office is already in the landmarks to avoid confusion, 
-                // but usually landmarks are more specific points.
-                // We add it as a "Virtual Landmark"
-                $landmarks->push((object)[
-                    'id' => 'office_' . $office->id,
-                    'location_name' => "KM Range: " . (int)$office->km_start . " - " . (int)$office->km_end,
-                    'road_name' => $office->sector()?->name ?? $office->zone()?->name ?? 'NHMP',
-                    'km_marker' => $kmMarker,
-                    'office' => $office,
-                    'agent_prompt' => "This KM falls within the operational boundary of " . $office->name,
-                    'is_range_match' => true
-                ]);
+            $km = (float) $kmMarker;
+            foreach ($offices as $o) {
+                if ($o['type'] !== 'beat' || ! $o['is_active'] || $o['km_start'] === null || $o['km_end'] === null) {
+                    continue;
+                }
+                if ($o['km_start'] > $km || $o['km_end'] < $km) {
+                    continue;
+                }
+                // road label: nearest sector, else zone, else NHMP (same fallback as before)
+                $roadName = null;
+                for ($i = 0, $cur = $o; $cur && $i < 5 && $roadName === null; $i++) {
+                    if ($cur['type'] === 'sector') {
+                        $roadName = $cur['name'];
+                    }
+                    $cur = $cur['parent_id'] ? ($offices[$cur['parent_id']] ?? null) : null;
+                }
+                for ($i = 0, $cur = $o; $cur && $i < 5 && $roadName === null; $i++) {
+                    if ($cur['type'] === 'zone') {
+                        $roadName = $cur['name'];
+                    }
+                    $cur = $cur['parent_id'] ? ($offices[$cur['parent_id']] ?? null) : null;
+                }
+                $out[] = [
+                    'id'              => 'office_' . $o['id'],
+                    'location_name'   => 'KM Range: ' . (int) $o['km_start'] . ' - ' . (int) $o['km_end'],
+                    'road_name'       => $roadName ?? 'NHMP',
+                    'km_marker'       => $kmMarker,
+                    'office'          => $chain($o['id']),
+                    'agent_prompt'    => 'This KM falls within the operational boundary of ' . $o['name'],
+                    'contact_numbers' => $officePhone($o['id']),
+                    'is_range_match'  => true,
+                ];
             }
         }
 
-        return response()->json([
-            'success' => true,
-            'landmarks' => $landmarks
-        ]);
+        return $out;
     }
 
+    /**
+     * Contact numbers shown for the selected Zone / Sector / Beat on calls/create.
+     * Prefers the office's own phone; falls back to the landmark contact numbers under it (previous behaviour).
+     * Cached 5 minutes per selection (office/landmark edits are rare) instead of 3-6 queries per click.
+     */
     public function spatialContacts(Request $request)
     {
         $this->authorize('calls.api_lookup');
-        $zoneId = $request->input('zone_id');
-        $sectorId = $request->input('sector_id');
-        $beatId = $request->input('beat_id');
+        $zoneId = (int) $request->input('zone_id');
+        $sectorId = (int) $request->input('sector_id');
+        $beatId = (int) $request->input('beat_id');
 
-        $contacts = [
-            'zone' => null,
-            'sector' => null,
-            'beat' => null,
-        ];
+        $contacts = Cache::remember("spatial_contacts:v2:{$zoneId}:{$sectorId}:{$beatId}", 300, function () use ($zoneId, $sectorId, $beatId): array {
+            $offices = Office::liteMap();
+            $landmarkContact = function (array $officeIds): ?string {
+                return $officeIds
+                    ? (GeospatialLandmark::whereIn('office_id', $officeIds)->whereNotNull('contact_numbers')
+                        ->where('contact_numbers', '!=', '')->value('contact_numbers') ?: null)
+                    : null;
+            };
+            $resolve = function (int $id, bool $self) use ($offices, $landmarkContact): ?string {
+                if (! $id || ! isset($offices[$id])) {
+                    return null;
+                }
+                return $offices[$id]['phone'] ?? $landmarkContact($self ? [$id] : Office::getDescendantIdsFor($id, true));
+            };
 
-        if ($beatId) {
-            $contacts['beat'] = GeospatialLandmark::where('office_id', $beatId)
-                ->whereNotNull('contact_numbers')
-                ->where('contact_numbers', '!=', '')
-                ->value('contact_numbers');
-        }
-
-        if ($sectorId) {
-            $sector = Office::find($sectorId);
-            if ($sector) {
-                $beatIds = $sector->getDescendantIds(true);
-                $contacts['sector'] = GeospatialLandmark::whereIn('office_id', $beatIds)
-                    ->whereNotNull('contact_numbers')
-                    ->where('contact_numbers', '!=', '')
-                    ->value('contact_numbers');
-            }
-        }
-
-        if ($zoneId) {
-            $zone = Office::find($zoneId);
-            if ($zone) {
-                $beatIds = $zone->getDescendantIds(true);
-                $contacts['zone'] = GeospatialLandmark::whereIn('office_id', $beatIds)
-                    ->whereNotNull('contact_numbers')
-                    ->where('contact_numbers', '!=', '')
-                    ->value('contact_numbers');
-            }
-        }
+            return [
+                'zone'   => $resolve($zoneId, false),
+                'sector' => $resolve($sectorId, false),
+                'beat'   => $resolve($beatId, true),
+            ];
+        });
 
         return response()->json($contacts);
     }
