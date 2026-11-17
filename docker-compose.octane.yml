@@ -50,6 +50,7 @@ services:
       retries: 6
     volumes:
       - ./resources/views:/var/www/html/resources/views:ro
+      - /var/lib/nhmp-geo:/var/www/html/storage/app/geo:ro
     networks:
       - crm-net
 
@@ -99,6 +100,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 6
+    volumes:
+      - /var/lib/nhmp-geo:/var/www/html/storage/app/geo:ro
     networks:
       - crm-net
 
@@ -170,6 +173,8 @@ services:
       - AWS_BUCKET=crm-storage
       - AWS_ENDPOINT=http://minio:9000
       - AWS_USE_PATH_STYLE_ENDPOINT=true
+    volumes:
+      - /var/lib/nhmp-geo:/var/www/html/storage/app/geo
     networks:
       - crm-net
 

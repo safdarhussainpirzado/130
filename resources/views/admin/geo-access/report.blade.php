@@ -228,6 +228,8 @@
                             <th class="pb-2.5 font-bold">Role</th>
                             <th class="pb-2.5 font-bold">Client IP</th>
                             <th class="pb-2.5 font-bold">Country</th>
+                            <th class="pb-2.5 font-bold">City / Coordinates</th>
+                            <th class="pb-2.5 font-bold">Browser / OS</th>
                             <th class="pb-2.5 font-bold">ASN</th>
                             <th class="pb-2.5 font-bold">Decision</th>
                             <th class="pb-2.5 font-bold">Risk Signals</th>
@@ -252,6 +254,26 @@
                                     <span class="px-2 py-0.5 rounded text-[11px] font-black {{ ($rl->country === 'PK' || empty($rl->country)) ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300' }}">
                                         {{ $rl->country ?: 'N/A' }}
                                     </span>
+                                    @if($rl->is_foreign)
+                                        <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-600 text-white">FOREIGN</span>
+                                    @endif
+                                    @if($rl->is_vpn_or_proxy || $rl->is_tor)
+                                        <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500 text-white">{{ $rl->is_tor ? 'TOR' : 'VPN/PROXY' }}</span>
+                                    @endif
+                                </td>
+                                <td class="py-3 font-sans text-slate-600 dark:text-slate-400 text-[11px] whitespace-nowrap">
+                                    @if($rl->city || $rl->region)
+                                        {{ collect([$rl->city, $rl->region])->filter()->implode(', ') }}
+                                        @if($rl->latitude !== null && $rl->longitude !== null)
+                                            <br><span class="font-mono text-[10px] text-slate-400">{{ number_format($rl->latitude, 4) }}, {{ number_format($rl->longitude, 4) }}</span>
+                                        @endif
+                                    @else
+                                        N/A
+                                    @endif
+                                </td>
+                                <td class="py-3 font-sans text-slate-600 dark:text-slate-400 text-[11px] whitespace-nowrap">
+                                    {{ trim(($rl->browser ?? '') . ' ' . ($rl->browser_version ?? '')) ?: 'N/A' }}<br>
+                                    <span class="text-[10px] text-slate-400">{{ trim(($rl->os ?? '') . ' ' . ($rl->os_version ?? '')) ?: '' }}{{ $rl->device_type ? ' · ' . $rl->device_type : '' }}</span>
                                 </td>
                                 <td class="py-3 text-slate-500 text-[11px]">
                                     {{ $rl->asn ? "AS{$rl->asn}" : 'N/A' }}

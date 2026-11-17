@@ -25,6 +25,7 @@ class GeoLookup
     private static array $pkAsns = [];
     private static ?MmdbReader $countryMmdb = null;
     private static ?MmdbReader $asnMmdb = null;
+    private static ?MmdbReader $cityMmdb = null;
     private static ?string $customStorageDir = null;
 
     /**
@@ -73,6 +74,11 @@ class GeoLookup
     /**
      * Warm up all datasets into memory once per RoadRunner worker lifecycle.
      */
+    public static function hasCityData(): bool
+    {
+        return self::$cityMmdb !== null;
+    }
+
     public static function warmup(?string $storageDir = null): void
     {
         if ($storageDir !== null) {
@@ -148,12 +154,23 @@ class GeoLookup
                 self::$countryMmdb = null;
             }
 
-            $asnMmdbFile = $dir . '/GeoLite2-ASN.mmdb';
-            if (file_exists($asnMmdbFile) && is_readable($asnMmdbFile)) {
-                $reader = new MmdbReader($asnMmdbFile);
-                self::$asnMmdb = $reader->isValid() ? $reader : null;
-            } else {
-                self::$asnMmdb = null;
+            self::$asnMmdb = null;
+            foreach (['GeoLite2-ASN.mmdb', 'dbip-asn-lite.mmdb'] as $name) {
+                $f = $dir . '/' . $name;
+                if (self::$asnMmdb === null && file_exists($f) && is_readable($f)) {
+                    $reader = new MmdbReader($f);
+                    self::$asnMmdb = $reader->isValid() ? $reader : null;
+                }
+            }
+
+            // City-level database (MaxMind GeoLite2-City or DB-IP City Lite): city, region, coordinates, country
+            self::$cityMmdb = null;
+            foreach (['GeoLite2-City.mmdb', 'dbip-city-lite.mmdb'] as $name) {
+                $f = $dir . '/' . $name;
+                if (self::$cityMmdb === null && file_exists($f) && is_readable($f)) {
+                    $reader = new MmdbReader($f);
+                    self::$cityMmdb = $reader->isValid() ? $reader : null;
+                }
             }
 
             self::$isWarmedUp = true;
@@ -210,7 +227,7 @@ class GeoLookup
             }
 
             // If geo datasets are missing or corrupt, fail open immediately
-            if (empty(self::$pkIpv4Binary) && self::$countryMmdb === null) {
+            if (empty(self::$pkIpv4Binary) && self::$countryMmdb === null && self::$cityMmdb === null) {
                 return [
                     'country'         => null,
                     'asn'             => null,
@@ -242,9 +259,30 @@ class GeoLookup
             $asn = null;
             $org = null;
             $source = 'unknown';
+            $city = null;
+            $region = null;
+            $latitude = null;
+            $longitude = null;
+
+            // 0. City-level lookup (city, region, coordinates, country)
+            if (self::$cityMmdb !== null) {
+                $record = self::$cityMmdb->lookup($normalized);
+                if (is_array($record)) {
+                    if (isset($record['country']['iso_code'])) {
+                        $country = strtoupper((string) $record['country']['iso_code']);
+                        $source = 'city_db';
+                    }
+                    $city = isset($record['city']['names']['en']) ? (string) $record['city']['names']['en'] : null;
+                    $region = isset($record['subdivisions'][0]['names']['en']) ? (string) $record['subdivisions'][0]['names']['en'] : null;
+                    if (isset($record['location']['latitude'], $record['location']['longitude'])) {
+                        $latitude = round((float) $record['location']['latitude'], 6);
+                        $longitude = round((float) $record['location']['longitude'], 6);
+                    }
+                }
+            }
 
             // 1. MaxMind GeoLite2 MMDB lookups if available
-            if (self::$countryMmdb !== null) {
+            if ($country === null && self::$countryMmdb !== null) {
                 $record = self::$countryMmdb->lookup($normalized);
                 if (is_array($record) && isset($record['country']['iso_code'])) {
                     $country = strtoupper((string) $record['country']['iso_code']);
@@ -312,6 +350,10 @@ class GeoLookup
                 'is_vpn_or_proxy' => $isVpnOrProxy,
                 'is_tor'          => $isTor,
                 'source'          => $source,
+                'city'            => $city,
+                'region'          => $region,
+                'latitude'        => $latitude,
+                'longitude'       => $longitude,
             ];
         } catch (\Throwable $e) {
             Log::warning("GeoLookup failure for IP [{$ip}] (failing open): " . $e->getMessage());
@@ -490,6 +532,7 @@ class GeoLookup
         self::$pkAsns = [];
         self::$countryMmdb = null;
         self::$asnMmdb = null;
+        self::$cityMmdb = null;
         self::$customStorageDir = null;
     }
 

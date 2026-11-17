@@ -13,6 +13,7 @@ class GeoRefreshCommand extends Command
 {
     protected $signature = 'geo:refresh
                             {--maxmind-key= : Optional MaxMind license key to download GeoLite2 Country & ASN}
+                            {--skip-dbip : Do not download the free DB-IP Lite City + ASN databases (city / coordinates)}
                             {--offline : Skip network requests and compile using bundled fallback datasets}
                             {--target-dir= : Custom output directory for the compiled geo files}';
 
@@ -106,6 +107,15 @@ class GeoRefreshCommand extends Command
             $this->info('Downloading MaxMind GeoLite2 Country & ASN using supplied license key...');
             $this->downloadMaxMind('GeoLite2-Country', $maxmindKey, $targetDir);
             $this->downloadMaxMind('GeoLite2-ASN', $maxmindKey, $targetDir);
+        }
+
+        // 5b. DB-IP Lite City + ASN (free, no key, CC-BY 4.0): city, region, coordinates, ASN
+        if (!$isOffline && !$this->option('skip-dbip')) {
+            $this->line('Downloading DB-IP Lite City & ASN (city / coordinates / ASN)...');
+            foreach (['city' => 'dbip-city-lite', 'asn' => 'dbip-asn-lite'] as $kind => $name) {
+                $ok = $this->downloadDbIp($name, $targetDir);
+                $summary[] = ['Dataset' => "DB-IP Lite " . strtoupper($kind), 'Records' => $ok ? 'Valid MMDB' : 'Download failed (kept previous)', 'File' => "{$name}.mmdb"];
+            }
         }
 
         // Validate local MMDB files if present
@@ -225,6 +235,51 @@ class GeoRefreshCommand extends Command
             'binary' => $bin,
             'count' => count($merged),
         ];
+    }
+
+    /**
+     * Stream DB-IP Lite edition (current month, then previous) to disk, validate, and atomically replace.
+     */
+    private function downloadDbIp(string $edition, string $targetDir): bool
+    {
+        foreach ([now()->format('Y-m'), now()->subMonthNoOverflow()->format('Y-m')] as $month) {
+            $gz = $targetDir . "/{$edition}.gz.part";
+            $tmp = $targetDir . "/{$edition}.mmdb.part";
+            try {
+                $in = @fopen("https://download.db-ip.com/free/{$edition}-{$month}.mmdb.gz", 'rb', false, stream_context_create([
+                    'http' => ['timeout' => 120, 'user_agent' => 'NHMP-130-GeoUpdater/1.0', 'follow_location' => 1],
+                ]));
+                if (!$in) {
+                    continue;
+                }
+                $out = fopen($gz, 'wb');
+                stream_copy_to_stream($in, $out);
+                fclose($in);
+                fclose($out);
+
+                $zin = gzopen($gz, 'rb');
+                $zout = fopen($tmp, 'wb');
+                while (!gzeof($zin)) {
+                    fwrite($zout, gzread($zin, 1 << 20));
+                }
+                gzclose($zin);
+                fclose($zout);
+
+                if ((new MmdbReader($tmp))->isValid()) {
+                    rename($tmp, $targetDir . "/{$edition}.mmdb");
+                    $this->info("Installed {$edition}.mmdb ({$month})");
+                    return true;
+                }
+            } catch (\Throwable $e) {
+                $this->warn("DB-IP {$edition} {$month}: " . $e->getMessage());
+            } finally {
+                @unlink($gz);
+                @unlink($tmp);
+            }
+        }
+
+        $this->warn("Could not install {$edition}; existing file (if any) is kept.");
+        return false;
     }
 
     private function downloadMaxMind(string $edition, string $licenseKey, string $targetDir): void

@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use App\Support\UserAgentParser;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -69,7 +70,12 @@ class GeoPolicyEngine
             'device_hash'     => $deviceHash,
             'device_cookie'   => $deviceInfo['cookie'],
             'should_block'    => false,
-        ];
+            'city'            => null,
+            'region'          => null,
+            'latitude'        => null,
+            'longitude'       => null,
+            'is_foreign'      => null,
+        ] + UserAgentParser::parse($request->userAgent());
 
         // 1. Mode OFF -> complete bypass
         if ($mode === 'off') {
@@ -104,6 +110,14 @@ class GeoPolicyEngine
         $result['is_datacenter'] = $geo['is_datacenter'];
         $result['is_vpn_or_proxy'] = $geo['is_vpn_or_proxy'];
         $result['is_tor'] = $geo['is_tor'];
+        $result['city'] = $geo['city'] ?? null;
+        $result['region'] = $geo['region'] ?? null;
+        $result['latitude'] = $geo['latitude'] ?? null;
+        $result['longitude'] = $geo['longitude'] ?? null;
+        // Foreign = country positively identified and outside the allowed list; null when unknown.
+        $result['is_foreign'] = $geo['country'] === null
+            ? null
+            : !in_array($geo['country'], (array) config('geo_access.allowed_countries', ['PK']), true);
 
         // 5. Fail-Open Check on Unknown / Unresolved Lookup
         // Operators must never be locked out due to missing data or parse exceptions.
@@ -271,6 +285,17 @@ class GeoPolicyEngine
                     'risk_score'   => $result['risk_score'],
                     'risk_reasons' => $result['risk_reasons'],
                     'device_hash'  => substr($result['device_hash'], 0, 16),
+                    'city'         => $result['city'],
+                    'region'       => $result['region'],
+                    'latitude'     => $result['latitude'],
+                    'longitude'    => $result['longitude'],
+                    'is_foreign'   => $result['is_foreign'],
+                    'is_vpn_or_proxy' => $result['is_vpn_or_proxy'],
+                    'is_tor'       => $result['is_tor'],
+                    'is_datacenter' => $result['is_datacenter'],
+                    'browser'      => trim(($result['browser'] ?? '') . ' ' . ($result['browser_version'] ?? '')) ?: null,
+                    'os'           => trim(($result['os'] ?? '') . ' ' . ($result['os_version'] ?? '')) ?: null,
+                    'device_type'  => $result['device_type'],
                 ],
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),

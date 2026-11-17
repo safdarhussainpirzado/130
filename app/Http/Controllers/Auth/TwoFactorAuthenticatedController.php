@@ -249,6 +249,8 @@ class TwoFactorAuthenticatedController extends Controller
         // Re-evaluate Geo / ASN Policy upon 2FA step (in case client IP changed between password and 2FA)
         $geoPolicy = app(\App\Services\Geo\GeoPolicyEngine::class);
         $geoEval = $geoPolicy->evaluate($user, $request);
+        // Lets the Login-event listener skip its own (geo-less) duplicate row; the controller writes the enriched one.
+        $request->attributes->set('geo_eval', $geoEval);
 
         if ($geoEval['should_block']) {
             $this->terminateChallenge($request, 'Geo policy denied access post-2FA');
@@ -288,16 +290,7 @@ class TwoFactorAuthenticatedController extends Controller
             'ip_address'      => $request->ip(),
             'user_agent'      => $request->userAgent(),
             'login_at'        => now(),
-            'country'         => $geoEval['country'],
-            'asn'             => $geoEval['asn'],
-            'org'             => $geoEval['org'],
-            'is_datacenter'   => $geoEval['is_datacenter'],
-            'is_vpn_or_proxy' => $geoEval['is_vpn_or_proxy'],
-            'is_tor'          => $geoEval['is_tor'],
-            'geo_decision'    => $geoEval['decision'],
-            'risk_score'      => $geoEval['risk_score'],
-            'risk_reasons'    => $geoEval['risk_reasons'],
-            'device_hash'     => $geoEval['device_hash'],
+            ...LoginLog::geoAttributes($geoEval),
         ]);
 
         AuditLog::create([
