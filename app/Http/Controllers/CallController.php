@@ -140,11 +140,25 @@ class CallController extends Controller
                 $officeIds = Office::where('name', 'like', "%$s%")->pluck('id');
                 $generalBidx = (function_exists('phone_blind_index') && strlen($s) >= 7) ? phone_blind_index($s) : null;
 
-                $query->where(function($q) use ($s, $generalBidx, $vehicleTypeIds, $callTypeIds, $callSubTypeIds, $officeIds) {
-                    $q->where('calls.call_number', 'like', "%$s%")
-                      ->orWhere('calls.caller_number', 'like', "%$s%")
-                      ->orWhere('calls.caller_name', 'like', "%$s%")
-                      ->orWhere('calls.vehicle_no', 'like', "%$s%");
+                // Index-friendly search (was LIKE '%term%' on four columns = full scan of ~780k rows, 3-5 s, x4 queries
+                // per search). caller_number / caller_name are stored encrypted, so a substring match on them could
+                // never hit; phones are found through the blind index above, legacy plaintext phones by prefix.
+                $callNumberCandidates = [];
+                if (preg_match('/^\d{3,10}$/', $s)) {
+                    // "770720" -> CRM-<year>-770720 for the years in use (exact, indexed lookup)
+                    foreach (range((int) now()->year, (int) now()->year - 3) as $yr) {
+                        $callNumberCandidates[] = "CRM-{$yr}-{$s}";
+                    }
+                }
+
+                $query->where(function($q) use ($s, $generalBidx, $vehicleTypeIds, $callTypeIds, $callSubTypeIds, $officeIds, $callNumberCandidates) {
+                    $q->where('calls.call_number', 'like', "{$s}%")
+                      ->orWhere('calls.caller_number', 'like', "{$s}%")
+                      ->orWhere('calls.vehicle_no', 'like', "{$s}%");
+
+                    if (!empty($callNumberCandidates)) {
+                        $q->orWhereIn('calls.call_number', $callNumberCandidates);
+                    }
 
                     if ($generalBidx) {
                         $q->orWhere('calls.caller_number_bidx', $generalBidx);

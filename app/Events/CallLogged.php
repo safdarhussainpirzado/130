@@ -7,11 +7,13 @@ use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class CallLogged implements ShouldBroadcast
+// ShouldBroadcastNow: dispatched synchronously. The queued variant (ShouldBroadcast) piled up 73k unprocessed jobs in
+// Redis because no queue worker runs in production and no broadcaster/Echo client consumes this event.
+class CallLogged implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
