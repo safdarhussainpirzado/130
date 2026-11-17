@@ -105,3 +105,17 @@ if (!function_exists('phone_blind_index')) {
         return hash_hmac('sha256', $digits, $salt);
     }
 }
+
+if (! function_exists('cnic_blind_index')) {
+    /** Blind index of a CNIC (digits only, HMAC-SHA256 with the bidx salt) - identical to User::booted(). */
+    function cnic_blind_index(?string $cnic): ?string
+    {
+        $digits = preg_replace('/[^0-9]/', '', (string) $cnic);
+        if ($digits === '') {
+            return null;
+        }
+        $salt = (function_exists('app') && app()->has('config')) ? config('app.bidx_salt') : null;
+        $salt = $salt ?: docker_secret('bidx_salt', 'nhmp_130_sec_bidx_default_salt_2026');
+        return hash_hmac('sha256', $digits, $salt);
+    }
+}

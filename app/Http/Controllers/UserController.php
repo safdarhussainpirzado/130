@@ -229,9 +229,9 @@ class UserController extends Controller
         $validated = $request->validate([
             'username'       => ['required', 'string', 'max:80',  'unique:users'],
             'full_name'      => ['required', 'string', 'max:150'],
-            'cnic'           => ['required', 'string', 'regex:/^[0-9]{5}-[0-9]{7}-[0-9]{1}$/', 'unique:users'],
+            'cnic'           => ['required', 'string', 'regex:/^[0-9]{5}-[0-9]{7}-[0-9]{1}$/', new \App\Rules\UniqueBlindIndex('cnic')],
             'email'          => ['required', 'string', 'email',   'max:100', 'unique:users'],
-            'mobile_no'      => ['required', 'string', 'regex:/^03[0-9]{9}$/', 'unique:users'],
+            'mobile_no'      => ['required', 'string', 'regex:/^03[0-9]{9}$/', new \App\Rules\UniqueBlindIndex('phone')],
             'designation_id' => ['required', 'exists:designations,id'],
             'password'       => ['required', 'confirmed', Rules\Password::defaults()],
             'role_id'        => ['required', 'exists:roles,id'],
@@ -269,9 +269,9 @@ class UserController extends Controller
         $validated = $request->validate([
             'username'       => ['required', 'string', 'max:80',  'unique:users,username,' . $user->id],
             'full_name'      => ['required', 'string', 'max:150'],
-            'cnic'           => ['required', 'string', 'regex:/^[0-9]{5}-[0-9]{7}-[0-9]{1}$/', 'unique:users,cnic,' . $user->id],
+            'cnic'           => ['required', 'string', 'regex:/^[0-9]{5}-[0-9]{7}-[0-9]{1}$/', new \App\Rules\UniqueBlindIndex('cnic', $user->id)],
             'email'          => ['required', 'string', 'email',   'max:100', 'unique:users,email,' . $user->id],
-            'mobile_no'      => ['required', 'string', 'regex:/^03[0-9]{9}$/', 'unique:users,mobile_no,' . $user->id],
+            'mobile_no'      => ['required', 'string', 'regex:/^03[0-9]{9}$/', new \App\Rules\UniqueBlindIndex('phone', $user->id)],
             'designation_id' => ['required', 'exists:designations,id'],
             'password'       => ['nullable', 'confirmed', Rules\Password::defaults()],
             'role_id'        => ['required', 'exists:roles,id'],
