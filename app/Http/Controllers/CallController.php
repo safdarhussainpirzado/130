@@ -567,17 +567,20 @@ class CallController extends Controller
         $contextQuery = $this->applyContextFilters($baseQuery, $request);
 
         // Pre-compute & cache office location hierarchy map in Redis/memory (zero DB queries per call row)
-        $locationMap = Cache::remember('office_location_hierarchy_map', 3600, function (): mixed {
+        // Breadcrumb shows only Zone / Sector / Beat (the HQ and Region levels above them are noise on every row).
+        $locationMap = Cache::remember('office_location_hierarchy_map_v2', 3600, function (): mixed {
             $offices = Office::select('id', 'name', 'type', 'parent_id')->get()->keyBy('id');
             $map = [];
             foreach ($offices as $id => $office) {
                 $parts = [];
                 $curr = $office;
                 while ($curr) {
-                    array_unshift($parts, $curr->name);
+                    if (in_array($curr->type, ['zone', 'sector', 'beat'], true)) {
+                        array_unshift($parts, $curr->name);
+                    }
                     $curr = $curr->parent_id && isset($offices[$curr->parent_id]) ? $offices[$curr->parent_id] : null;
                 }
-                $map[$id] = implode(' / ', $parts);
+                $map[$id] = $parts ? implode(' / ', $parts) : $office->name;
             }
             return $map;
         });
