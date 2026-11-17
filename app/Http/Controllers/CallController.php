@@ -550,7 +550,9 @@ class CallController extends Controller
             'agent_id', 'office_id', 'vehicle_no', 'vehicle_type_id',
             'created_at', 'call_reminder_count',
             'last_reminder_at', 'tiger_id',
-            DB::raw('SUBSTRING(details, 1, 120) as details')
+            DB::raw('SUBSTRING(details, 1, 600) as details'),
+            // shown in the call view modal (was missing from the list payload, so the modal always printed '---')
+            DB::raw('SUBSTRING(location_details, 1, 255) as location_details')
         ];
 
         // Constrained eager loading: only essential primary keys and display fields

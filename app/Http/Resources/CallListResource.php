@@ -21,6 +21,22 @@ class CallListResource extends JsonResource
         self::$vehicleTypesMap = $map;
     }
 
+    /** Decode base64 free text only when it is clearly encoded text; plain text is returned unchanged. */
+    public static function decodeWafBypass(?string $val): ?string
+    {
+        if ($val === null || $val === '') {
+            return null;
+        }
+        if (preg_match('/^[A-Za-z0-9+\/]+=*$/', $val) && strlen($val) % 4 === 0) {
+            $decoded = base64_decode($val, true);
+            if ($decoded !== false && mb_check_encoding($decoded, 'UTF-8')
+                && ! preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/', $decoded)) {
+                return $decoded;
+            }
+        }
+        return $val;
+    }
+
     /**
      * Transform the resource into a compact, flat array for the Calls List.
      * Enforces strict data minimization: zero sensitive agent info,
@@ -80,8 +96,12 @@ class CallListResource extends JsonResource
             'last_reminder_at'    => $this->last_reminder_at ? $this->last_reminder_at->toISOString() : null,
             'tiger_id'            => $this->tiger_id,
 
-            // Sanitized preview of description for commuter notes modal
-            'details'             => $this->details ? Str::limit(strip_tags($this->details), 120) : null,
+            // Free-text location (landmark / chainage) for the call view modal. Older rows may still hold the
+            // base64 "WAF bypass" encoding that the form used to send, so decode it the same way the detail page does.
+            'location_details'    => self::decodeWafBypass($this->location_details),
+
+            // Sanitized notes for the commuter notes modal (600 chars; the 120-char cut hid most of longer notes)
+            'details'             => $this->details ? Str::limit(strip_tags($this->details), 600) : null,
             'details_preview'     => $this->details ? Str::limit(strip_tags($this->details), 100) : null,
         ];
     }
