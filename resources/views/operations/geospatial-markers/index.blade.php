@@ -1696,10 +1696,7 @@ window.geospatialGridManager = function() {
             L.control.zoom({ position: 'bottomright' }).addTo(this.map);
 
             // Esri World Street Map (same provider as the dashboard map). OSM's public tile servers block heavy/shared use (403 "Access blocked").
-            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-                attribution: 'Tiles &copy; Esri | NHMP 130 Geospatial Grid',
-                maxZoom: 19
-            }).addTo(this.map);
+            window.nhmpBaseLayer(this.map, { attribution: 'Tiles &copy; Esri | NHMP 130 Geospatial Grid' });
 
             this.roadPolylineGroup = L.layerGroup().addTo(this.map);
             this.boundaryLayerGroup = L.layerGroup().addTo(this.map);

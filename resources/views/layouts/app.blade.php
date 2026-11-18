@@ -48,6 +48,11 @@
     <link rel="stylesheet" href="{{ asset('vendor/leaflet/MarkerCluster.Default.css') }}" />
     <script src="{{ asset('vendor/leaflet/leaflet.js') }}"></script>
     <script src="{{ asset('vendor/leaflet/leaflet.markercluster.js') }}"></script>
+    @if (file_exists(storage_path('app/geo/pakistan.pmtiles')))
+        <script>window.NHMP_OSM_PMTILES = "{{ asset('maps/pakistan.pmtiles') }}?v={{ filemtime(storage_path('app/geo/pakistan.pmtiles')) }}";</script>
+        <script src="{{ asset('vendor/protomaps-leaflet/protomaps-leaflet.js') }}"></script>
+    @endif
+    <script src="{{ asset('js/nhmp-basemap.js') }}"></script>
     <script>
         // Global Defensive Guards for Leaflet Animation & Position Updates (Anti-Crash Layer)
         (function() {
