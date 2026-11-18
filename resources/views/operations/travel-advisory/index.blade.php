@@ -283,20 +283,19 @@
             <table class="w-full text-left border-collapse text-xs">
                 <thead>
                     <tr class="bg-gradient-to-r from-slate-50 to-slate-100/60 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-extrabold text-[11px]">
-                        <th class="py-3.5 px-4">Corridor & Span</th>
-                        <th class="py-3.5 px-4">Incident & Summary</th>
-                        <th class="py-3.5 px-4">Live Conditions</th>
-                        <th class="py-3.5 px-4">Carriageway</th>
-                        <th class="py-3.5 px-4">Jurisdiction</th>
-                        <th class="py-3.5 px-4">Validity & Timer</th>
-                        <th class="py-3.5 px-4 text-right">Actions</th>
+                        <th class="py-3.5 px-3">Corridor & Span</th>
+                        <th class="py-3.5 px-3">Incident & Summary</th>
+                        <th class="py-3.5 px-3">Live Conditions</th>
+                        <th class="py-3.5 px-3">Jurisdiction</th>
+                        <th class="py-3.5 px-3">Direction & Validity</th>
+                        <th class="py-3.5 px-3 text-right">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 font-medium">
                     <template x-for="item in items" :key="item.id">
                         <tr class="hover:bg-blue-50/30 transition-colors group">
                             <!-- Route Column -->
-                            <td class="py-3.5 px-4 whitespace-nowrap">
+                            <td class="py-3 px-3 whitespace-nowrap">
                                 <div class="flex items-center gap-2">
                                     <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 text-white font-mono font-black text-xs shadow-sm">
                                         <i class="fa-solid fa-road text-[10px]"></i>
@@ -312,7 +311,7 @@
                             </td>
 
                             <!-- Advisory Title & Summary -->
-                            <td class="py-3.5 px-4 max-w-sm">
+                            <td class="py-3 px-3 max-w-xs">
                                 <div class="flex items-center gap-1.5 mb-1 flex-wrap">
                                     <template x-if="item.advisory_type === 'fog'">
                                         <span class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-200">
@@ -373,7 +372,7 @@
                             </td>
 
                             <!-- Conditions (Visibility, Speed limit, Lane closure) -->
-                            <td class="py-3.5 px-4 whitespace-nowrap">
+                            <td class="py-3 px-3 whitespace-nowrap">
                                 <div class="space-y-1">
                                     <template x-if="item.visibility_meters">
                                         <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-black"
@@ -403,32 +402,8 @@
                                 </div>
                             </td>
 
-                            <!-- Carriageway Direction -->
-                            <td class="py-3.5 px-4 whitespace-nowrap">
-                                <span class="capitalize text-slate-700 font-bold inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 border border-slate-200">
-                                    <template x-if="item.carriageway === 'both'">
-                                        <span class="flex items-center gap-1">
-                                            <i class="fa-solid fa-arrows-left-right text-blue-500"></i> Both Sides
-                                        </span>
-                                    </template>
-                                    <template x-if="item.carriageway === 'northbound'">
-                                        <span class="flex items-center gap-1">
-                                            <i class="fa-solid fa-arrow-up text-emerald-600"></i> Northbound (N)
-                                        </span>
-                                    </template>
-                                    <template x-if="item.carriageway === 'southbound'">
-                                        <span class="flex items-center gap-1">
-                                            <i class="fa-solid fa-arrow-down text-indigo-600"></i> Southbound (S)
-                                        </span>
-                                    </template>
-                                    <template x-if="item.carriageway !== 'both' && item.carriageway !== 'northbound' && item.carriageway !== 'southbound'">
-                                        <span x-text="item.carriageway"></span>
-                                    </template>
-                                </span>
-                            </td>
-
                             <!-- Reported By / Jurisdiction -->
-                            <td class="py-3.5 px-4 whitespace-nowrap">
+                            <td class="py-3 px-3 whitespace-nowrap">
                                 <div class="text-slate-900 font-bold flex items-center gap-1.5">
                                     <i class="fa-solid fa-shield-halved text-blue-600 text-xs"></i>
                                     <span x-text="item.office_name || 'Wireless Station'"></span>
@@ -436,8 +411,16 @@
                                 <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mt-0.5" x-text="(item.sector_name || 'Sector') + ' • ' + (item.reported_by_tier || 'Operator') + ' Tier'"></div>
                             </td>
 
-                            <!-- Validity / Expiry Timer -->
-                            <td class="py-3.5 px-4 whitespace-nowrap">
+                            <!-- Direction + Validity / Expiry Timer (merged column) -->
+                            <td class="py-3 px-3 whitespace-nowrap">
+                                <div class="mb-1.5">
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-[10px] font-black uppercase text-slate-700">
+                                        <template x-if="item.carriageway === 'both'"><span class="flex items-center gap-1"><i class="fa-solid fa-arrows-left-right text-blue-500"></i> Both</span></template>
+                                        <template x-if="item.carriageway === 'northbound'"><span class="flex items-center gap-1"><i class="fa-solid fa-arrow-up text-emerald-600"></i> NB</span></template>
+                                        <template x-if="item.carriageway === 'southbound'"><span class="flex items-center gap-1"><i class="fa-solid fa-arrow-down text-indigo-600"></i> SB</span></template>
+                                        <template x-if="item.carriageway !== 'both' && item.carriageway !== 'northbound' && item.carriageway !== 'southbound'"><span x-text="item.carriageway"></span></template>
+                                    </span>
+                                </div>
                                 <template x-if="item.is_pending">
                                     <div>
                                         <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-black bg-amber-100 text-amber-800 border border-amber-300 shadow-sm animate-pulse">
@@ -480,134 +463,58 @@
                                 </template>
                             </td>
 
-                            <!-- Action Buttons (Zero Page Reload AJAX) -->
-                            <td class="py-3.5 px-4 text-right whitespace-nowrap">
+                            <!-- Action Buttons (icon buttons, same style as Roles page) -->
+                            <td class="py-3 px-3 text-right whitespace-nowrap">
                                 <div class="flex items-center justify-end gap-1.5">
-                                    <!-- 1. PENDING APPROVAL ACTIONS -->
+                                    <!-- Pending approval -->
                                     <template x-if="item.is_pending">
                                         <div class="flex items-center gap-1.5">
-                                            <!-- Supervisor: Approve, Edit, Reject -->
-                                            <template x-if="canApprove">
-                                                <div class="flex items-center gap-1.5">
-                                                    <button type="button" @click="openApproveModal(item)" title="Approve & Broadcast to Public"
-                                                        class="px-2.5 py-1.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer flex items-center gap-1">
-                                                        <i class="fa-solid fa-check-to-slot"></i>
-                                                        <span>Approve</span>
-                                                    </button>
-
-                                                    <button type="button" @click="openEditModal(item)" title="Edit and Refine Advisory"
-                                                        class="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-blue-400 shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1">
-                                                        <i class="fa-solid fa-pen-to-square text-blue-600"></i>
-                                                        <span>Edit</span>
-                                                    </button>
-
-                                                    <button type="button" @click="openRejectModal(item)" title="Reject Advisory"
-                                                        class="px-2.5 py-1.5 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-all active:scale-95 cursor-pointer flex items-center gap-1">
-                                                        <i class="fa-solid fa-ban"></i>
-                                                        <span>Reject</span>
-                                                    </button>
-                                                </div>
-                                            </template>
-
-                                            <!-- Sector Operator: Pending Badge + Edit -->
-                                            <template x-if="!canApprove">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200">
-                                                        <i class="fa-solid fa-hourglass-half animate-pulse text-amber-500"></i>
-                                                        <span>Pending Review</span>
-                                                    </span>
-                                                    <button type="button" @click="openEditModal(item)" title="Edit Advisory"
-                                                        class="p-2 rounded-xl text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:text-blue-600 hover:border-blue-300 shadow-sm transition-all active:scale-95 cursor-pointer">
-                                                        <i class="fa-solid fa-pen-to-square"></i>
-                                                    </button>
-                                                </div>
-                                            </template>
+                                            <template x-if="canApprove"><div class="flex items-center gap-1.5">
+                                                <button type="button" @click="openApproveModal(item)" title="Approve & Broadcast to Public" class="w-8 h-8 rounded-xl text-white border active:scale-95 transition-all shadow-sm flex items-center justify-center aspect-square shrink-0 cursor-pointer bg-emerald-600 border-emerald-700 hover:bg-emerald-700"><i class="fa-solid fa-check-to-slot text-xs"></i></button>
+                                                <button type="button" @click="openEditModal(item)" title="Edit and Refine Advisory" class="w-8 h-8 rounded-xl text-white border active:scale-95 transition-all shadow-sm flex items-center justify-center aspect-square shrink-0 cursor-pointer bg-sky-500 border-sky-600 hover:bg-sky-600"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                                                <button type="button" @click="openRejectModal(item)" title="Reject Advisory" class="w-8 h-8 rounded-xl text-white border active:scale-95 transition-all shadow-sm flex items-center justify-center aspect-square shrink-0 cursor-pointer bg-rose-500 border-rose-600 hover:bg-rose-600"><i class="fa-solid fa-ban text-xs"></i></button>
+                                            </div></template>
+                                            <template x-if="!canApprove"><div class="flex items-center gap-1.5">
+                                                <span class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-amber-100 border border-amber-300 text-amber-600" title="Pending supervisor review"><i class="fa-solid fa-hourglass-half animate-pulse text-xs"></i></span>
+                                                <button type="button" @click="openEditModal(item)" title="Edit Advisory" class="w-8 h-8 rounded-xl text-white border active:scale-95 transition-all shadow-sm flex items-center justify-center aspect-square shrink-0 cursor-pointer bg-sky-500 border-sky-600 hover:bg-sky-600"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                                            </div></template>
                                         </div>
                                     </template>
 
-                                    <!-- 2. PUBLISHED / LIVE ACTIONS (Available to both Sector & Supervisors) -->
+                                    <!-- Live / published -->
                                     <template x-if="!item.is_pending && !item.is_resolved && !item.is_rejected">
                                         <div class="flex items-center gap-1.5">
-                                            <!-- Edit Button (Both Sector & Supervisor) -->
-                                            <button type="button" @click="openEditModal(item)" title="Edit Parameters"
-                                                class="p-2 rounded-xl text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:text-blue-600 hover:border-blue-300 shadow-sm transition-all active:scale-95 cursor-pointer">
-                                                <i class="fa-solid fa-pen-to-square"></i>
-                                            </button>
-
-                                            <!-- Extend validity by Timing Modal (Both Sector & Supervisor) -->
-                                            <button type="button" @click="openExtendModal(item)" title="Extend validity & timer"
-                                                class="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-blue-400 shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1">
-                                                <i class="fa-solid fa-clock-rotate-left text-blue-600"></i>
-                                                <span>+2h</span>
-                                            </button>
-
-                                            <!-- Mark Resolved with Confirmation Modal (Both Sector & Supervisor) -->
-                                            <button type="button" @click="openResolveModal(item)" title="Clear / Mark as Resolved"
-                                                class="px-3 py-1.5 rounded-xl text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1">
-                                                <i class="fa-solid fa-check"></i>
-                                                <span>Clear</span>
-                                            </button>
-
-                                            <!-- Reject Live Advisory (Supervisors Only) -->
+                                            <button type="button" @click="openEditModal(item)" title="Edit Parameters" class="w-8 h-8 rounded-xl text-white border active:scale-95 transition-all shadow-sm flex items-center justify-center aspect-square shrink-0 cursor-pointer bg-sky-500 border-sky-600 hover:bg-sky-600"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                                            <button type="button" @click="openExtendModal(item)" title="Extend validity & timer" class="w-8 h-8 rounded-xl text-white border active:scale-95 transition-all shadow-sm flex items-center justify-center aspect-square shrink-0 cursor-pointer bg-indigo-600 border-indigo-700 hover:bg-indigo-700"><i class="fa-solid fa-clock-rotate-left text-xs"></i></button>
+                                            <button type="button" @click="openResolveModal(item)" title="Clear / Mark as Resolved" class="w-8 h-8 rounded-xl text-white border active:scale-95 transition-all shadow-sm flex items-center justify-center aspect-square shrink-0 cursor-pointer bg-emerald-600 border-emerald-700 hover:bg-emerald-700"><i class="fa-solid fa-check text-xs"></i></button>
                                             <template x-if="canApprove">
-                                                <button type="button" @click="openRejectModal(item)" title="Reject Advisory"
-                                                    class="px-2 py-1.5 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1">
-                                                    <i class="fa-solid fa-ban"></i>
-                                                    <span>Reject</span>
-                                                </button>
+                                                <button type="button" @click="openRejectModal(item)" title="Reject Advisory" class="w-8 h-8 rounded-xl text-white border active:scale-95 transition-all shadow-sm flex items-center justify-center aspect-square shrink-0 cursor-pointer bg-rose-500 border-rose-600 hover:bg-rose-600"><i class="fa-solid fa-ban text-xs"></i></button>
                                             </template>
                                         </div>
                                     </template>
 
-                                    <!-- 3. REJECTED ACTIONS -->
+                                    <!-- Rejected -->
                                     <template x-if="item.is_rejected">
                                         <div class="flex items-center gap-1.5">
-                                            <!-- Supervisor: Re-approve or Edit -->
-                                            <template x-if="canApprove">
-                                                <div class="flex items-center gap-1.5">
-                                                    <button type="button" @click="openApproveModal(item)" title="Re-approve & Publish Live"
-                                                        class="px-2.5 py-1.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer flex items-center gap-1">
-                                                        <i class="fa-solid fa-rotate-left"></i>
-                                                        <span>Re-approve</span>
-                                                    </button>
-                                                    <button type="button" @click="openEditModal(item)" title="Edit and Refine Advisory"
-                                                        class="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1">
-                                                        <i class="fa-solid fa-pen-to-square text-blue-600"></i>
-                                                        <span>Edit</span>
-                                                    </button>
-                                                </div>
-                                            </template>
+                                            <template x-if="canApprove"><div class="flex items-center gap-1.5">
+                                                <button type="button" @click="openApproveModal(item)" title="Re-approve & Publish Live" class="w-8 h-8 rounded-xl text-white border active:scale-95 transition-all shadow-sm flex items-center justify-center aspect-square shrink-0 cursor-pointer bg-emerald-600 border-emerald-700 hover:bg-emerald-700"><i class="fa-solid fa-rotate-left text-xs"></i></button>
+                                                <button type="button" @click="openEditModal(item)" title="Edit and Refine Advisory" class="w-8 h-8 rounded-xl text-white border active:scale-95 transition-all shadow-sm flex items-center justify-center aspect-square shrink-0 cursor-pointer bg-sky-500 border-sky-600 hover:bg-sky-600"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                                            </div></template>
                                             <template x-if="!canApprove">
-                                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200" title="Rejected by Supervisor">
-                                                    <i class="fa-solid fa-ban text-rose-500"></i>
-                                                    <span>Rejected</span>
-                                                </span>
+                                                <span class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-rose-50 border border-rose-200 text-rose-500" title="Rejected by Supervisor"><i class="fa-solid fa-ban text-xs"></i></span>
                                             </template>
                                         </div>
                                     </template>
 
-                                    <!-- 4. RESOLVED ACTIONS -->
+                                    <!-- Resolved -->
                                     <template x-if="item.is_resolved">
                                         <div class="flex items-center gap-1.5">
-                                            <!-- Supervisor: Re-open or Edit -->
-                                            <template x-if="canApprove">
-                                                <div class="flex items-center gap-1.5">
-                                                    <button type="button" @click="openExtendModal(item)" title="Re-open & Extend Validity"
-                                                        class="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-blue-400 shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1">
-                                                        <i class="fa-solid fa-clock-rotate-left text-blue-600"></i>
-                                                        <span>Re-open</span>
-                                                    </button>
-                                                    <button type="button" @click="openEditModal(item)" title="Edit"
-                                                        class="p-2 rounded-xl text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 shadow-sm transition-all active:scale-95 cursor-pointer">
-                                                        <i class="fa-solid fa-pen-to-square"></i>
-                                                    </button>
-                                                </div>
-                                            </template>
+                                            <template x-if="canApprove"><div class="flex items-center gap-1.5">
+                                                <button type="button" @click="openExtendModal(item)" title="Re-open & Extend Validity" class="w-8 h-8 rounded-xl text-white border active:scale-95 transition-all shadow-sm flex items-center justify-center aspect-square shrink-0 cursor-pointer bg-indigo-600 border-indigo-700 hover:bg-indigo-700"><i class="fa-solid fa-clock-rotate-left text-xs"></i></button>
+                                                <button type="button" @click="openEditModal(item)" title="Edit" class="w-8 h-8 rounded-xl text-white border active:scale-95 transition-all shadow-sm flex items-center justify-center aspect-square shrink-0 cursor-pointer bg-sky-500 border-sky-600 hover:bg-sky-600"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                                            </div></template>
                                             <template x-if="!canApprove">
-                                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold text-slate-600 bg-slate-100 border border-slate-200">
-                                                    <i class="fa-solid fa-check-double text-slate-400"></i>
-                                                    <span>Resolved</span>
-                                                </span>
+                                                <span class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-slate-100 border border-slate-200 text-slate-400" title="Resolved"><i class="fa-solid fa-check-double text-xs"></i></span>
                                             </template>
                                         </div>
                                     </template>
@@ -618,7 +525,7 @@
 
                     <!-- Empty State -->
                     <tr x-show="items.length === 0">
-                        <td colspan="7" class="py-14 text-center text-slate-400">
+                        <td colspan="6" class="py-14 text-center text-slate-400">
                             <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3 text-2xl">
                                 <i class="fa-solid fa-shield-cat"></i>
                             </div>
