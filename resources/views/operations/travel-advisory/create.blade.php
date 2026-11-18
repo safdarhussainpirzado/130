@@ -403,7 +403,7 @@
                     :class="advisoryType === 'traffic' ? 'border-red-500 bg-red-50/70 shadow-md shadow-red-500/10' : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100/70'">
                     <span class="w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-transform group-hover:scale-105"
                         :class="advisoryType === 'traffic' ? 'bg-red-500 text-white shadow-sm' : 'bg-red-100 text-red-600'">
-                        <i class="fa-solid fa-cars"></i>
+                        <i class="fa-solid fa-traffic-light"></i>
                     </span>
                     <div>
                         <div class="text-xs font-black text-slate-900">Traffic Jam</div>
