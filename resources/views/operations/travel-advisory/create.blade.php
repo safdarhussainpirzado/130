@@ -531,36 +531,42 @@
                     <button type="button" @click="setClosureType('')"
                         class="p-2.5 rounded-xl border text-center transition cursor-pointer"
                         :class="closureType === '' ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'">
+                        <i class="fa-solid fa-road text-sm mb-1"></i>
                         <div class="text-xs font-bold">All Lanes Open</div>
                         <div class="text-[10px] opacity-75">Caution only</div>
                     </button>
                     <button type="button" @click="setClosureType('lane_1')"
                         class="p-2.5 rounded-xl border text-center transition cursor-pointer"
                         :class="closureType === 'lane_1' ? 'bg-orange-600 text-white border-orange-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'">
+                        <i class="fa-solid fa-arrow-left text-sm mb-1"></i>
                         <div class="text-xs font-bold">Lane 1 Closed</div>
                         <div class="text-[10px] opacity-75">Slow lane</div>
                     </button>
                     <button type="button" @click="setClosureType('lane_2')"
                         class="p-2.5 rounded-xl border text-center transition cursor-pointer"
                         :class="closureType === 'lane_2' ? 'bg-orange-600 text-white border-orange-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'">
+                        <i class="fa-solid fa-arrows-left-right text-sm mb-1"></i>
                         <div class="text-xs font-bold">Lane 2 Closed</div>
                         <div class="text-[10px] opacity-75">Center lane</div>
                     </button>
                     <button type="button" @click="setClosureType('shoulder')"
                         class="p-2.5 rounded-xl border text-center transition cursor-pointer"
                         :class="closureType === 'shoulder' ? 'bg-amber-600 text-white border-amber-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'">
+                        <i class="fa-solid fa-triangle-exclamation text-sm mb-1"></i>
                         <div class="text-xs font-bold">Shoulder Closed</div>
                         <div class="text-[10px] opacity-75">Emergency lane</div>
                     </button>
                     <button type="button" @click="setClosureType('diversion')"
                         class="p-2.5 rounded-xl border text-center transition cursor-pointer"
                         :class="closureType === 'diversion' ? 'bg-purple-600 text-white border-purple-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'">
+                        <i class="fa-solid fa-signs-post text-sm mb-1"></i>
                         <div class="text-xs font-bold">Diversion Active</div>
                         <div class="text-[10px] opacity-75">Alternate route</div>
                     </button>
                     <button type="button" @click="setClosureType('full')"
                         class="p-2.5 rounded-xl border text-center transition cursor-pointer"
                         :class="closureType === 'full' ? 'bg-rose-600 text-white border-rose-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'">
+                        <i class="fa-solid fa-road-barrier text-sm mb-1"></i>
                         <div class="text-xs font-bold">Full Closure</div>
                         <div class="text-[10px] opacity-75">All traffic stopped</div>
                     </button>

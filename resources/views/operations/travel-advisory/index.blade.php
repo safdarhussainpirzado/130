@@ -185,7 +185,6 @@
             </div>
         </div>
     </div>
-    </div>
 
     <!-- HIGHWAY ROUTE PILLS & SEARCH TOOLBAR WITH EMBEDDED ACTION BUTTONS -->
     <div class="bg-white rounded-3xl border border-slate-200/80 p-4 shadow-sm space-y-3.5">
