@@ -466,7 +466,7 @@
                             <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> AVIONICS HUD ACTIVE
                         </span>
                     </div>
-                    <p class="text-[10px] font-bold text-slate-400 tracking-wider uppercase">Aerodynamic Aircraft Velocity · Target Resolution Benchmarks</p>
+                    <p class="text-[10px] font-bold text-slate-400 tracking-wider uppercase">Aerodynamic Aircraft Velocity · Help Created → Initiated · Assigned Helps Only</p>
                 </div>
             </div>
 
@@ -717,7 +717,7 @@
                         </div>
                     </div>
                     <span class="kc-badge text-[9px] shrink-0 font-mono">
-                        <i class="fa-solid fa-stopwatch text-[8px]"></i> ≤ 30 MIN
+                        <i class="fa-solid fa-stopwatch text-[8px]"></i> ≤ 20 MIN
                     </span>
                 </div>
 

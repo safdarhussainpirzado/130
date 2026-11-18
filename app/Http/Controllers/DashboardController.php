@@ -519,26 +519,29 @@ class DashboardController extends Controller
     }
 
     /**
-     * True SLA: of COMPLETED, office-assigned, non-junk/non-information calls, the share resolved within target
-     * (P1 30 min, P2 60 min, P3+ 120 min). Same definition as call_hourly_rollups.sla_met/eligible and the dot chart.
-     * (The old card showed completed/total, i.e. a completion rate labelled as SLA.)
+     * True SLA (all priorities combined): of ASSIGNED (office-assigned, non-junk/non-information) helps, the share
+     * INITIATED within target of when the help was inserted (created_at -> inprogress_at).
+     * Targets: P1 30 min, P2 60 min, P3+ 120 min. A help that is still pending (never initiated) counts as a miss
+     * only once it is already past its target; before that it is neither met nor missed.
      *
      * @return array{eligible:int, met:int, percent:int}
      */
     protected function computeTrueSla($from): array
     {
+        $target = 'CASE WHEN calls.priority = 1 THEN 1800 WHEN calls.priority = 2 THEN 3600 ELSE 7200 END';
         $row = DB::table('calls')
             ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
             ->where('calls.created_at', '>=', $from)
-            ->where('calls.status', 'completed')
             ->whereNotNull('calls.office_id')
             ->where('calls.office_id', '>', 0)
             ->whereNotIn('call_types.category', ['junk_silent', 'information'])
-            ->selectRaw("COUNT(*) as eligible, SUM(CASE
-                WHEN calls.priority = 1 AND calls.resolution_time_sec <= 1800 THEN 1
-                WHEN calls.priority = 2 AND calls.resolution_time_sec <= 3600 THEN 1
-                WHEN calls.priority >= 3 AND calls.resolution_time_sec <= 7200 THEN 1
-                ELSE 0 END) as met")
+            ->selectRaw("SUM(CASE
+                    WHEN calls.inprogress_at IS NOT NULL THEN 1
+                    WHEN calls.status = 'pending' AND TIMESTAMPDIFF(SECOND, calls.created_at, NOW()) > ({$target}) THEN 1
+                    ELSE 0 END) as eligible,
+                SUM(CASE
+                    WHEN calls.inprogress_at IS NOT NULL AND TIMESTAMPDIFF(SECOND, calls.created_at, calls.inprogress_at) <= ({$target}) THEN 1
+                    ELSE 0 END) as met")
             ->first();
         $eligible = (int) ($row->eligible ?? 0);
         $met = (int) ($row->met ?? 0);
@@ -546,14 +549,15 @@ class DashboardController extends Controller
     }
 
     /**
-     * Compute specific SLA for priority or women's safety with target seconds.
+     * Compute one SLA tile: time from the help being inserted (created_at) to being initiated (inprogress_at),
+     * counted over ASSIGNED helps only (office assigned, not junk/information).
+     * Pending helps that are already past the target count as missed; pending helps still within target are not counted yet.
      */
     protected function computeSpecificSla($from, int $priority = 1, int $targetSeconds = 1800, ?string $gender = null): array
     {
         $query = DB::table('calls')
             ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
             ->where('calls.created_at', '>=', $from)
-            ->where('calls.status', 'completed')
             ->whereNotNull('calls.office_id')
             ->where('calls.office_id', '>', 0)
             ->whereNotIn('call_types.category', ['junk_silent', 'information']);
@@ -566,15 +570,20 @@ class DashboardController extends Controller
             $query->where('calls.priority', $priority);
         }
 
-        $row = $query->selectRaw("COUNT(*) as eligible, SUM(CASE
-            WHEN calls.resolution_time_sec <= {$targetSeconds} THEN 1
-            ELSE 0 END) as met,
-            AVG(calls.resolution_time_sec) as avg_resolution_sec")
+        $t = (int) $targetSeconds;
+        $row = $query->selectRaw("SUM(CASE
+                WHEN calls.inprogress_at IS NOT NULL THEN 1
+                WHEN calls.status = 'pending' AND TIMESTAMPDIFF(SECOND, calls.created_at, NOW()) > {$t} THEN 1
+                ELSE 0 END) as eligible,
+            SUM(CASE
+                WHEN calls.inprogress_at IS NOT NULL AND TIMESTAMPDIFF(SECOND, calls.created_at, calls.inprogress_at) <= {$t} THEN 1
+                ELSE 0 END) as met,
+            AVG(CASE WHEN calls.inprogress_at IS NOT NULL THEN TIMESTAMPDIFF(SECOND, calls.created_at, calls.inprogress_at) END) as avg_initiation_sec")
             ->first();
 
         $eligible = (int) ($row->eligible ?? 0);
         $met = (int) ($row->met ?? 0);
-        $avgSec = (int) round($row->avg_resolution_sec ?? 0);
+        $avgSec = (int) round($row->avg_initiation_sec ?? 0);
         $percent = $eligible > 0 ? (int) round(($met / $eligible) * 100) : 100;
 
         return [

@@ -9,7 +9,7 @@
  *       • Priority 2 (High / Urgent Breakdown): <= 3,600 sec (60 min)
  *       • Priority 3+ (General Assistance / Routine Help): <= 7,200 sec (120 min)
  *       • Women Safety & Journey Help: <= 1,200 sec (20 min)
- *   - Strict Status Filter: Only 'completed' status calls count towards SLA
+ *   - Strict Status Filter: SLA counts ASSIGNED helps by created->initiated time
  *   - Category Exclusion: 'junk_silent' and 'information' categories strictly excluded
  *   - Mathematical Percentage and Division-by-Zero Protection
  *   - Dynamic Temporal Window and Robust Fallback Integrity
