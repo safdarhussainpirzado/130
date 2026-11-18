@@ -52,7 +52,6 @@ class TwoFactorEnforcement
         '2fa.index',
         '2fa.verify',
         '2fa.setup',
-        'public.travel-advisory',
     ];
 
     public function handle(Request $request, Closure $next): Response

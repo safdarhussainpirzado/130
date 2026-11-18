@@ -92,6 +92,15 @@ class UserListResource extends JsonResource
             'scope_summary' => $scopeUnitName . ($scopeUnitType ? " ({$scopeUnitType})" : ''),
             'parent_sector_id' => $sector?->id,
             'parent_zone_id' => $zone?->id,
+            'patrol_profile' => ($this->relationLoaded('patrolOfficerProfile') && $this->patrolOfficerProfile) ? [
+                'badge_number' => $this->patrolOfficerProfile->badge_number,
+                'is_on_duty' => (bool) $this->patrolOfficerProfile->is_on_duty,
+                'assigned_beat_id' => $this->patrolOfficerProfile->assigned_beat_id,
+            ] : null,
+            'commuter_profile' => ($this->relationLoaded('commuterProfile') && $this->commuterProfile) ? [
+                'gender' => $this->commuterProfile->gender,
+                'is_cnic_verified' => (bool) $this->commuterProfile->is_cnic_verified,
+            ] : null,
         ];
     }
 }

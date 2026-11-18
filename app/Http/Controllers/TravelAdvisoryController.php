@@ -32,97 +32,50 @@ class TravelAdvisoryController extends Controller
         }
 
         $roleName = $user->role?->name;
-        if (! in_array($roleName, [Role::SECTOR_ADMIN, Role::SUPER_ADMIN], true) && ! ($user instanceof \App\Models\User && $user->hasPermission('travel_advisory.view'))) {
-            abort(403, 'Unauthorized. Access to Travel Advisory operations is restricted to sector operators (sector_admin).');
+        $authorizedRoles = [
+            Role::SECTOR_ADMIN,
+            Role::SUPER_ADMIN,
+            Role::AGENT_SUPERVISOR,
+            Role::IT_ADMIN,
+        ];
+
+        if (! in_array($roleName, $authorizedRoles, true) && ! ($user instanceof \App\Models\User && $user->hasPermission('travel_advisory.view'))) {
+            abort(403, 'Unauthorized. Access to Travel Advisory operations is restricted to authorized supervisors, operators, and administrators.');
         }
     }
+
     /**
-     * Public Commuter Travel Advisory Portal (matches Humsafar mockup + Roadworks Radar UK).
+     * Check if user is a Call Center Agent Supervisor or System Admin.
      */
-    public function publicPortal(Request $request): View
+    private function isSupervisorOrAdmin(?\App\Models\User $user = null): bool
     {
-        $road = $request->query('road', 'M-2');
-        $from = $request->query('from', 'Islamabad');
-        $to = $request->query('to', 'Lahore');
-        $selectedType = $request->query('type', 'all');
-        $direction = $request->query('direction', 'both');
-
-        // Available Carriageways
-        $carriageways = Cache::remember('travel_advisory:all_carriageways', 600, function () {
-            return Carriageway::whereIn('type', ['Motorway', 'Highway', 'Strategic Route'])
-                ->orderBy('type')
-                ->orderBy('road')
-                ->get();
-        });
-
-        // Curated popular journeys
-        $popularJourneys = [
-            ['from' => 'Islamabad', 'to' => 'Lahore', 'road' => 'M-2'],
-            ['from' => 'Peshawar', 'to' => 'Islamabad', 'road' => 'M-1'],
-            ['from' => 'Lahore', 'to' => 'Abdul Hakim', 'road' => 'M-3'],
-            ['from' => 'Pindi Bhattian', 'to' => 'Multan', 'road' => 'M-4'],
-            ['from' => 'Multan', 'to' => 'Sukkur', 'road' => 'M-5'],
-            ['from' => 'Karachi', 'to' => 'Sukkur', 'road' => 'M-9'],
-            ['from' => 'Karachi', 'to' => 'Hyderabad', 'road' => 'M-9'],
-            ['from' => 'Lahore', 'to' => 'Rawalpindi', 'road' => 'N-5'],
-        ];
-
-        // Active advisories for the chosen road
-        $cleanRoad = strtoupper(trim((string)$road));
-        $allRoadAdvisories = TabletAdvisory::active()
-            ->forRoute($cleanRoad)
-            ->orderBy('published_at', 'desc')
-            ->get();
-
-        // Counters for category tabs
-        $counters = [
-            'all'          => $allRoadAdvisories->count(),
-            'road_closure' => $allRoadAdvisories->filter(fn($a) => $a->advisory_type === 'road_closure' || $a->category === 'road_closure')->count(),
-            'fog'          => $allRoadAdvisories->filter(fn($a) => $a->advisory_type === 'fog' || $a->category === 'fog')->count(),
-            'weather'      => $allRoadAdvisories->filter(fn($a) => $a->advisory_type === 'weather' || $a->category === 'weather')->count(),
-            'traffic'      => $allRoadAdvisories->filter(fn($a) => $a->advisory_type === 'traffic' || $a->category === 'congestion')->count(),
-            'road_works'   => $allRoadAdvisories->filter(fn($a) => $a->advisory_type === 'road_works' || $a->category === 'maintenance')->count(),
-            'diversion'    => $allRoadAdvisories->filter(fn($a) => $a->advisory_type === 'diversion')->count(),
-        ];
-
-        // Filtered advisories for right accordion list
-        $advisories = $allRoadAdvisories;
-        if ($selectedType && strtolower($selectedType) !== 'all') {
-            $tab = strtolower($selectedType);
-            $advisories = $advisories->filter(function ($item) use ($tab) {
-                if ($tab === 'fog') return $item->advisory_type === 'fog' || $item->category === 'fog';
-                if ($tab === 'road_closure') return $item->advisory_type === 'road_closure' || $item->category === 'road_closure';
-                if ($tab === 'road_works') return $item->advisory_type === 'road_works' || $item->category === 'maintenance';
-                if ($tab === 'traffic') return $item->advisory_type === 'traffic' || $item->category === 'congestion';
-                if ($tab === 'weather') return $item->advisory_type === 'weather' || $item->category === 'weather';
-                if ($tab === 'diversion') return $item->advisory_type === 'diversion';
-                return true;
-            });
+        /** @var \App\Models\User|null $user */
+        $user = $user ?: Auth::user();
+        if (! $user) {
+            return false;
         }
 
-        // Live Ticker items (High priority across all motorways)
-        $tickerItems = TabletAdvisory::active()
-            ->orderByRaw("CASE WHEN severity = 'critical' THEN 1 WHEN severity = 'warning' THEN 2 ELSE 3 END")
-            ->orderBy('published_at', 'desc')
-            ->take(8)
-            ->get();
-
-        return view('public.travel-advisory.index', [
-            'carriageways'     => $carriageways,
-            'popularJourneys'  => $popularJourneys,
-            'currentRoad'      => $cleanRoad,
-            'from'             => $from,
-            'to'               => $to,
-            'direction'        => $direction,
-            'selectedType'     => $selectedType,
-            'counters'         => $counters,
-            'advisories'       => $advisories,
-            'allAdvisories'    => $allRoadAdvisories,
-            'tickerItems'      => $tickerItems,
-            'updatedTime'      => Carbon::now()->timezone('Asia/Karachi')->format('H:i \P\K\T'),
-        ]);
+        $roleName = $user->role?->name;
+        return in_array($roleName, [Role::SUPER_ADMIN, Role::IT_ADMIN, Role::AGENT_SUPERVISOR], true)
+            || $user->hasPermission('travel_advisory.approve');
     }
 
+    /**
+     * Authorize that the current user is an Agent Supervisor or Super Admin.
+     * Field sector wireless operators are strictly unauthorized to approve advisories.
+     */
+    private function authorizeSupervisor(): void
+    {
+        /** @var \App\Models\User|null $user */
+        $user = Auth::user();
+        if (! $user) {
+            abort(401, 'Unauthenticated.');
+        }
+
+        if (! $this->isSupervisorOrAdmin($user)) {
+            abort(403, 'Unauthorized. Advisory review, editing, and approval is restricted to Call Center Agent Supervisors and Super Admins.');
+        }
+    }
     /**
      * Wireless Operator Rapid Incident Data Entry Hub.
      * Role-aware for Beat, Sector, and Zone wireless operators.
@@ -135,10 +88,14 @@ class TravelAdvisoryController extends Controller
         $user = Auth::user();
         $userOffice = $user?->office ?? ($user instanceof \App\Models\User ? $user->activeScopes()->with('office.parent.parent')->first()?->office : null);
 
+        $isSupervisor = $this->isSupervisorOrAdmin($user);
+
         // Determine operator tier based on office type or role
         $tier = 'beat';
-        if ($user?->role?->name === Role::SUPER_ADMIN || $user?->role?->name === 'national_admin' || !$userOffice) {
+        if ($user?->role?->name === Role::SUPER_ADMIN || $user?->role?->name === 'national_admin' || $user?->role?->name === Role::AGENT_SUPERVISOR || $user?->role?->name === Role::IT_ADMIN) {
             $tier = 'national';
+        } elseif ($user?->role?->name === Role::SECTOR_ADMIN || ($userOffice && $userOffice->type === 'sector')) {
+            $tier = 'sector';
         } elseif ($userOffice) {
             $tier = strtolower((string)$userOffice->type); // 'zone', 'sector', 'beat'
         }
@@ -176,6 +133,7 @@ class TravelAdvisoryController extends Controller
             'operator'         => $user,
             'operatorOffice'   => $userOffice,
             'operatorTier'     => $tier,
+            'isSupervisor'     => $isSupervisor,
             'hierarchy'        => $hierarchy,
             'landmarks'        => $landmarks,
             'zones'            => $zones,
@@ -193,13 +151,16 @@ class TravelAdvisoryController extends Controller
         $this->authorizeSectorAdmin();
 
         $validated = $request->validate([
-            'advisory_type'     => 'required|in:fog,road_closure,road_works,traffic,weather,diversion',
+            'category'          => 'sometimes|nullable|in:fog,road_closure,road_works,traffic,weather,diversion',
+            'advisory_type'     => 'sometimes|nullable|in:fog,road_closure,road_works,traffic,weather,diversion',
             'severity'          => 'required|in:info,advisory,warning,critical',
             'route_name'        => 'required|string|max:50',
             'carriageway'       => 'required|in:both,northbound,southbound',
             'zone_id'           => 'nullable|exists:offices,id',
             'sector_id'         => 'nullable|exists:offices,id',
             'office_id'         => 'nullable|exists:offices,id',
+            'beat_ids'          => 'nullable|array',
+            'beat_ids.*'        => 'integer|exists:offices,id',
             'start_km'          => 'required|numeric|min:0',
             'end_km'            => 'required|numeric|min:0',
             'start_landmark'    => 'nullable|string|max:100',
@@ -216,6 +177,10 @@ class TravelAdvisoryController extends Controller
 
         $user = Auth::user();
         $now = Carbon::now();
+
+        if (empty($validated['office_id']) && !empty($validated['beat_ids'])) {
+            $validated['office_id'] = $validated['beat_ids'][0];
+        }
         
         if (!empty($validated['custom_expires_at'])) {
             $expiresAt = Carbon::parse($validated['custom_expires_at']);
@@ -224,10 +189,13 @@ class TravelAdvisoryController extends Controller
             $expiresAt = $now->copy()->addMinutes((int)($durationHours * 60));
         }
 
-        // Auto-compute coordinates from GeospatialMarker if available
-        $cleanRoute = strtoupper(str_replace('-', '', $validated['route_name']));
-        $startCoord = $this->resolveKmCoordinates($validated['office_id'], $validated['start_km']);
-        $endCoord = $this->resolveKmCoordinates($validated['office_id'], $validated['end_km']);
+        // Auto-compute coordinates from GeospatialMarker / Carriageway
+        $cleanRoute = strtoupper(str_replace(['-', ' '], '', $validated['route_name']));
+        $targetOfficeId = $validated['office_id'] ?? $validated['sector_id'] ?? $user?->office_id ?? null;
+        $startCoord = $this->resolveKmCoordinates($targetOfficeId, $validated['route_name'], (float)$validated['start_km']);
+        $endCoord   = $this->resolveKmCoordinates($targetOfficeId, $validated['route_name'], (float)($validated['end_km'] ?? $validated['start_km']));
+
+        $category = $request->input('category') ?: $request->input('advisory_type') ?: 'fog';
 
         // Determine corridor key for aggregation (e.g. M2-FOG-KM210-KM245)
         $corridorKey = sprintf(
@@ -236,30 +204,25 @@ class TravelAdvisoryController extends Controller
             strtoupper($validated['carriageway']),
             (int)$validated['start_km'],
             (int)$validated['end_km'],
-            strtoupper($validated['advisory_type'])
+            strtoupper($category)
         );
-
-        // Map enum category
-        $category = match ($validated['advisory_type']) {
-            'fog'          => 'fog',
-            'road_closure' => 'road_closure',
-            'road_works'   => 'maintenance',
-            'traffic'      => 'congestion',
-            'weather'      => 'weather',
-            'diversion'    => 'road_closure',
-            default        => 'advisory',
-        };
 
         // Determine carriageway model ID
         $carriagewayModel = Carriageway::where('road', $cleanRoute)
             ->orWhere('road_short', $validated['route_name'])
             ->first();
 
+        $isSupervisor = $this->isSupervisorOrAdmin($user);
+        // Field sector operators insert as pending_approval; Call Center Supervisors can publish directly if requested.
+        $status = ($isSupervisor && $request->boolean('auto_approve', false)) ? 'published' : 'pending_approval';
+        $publishedAt = ($status === 'published') ? $now : null;
+        $approvedBy = ($status === 'published') ? $user?->id : null;
+        $approvedAt = ($status === 'published') ? $now : null;
+
         $advisory = TabletAdvisory::create([
             'uuid'              => (string) Str::uuid(),
             'title'             => $validated['title'],
             'category'          => $category,
-            'advisory_type'     => $validated['advisory_type'],
             'severity'          => $validated['severity'],
             'route_name'        => $validated['route_name'],
             'carriageway'       => $validated['carriageway'],
@@ -275,7 +238,7 @@ class TravelAdvisoryController extends Controller
             'speed_limit_kmh'   => $validated['speed_limit_kmh'] ?? null,
             'closure_type'      => $validated['closure_type'] ?? null,
             'message'           => $validated['message'],
-            'status'            => 'published',
+            'status'            => $status,
             'is_emergency'      => $validated['is_emergency'] ?? ($validated['severity'] === 'critical'),
             'reported_by_tier'  => $user?->office?->type ?? 'beat',
             'corridor_key'      => $corridorKey,
@@ -283,23 +246,30 @@ class TravelAdvisoryController extends Controller
             'start_lng'         => $startCoord['lng'] ?? null,
             'end_lat'           => $endCoord['lat'] ?? null,
             'end_lng'           => $endCoord['lng'] ?? null,
-            'published_at'      => $now,
+            'published_at'      => $publishedAt,
+            'approved_at'       => $approvedAt,
             'expires_at'        => $expiresAt,
             'created_by'        => $user?->id ?? 1,
+            'approved_by'       => $approvedBy,
         ]);
 
-        TabletAdvisory::flushAdvisoryCache();
+        if ($status === 'published') {
+            TabletAdvisory::flushAdvisoryCache();
+            $msg = "Travel advisory '{$advisory->title}' approved and broadcasted successfully across Humsafar Network.";
+        } else {
+            $msg = "Travel advisory '{$advisory->title}' submitted successfully. Forwarded to Call Center Agent Supervisors for review & approval.";
+        }
 
         if ($request->wantsJson() || $request->ajax() || $request->boolean('ajax')) {
             return response()->json([
                 'success'  => true,
-                'message'  => "Travel advisory '{$advisory->title}' broadcasted successfully across Humsafar Network.",
+                'message'  => $msg,
+                'status'   => $status,
                 'advisory' => $advisory,
             ]);
         }
 
-        return redirect()->route('ops.travel-advisory.create')
-            ->with('success', "Travel advisory '{$advisory->title}' broadcasted successfully across Humsafar Network.");
+        return redirect()->route('ops.travel-advisory.create')->with('success', $msg);
     }
 
     /**
@@ -320,10 +290,14 @@ class TravelAdvisoryController extends Controller
 
         if ($status === 'active') {
             $query->active();
+        } elseif ($status === 'pending' || $status === 'pending_approval') {
+            $query->where('status', 'pending_approval');
         } elseif ($status === 'resolved') {
             $query->where('status', 'resolved');
         } elseif ($status === 'expired') {
             $query->where('status', 'published')->where('expires_at', '<=', Carbon::now());
+        } elseif ($status === 'rejected') {
+            $query->where('status', 'rejected');
         }
 
         if ($road && strtolower($road) !== 'all') {
@@ -331,7 +305,19 @@ class TravelAdvisoryController extends Controller
         }
 
         if ($type && strtolower($type) !== 'all') {
-            $query->where('advisory_type', strtolower($type));
+            $cleanType = strtolower($type);
+            if ($cleanType === 'road_closure') {
+                $query->where('category', 'road_closure')
+                      ->where('category', '!=', 'diversion');
+            } elseif ($cleanType === 'diversion') {
+                $query->where('category', 'diversion');
+            } elseif ($cleanType === 'road_works') {
+                $query->whereIn('category', ['road_works', 'maintenance']);
+            } elseif ($cleanType === 'traffic') {
+                $query->whereIn('category', ['traffic', 'congestion']);
+            } else {
+                $query->where('category', $cleanType);
+            }
         }
 
         if ($severity && strtolower($severity) !== 'all') {
@@ -349,26 +335,33 @@ class TravelAdvisoryController extends Controller
             });
         }
 
-        $advisories = $query->orderBy('published_at', 'desc')->paginate(15);
+        $advisories = $query->orderByRaw("CASE WHEN status = 'pending_approval' THEN 0 ELSE 1 END")
+            ->orderByRaw("COALESCE(published_at, created_at) DESC")
+            ->paginate(15);
 
         // Metrics for 3D filter stat cards
         $metrics = [
             'total_active'     => TabletAdvisory::active()->count(),
-            'fog_alerts'       => TabletAdvisory::active()->where('advisory_type', 'fog')->count(),
-            'road_closures'    => TabletAdvisory::active()->whereIn('advisory_type', ['road_closure', 'diversion'])->count(),
-            'road_works'       => TabletAdvisory::active()->where('advisory_type', 'road_works')->count(),
+            'pending_approval' => TabletAdvisory::where('status', 'pending_approval')->count(),
+            'rejected'         => TabletAdvisory::where('status', 'rejected')->count(),
+            'fog_alerts'       => TabletAdvisory::active()->where('category', 'fog')->count(),
+            'road_closures'    => TabletAdvisory::active()->where('category', 'road_closure')->where('category', '!=', 'diversion')->count(),
+            'road_works'       => TabletAdvisory::active()->whereIn('category', ['road_works', 'maintenance'])->count(),
+            'traffic_alerts'   => TabletAdvisory::active()->whereIn('category', ['traffic', 'congestion'])->count(),
             'critical_hazards' => TabletAdvisory::active()->where('severity', 'critical')->count(),
-            'expired_resolved' => TabletAdvisory::where(function ($q) {
-                $q->where('status', 'resolved')->orWhere('expires_at', '<=', Carbon::now());
-            })->count(),
+            'expired_resolved' => TabletAdvisory::where('status', 'resolved')->count(),
             'total_all'        => TabletAdvisory::count(),
         ];
 
-        $formattedItems = collect($advisories->items())->map(function ($item) {
+        $isSupervisor = $this->isSupervisorOrAdmin();
+        $formattedItems = collect($advisories->items())->map(function ($item) use ($isSupervisor) {
             $now = Carbon::now();
+            $isPending = ($item->status === 'pending_approval');
+            $isPublished = ($item->status === 'published');
             $isResolved = ($item->status === 'resolved');
-            $isExpired = (!$isResolved && $item->expires_at && $item->expires_at->isPast());
-            $isLive = (!$isResolved && !$isExpired);
+            $isRejected = ($item->status === 'rejected');
+            $isExpired = ($isPublished && $item->expires_at && $item->expires_at->isPast());
+            $isLive = ($isPublished && !$isExpired);
 
             return [
                 'id'                  => $item->id,
@@ -376,7 +369,7 @@ class TravelAdvisoryController extends Controller
                 'title'               => $item->title,
                 'message'             => $item->message,
                 'category'            => $item->category,
-                'advisory_type'       => $item->advisory_type,
+                'advisory_type'       => $item->category,
                 'severity'            => $item->severity,
                 'route_name'          => $item->route_name,
                 'carriageway'         => $item->carriageway,
@@ -393,11 +386,19 @@ class TravelAdvisoryController extends Controller
                 'office_name'         => $item->office?->name ?: 'Wireless Station',
                 'sector_name'         => $item->office?->parent?->name ?: 'Sector',
                 'zone_name'           => $item->office?->parent?->parent?->name ?: 'Zone',
+                'is_pending'          => $isPending,
                 'is_live'             => $isLive,
                 'is_expired'          => $isExpired,
                 'is_resolved'         => $isResolved,
+                'is_rejected'         => $isRejected,
+                'creator_name'        => $item->creator?->username ?: ($item->creator?->full_name ?: ($item->creator?->name ?: 'Field Operator')),
+                'approver_name'       => $item->approver?->username ?: ($item->approver?->full_name ?: ($item->approver?->name ?: null)),
+                'rejection_reason'    => $item->rejection_reason,
+                'can_approve'         => $isSupervisor,
+                'can_edit'            => $isSupervisor,
+                'can_reject'          => $isSupervisor,
                 'expires_at_human'    => $item->expires_at ? $item->expires_at->timezone('Asia/Karachi')->diffForHumans() : 'N/A',
-                'published_at_human'  => $item->published_at ? $item->published_at->timezone('Asia/Karachi')->diffForHumans() : 'Just now',
+                'published_at_human'  => $item->published_at ? $item->published_at->timezone('Asia/Karachi')->diffForHumans() : ($item->created_at ? $item->created_at->timezone('Asia/Karachi')->diffForHumans() : 'Pending'),
             ];
         })->all();
 
@@ -430,7 +431,178 @@ class TravelAdvisoryController extends Controller
             'currentStatus' => $status,
             'currentType'   => $type,
             'search'        => $search,
+            'canApprove'    => $isSupervisor,
         ]);
+    }
+
+    /**
+     * Fetch single advisory JSON for Supervisor Edit & Review modal.
+     */
+    public function operatorShow(int $id): JsonResponse
+    {
+        $this->authorizeSectorAdmin();
+        $item = TabletAdvisory::with(['creator', 'approver', 'office', 'sector', 'zone', 'carriagewayModel'])
+            ->findOrFail($id);
+
+        return response()->json([
+            'success'  => true,
+            'advisory' => [
+                'id'                => $item->id,
+                'uuid'              => $item->uuid,
+                'title'             => $item->title,
+                'message'           => $item->message,
+                'category'          => $item->category,
+                'advisory_type'     => $item->category,
+                'severity'          => $item->severity,
+                'route_name'        => $item->route_name,
+                'carriageway'       => $item->carriageway,
+                'start_km'          => (float) $item->start_km,
+                'end_km'            => (float) ($item->end_km ?: $item->start_km),
+                'start_landmark'    => $item->start_landmark,
+                'end_landmark'      => $item->end_landmark,
+                'visibility_meters' => $item->visibility_meters,
+                'speed_limit_kmh'   => $item->speed_limit_kmh,
+                'closure_type'      => $item->closure_type,
+                'status'            => $item->status,
+                'is_emergency'      => (bool) $item->is_emergency,
+                'rejection_reason'  => $item->rejection_reason,
+                'creator_name'      => $item->creator?->username ?: ($item->creator?->name ?: 'Field Operator'),
+                'approver_name'     => $item->approver?->username ?: ($item->approver?->name ?: null),
+                'published_at'      => $item->published_at?->toIso8601String(),
+                'expires_at'        => $item->expires_at?->toIso8601String(),
+            ],
+        ]);
+    }
+
+    /**
+     * Operator / Supervisor Update / Edit advisory in place.
+     * Accessible by both Sector operators and Supervisors.
+     * Immediate live approval is strictly restricted to Supervisors.
+     */
+    public function operatorUpdate(Request $request, int $id): JsonResponse|RedirectResponse
+    {
+        $this->authorizeSectorAdmin();
+        $user = Auth::user();
+        $advisory = TabletAdvisory::findOrFail($id);
+
+        $validated = $request->validate([
+            'title'             => 'required|string|max:150',
+            'message'           => 'required|string|max:1000',
+            'severity'          => 'sometimes|required|in:info,advisory,warning,critical',
+            'category'          => 'sometimes|nullable|in:fog,road_closure,road_works,traffic,weather,diversion',
+            'advisory_type'     => 'sometimes|nullable|in:fog,road_closure,road_works,traffic,weather,diversion',
+            'carriageway'       => 'sometimes|required|in:both,northbound,southbound',
+            'start_km'          => 'nullable|numeric|min:0',
+            'end_km'            => 'nullable|numeric|min:0',
+            'start_landmark'    => 'nullable|string|max:100',
+            'end_landmark'      => 'nullable|string|max:100',
+            'visibility_meters' => 'nullable|integer|min:0|max:5000',
+            'speed_limit_kmh'   => 'nullable|integer|min:0|max:150',
+            'closure_type'      => 'nullable|in:full,lane_1,lane_2,shoulder,diversion',
+            'is_emergency'      => 'nullable|boolean',
+            'duration_hours'    => 'nullable|numeric|min:0.5|max:72',
+            'approve_now'       => 'nullable|boolean',
+        ]);
+
+        $category = $request->input('category') ?: $request->input('advisory_type') ?: $advisory->category;
+
+        $advisory->title             = $validated['title'];
+        $advisory->message           = $validated['message'];
+        $advisory->severity          = $validated['severity'] ?? $advisory->severity;
+        $advisory->category          = $category;
+        $advisory->carriageway       = $validated['carriageway'] ?? $advisory->carriageway ?? 'both';
+        $advisory->start_km          = isset($validated['start_km']) ? $validated['start_km'] : $advisory->start_km;
+        $advisory->end_km            = isset($validated['end_km']) ? $validated['end_km'] : ($advisory->end_km ?: $advisory->start_km);
+        $advisory->start_landmark    = $validated['start_landmark'] ?? null;
+        $advisory->end_landmark      = $validated['end_landmark'] ?? null;
+        $advisory->visibility_meters = $validated['visibility_meters'] ?? null;
+        $advisory->speed_limit_kmh   = $validated['speed_limit_kmh'] ?? null;
+        $advisory->closure_type      = $validated['closure_type'] ?? null;
+        $advisory->is_emergency      = $validated['is_emergency'] ?? (($validated['severity'] ?? $advisory->severity) === 'critical');
+
+        if (!empty($validated['duration_hours'])) {
+            $baseTime = $advisory->published_at ?: Carbon::now();
+            $advisory->expires_at = $baseTime->copy()->addMinutes((int)($validated['duration_hours'] * 60));
+        }
+
+        $isSupervisor = $this->isSupervisorOrAdmin($user);
+        if ($request->boolean('approve_now') && $isSupervisor) {
+            $now = Carbon::now();
+            $advisory->status = 'published';
+            $advisory->approved_by = Auth::id();
+            $advisory->approved_at = $now;
+            if (empty($advisory->published_at)) {
+                $advisory->published_at = $now;
+            }
+        }
+
+        $advisory->save();
+        TabletAdvisory::flushAdvisoryCache();
+
+        if ($request->wantsJson() || $request->ajax() || $request->boolean('ajax')) {
+            return response()->json([
+                'success'  => true,
+                'message'  => "Advisory '{$advisory->title}' updated successfully" . ($advisory->status === 'published' ? ' and published live.' : '.'),
+                'advisory' => $advisory,
+            ]);
+        }
+
+        return redirect()->route('ops.travel-advisory.index')
+            ->with('success', "Advisory updated successfully.");
+    }
+
+    /**
+     * Agent Supervisor Approve advisory and broadcast live.
+     */
+    public function operatorApprove(Request $request, int $id): JsonResponse|RedirectResponse
+    {
+        $this->authorizeSupervisor();
+        $advisory = TabletAdvisory::findOrFail($id);
+
+        $durationHours = (float) ($request->input('duration_hours', 0));
+        if ($durationHours > 0) {
+            $advisory->expires_at = Carbon::now()->addMinutes((int)($durationHours * 60));
+        } elseif (! $advisory->expires_at || $advisory->expires_at->isPast()) {
+            $advisory->expires_at = Carbon::now()->addHours(4);
+        }
+
+        $advisory->approve(Auth::id());
+
+        if ($request->wantsJson() || $request->ajax() || $request->boolean('ajax')) {
+            return response()->json([
+                'success'  => true,
+                'message'  => "Travel advisory #{$advisory->id} ('{$advisory->title}') approved and broadcasted live to Humsafar and public APIs.",
+                'status'   => 'published',
+                'advisory' => $advisory,
+            ]);
+        }
+
+        return redirect()->route('ops.travel-advisory.index')
+            ->with('success', "Advisory #{$advisory->id} approved and published live.");
+    }
+
+    /**
+     * Agent Supervisor Reject advisory.
+     */
+    public function operatorReject(Request $request, int $id): JsonResponse|RedirectResponse
+    {
+        $this->authorizeSupervisor();
+        $advisory = TabletAdvisory::findOrFail($id);
+
+        $reason = $request->input('reason', 'Rejected by Call Center Agent Supervisor.');
+        $advisory->reject(Auth::id(), $reason);
+
+        if ($request->wantsJson() || $request->ajax() || $request->boolean('ajax')) {
+            return response()->json([
+                'success'  => true,
+                'message'  => "Travel advisory #{$advisory->id} rejected.",
+                'status'   => 'rejected',
+                'advisory' => $advisory,
+            ]);
+        }
+
+        return redirect()->route('ops.travel-advisory.index')
+            ->with('success', "Advisory #{$advisory->id} rejected.");
     }
 
     /**
@@ -448,10 +620,10 @@ class TravelAdvisoryController extends Controller
 
         TabletAdvisory::flushAdvisoryCache();
 
-        if ($request->wantsJson()) {
+        if ($request->wantsJson() || $request->ajax() || $request->boolean('ajax')) {
             return response()->json([
                 'success' => true,
-                'message' => "Advisory '{$advisory->title}' marked as resolved.",
+                'message' => "Advisory '{$advisory->title}' marked as resolved and removed from live corridor feeds.",
             ]);
         }
 
@@ -459,16 +631,22 @@ class TravelAdvisoryController extends Controller
     }
 
     /**
-     * Extend advisory expiration by 2 hours.
+     * Extend advisory expiration by specified hours (defaults to +2 hours).
      */
     public function operatorExtend(Request $request, int $id): JsonResponse|RedirectResponse
     {
         $this->authorizeSectorAdmin();
 
         $advisory = TabletAdvisory::findOrFail($id);
-        $newExpiry = ($advisory->expires_at && $advisory->expires_at->isFuture()) 
-            ? $advisory->expires_at->addHours(2) 
-            : Carbon::now()->addHours(2);
+        $hours = (float) ($request->input('hours', 2));
+        if ($hours <= 0) {
+            $hours = 2.0;
+        }
+
+        $baseTime = ($advisory->expires_at && $advisory->expires_at->isFuture()) 
+            ? $advisory->expires_at 
+            : Carbon::now();
+        $newExpiry = $baseTime->copy()->addMinutes((int)($hours * 60));
 
         $advisory->update([
             'expires_at' => $newExpiry,
@@ -477,10 +655,12 @@ class TravelAdvisoryController extends Controller
 
         TabletAdvisory::flushAdvisoryCache();
 
-        if ($request->wantsJson()) {
+        if ($request->wantsJson() || $request->ajax() || $request->boolean('ajax')) {
             return response()->json([
-                'success' => true,
-                'message' => "Advisory validity extended until " . $newExpiry->timezone('Asia/Karachi')->format('H:i \P\K\T'),
+                'success'          => true,
+                'message'          => "Advisory validity extended by {$hours}h until " . $newExpiry->timezone('Asia/Karachi')->format('H:i \P\K\T'),
+                'expires_at'       => $newExpiry->toIso8601String(),
+                'expires_at_human' => $newExpiry->timezone('Asia/Karachi')->diffForHumans(),
             ]);
         }
 
@@ -488,22 +668,56 @@ class TravelAdvisoryController extends Controller
     }
 
     /**
-     * Resolve approximate coordinates for a given Beat & KM from GeospatialMarker.
+     * Resolve approximate coordinates for a given Route, Beat & KM from GeospatialMarker or Carriageway.
      */
-    private function resolveKmCoordinates(?int $officeId, float $km): array
+    private function resolveKmCoordinates(?int $officeId, ?string $routeName, float $km): array
     {
-        if (! $officeId) {
-            return ['lat' => null, 'lng' => null];
+        // 1. First attempt: Carriageway markers for route (over 377,000 physical road markers)
+        if ($routeName) {
+            $clean = strtoupper(str_replace(['-', ' '], '', $routeName));
+            $cw = Carriageway::where('road', $clean)->orWhere('road_short', $routeName)->first();
+            if ($cw) {
+                $marker = $cw->markers()
+                    ->whereNotNull('lat')
+                    ->whereNotNull('lng')
+                    ->orderByRaw("ABS(km - ?)", [$km])
+                    ->first();
+                if ($marker) {
+                    return ['lat' => (float)$marker->lat, 'lng' => (float)$marker->lng];
+                }
+            }
         }
 
-        $marker = GeospatialMarker::where('office_id', $officeId)
-            ->whereNotNull('lat')
-            ->whereNotNull('lng')
-            ->orderByRaw("ABS(km - ?)", [$km])
-            ->first();
+        // 2. Second attempt: Specific office (beat or sector child beats)
+        if ($officeId) {
+            $office = Office::find($officeId);
+            $beatIds = [];
+            if ($office) {
+                if ($office->type === 'beat') {
+                    $beatIds = [$office->id];
+                } elseif ($office->type === 'sector') {
+                    $beatIds = Office::where('parent_id', $office->id)->pluck('id')->all();
+                }
+            }
 
-        if ($marker) {
-            return ['lat' => (float)$marker->lat, 'lng' => (float)$marker->lng];
+            if (!empty($beatIds)) {
+                $marker = GeospatialMarker::whereIn('office_id', $beatIds)
+                    ->whereNotNull('lat')
+                    ->whereNotNull('lng')
+                    ->orderByRaw("ABS(km - ?)", [$km])
+                    ->first();
+                if ($marker) {
+                    return ['lat' => (float)$marker->lat, 'lng' => (float)$marker->lng];
+                }
+            }
+        }
+
+        // 3. Fallback: Route default coordinates
+        if ($routeName) {
+            $defaults = TabletAdvisory::getRouteDefaultCoordinates($routeName);
+            if ($defaults && isset($defaults[0])) {
+                return ['lat' => (float)$defaults[0][0], 'lng' => (float)$defaults[0][1]];
+            }
         }
 
         return ['lat' => null, 'lng' => null];

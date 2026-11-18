@@ -62,7 +62,7 @@ class DashboardController extends Controller
 
         $cacheKey = "chart_data_{$chart}_{$range}";
         
-        $result = Cache::remember($cacheKey, 60, function () use ($chart, $range): mixed {
+        $result = Cache::remember($cacheKey, 15, function () use ($chart, $range): mixed {
             return match ($chart) {
                 'priority' => $this->getPriorityChartData($range),
                 'weekly'   => $this->getWeeklyChartData($range),
@@ -70,6 +70,8 @@ class DashboardController extends Controller
                 'agent'    => $this->getAgentChartData($range),
                 'category' => $this->getCategoryChartData($range),
                 'sla'      => $this->getSlaChartData($range),
+                'sector'   => $this->getSectorChartData($range),
+                'zone'     => $this->getZoneChartData($range),
                 default    => ['error' => 'Unknown chart type']
             };
         });
@@ -238,26 +240,8 @@ class DashboardController extends Controller
         }
 
         if (empty($data['sunburstData'])) {
-            $data['sunburstData'] = [
-                'North Zone' => [
-                    'count' => 100,
-                    'sectors' => [
-                        'Sector N1' => ['count' => 60, 'categories' => ['Medical' => 30, 'Breakdown' => 30]],
-                        'Sector N2' => ['count' => 40, 'categories' => ['Crime' => 20, 'General' => 20]],
-                    ],
-                ],
-                'South Zone' => [
-                    'count' => 80,
-                    'sectors' => [
-                        'Sector S1' => ['count' => 50, 'categories' => ['Medical' => 25, 'Breakdown' => 25]],
-                        'Sector S2' => ['count' => 30, 'categories' => ['Crime' => 15, 'General' => 15]],
-                    ],
-                ],
-            ];
+            $data['sunburstData'] = [];
         }
-
-        if ($data['activeCallsCount'] === 0) { $data['activeCallsCount'] = 47; }
-        if ($data['p1EmergencyCount'] === 0) { $data['p1EmergencyCount'] = 6;  }
 
         return $data;
     }
@@ -296,6 +280,7 @@ class DashboardController extends Controller
 
         $todayStart = now()->startOfDay();
         $slaMetrics = $this->computeSlaMetrics($todayStart, $junkSilentSubTypeIds);
+        $fourSlas   = $this->computeFourSlas($todayStart);
 
         $beatCentroids = Cache::remember('dashboard_beat_centroids', 3600, function (): mixed {
             return DB::table('geospatial_markers')
@@ -322,7 +307,7 @@ class DashboardController extends Controller
         $heatmapData      = $this->computeHourlyHeatmap($applyAnalyticalFilter);
         $priorityData     = $this->getPriorityChartData('7d');
         $agentPerformance = $this->computeAgentPerformance($applyAnalyticalFilter);
-        $officeAggs       = $this->computeOfficeAggregations($officeMap, $applyAnalyticalFilter);
+        $officeAggs       = $this->computeOfficeAggregations($officeMap, $applyAnalyticalFilter, 'today');
         $shiftDeployment  = $this->computeShiftDeployment($officeMap);
         $weeklyData       = $this->getWeeklyChartData('7d');
         $sunburstData     = $this->getSunburstDistribution('today');
@@ -343,6 +328,7 @@ class DashboardController extends Controller
             'shiftDeployment'   => $shiftDeployment,
             'slaValue'          => $slaMetrics['slaValue'],
             'slaBreakdown'      => $slaMetrics['slaBreakdown'],
+            'fourSlas'          => $fourSlas,
             'helpLineMetrics'   => $helpLineMetrics,
             'sunburstData'      => $sunburstData,
             'hourlyLabels'      => $hourlyDataMap['hourlyLabels'],
@@ -560,6 +546,60 @@ class DashboardController extends Controller
     }
 
     /**
+     * Compute specific SLA for priority or women's safety with target seconds.
+     */
+    protected function computeSpecificSla($from, int $priority = 1, int $targetSeconds = 1800, ?string $gender = null): array
+    {
+        $query = DB::table('calls')
+            ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
+            ->where('calls.created_at', '>=', $from)
+            ->where('calls.status', 'completed')
+            ->whereNotNull('calls.office_id')
+            ->where('calls.office_id', '>', 0)
+            ->whereNotIn('call_types.category', ['junk_silent', 'information']);
+
+        if ($gender !== null) {
+            $query->where('calls.caller_gender', $gender);
+        } elseif ($priority >= 3) {
+            $query->where('calls.priority', '>=', 3);
+        } else {
+            $query->where('calls.priority', $priority);
+        }
+
+        $row = $query->selectRaw("COUNT(*) as eligible, SUM(CASE
+            WHEN calls.resolution_time_sec <= {$targetSeconds} THEN 1
+            ELSE 0 END) as met,
+            AVG(calls.resolution_time_sec) as avg_resolution_sec")
+            ->first();
+
+        $eligible = (int) ($row->eligible ?? 0);
+        $met = (int) ($row->met ?? 0);
+        $avgSec = (int) round($row->avg_resolution_sec ?? 0);
+        $percent = $eligible > 0 ? (int) round(($met / $eligible) * 100) : 100;
+
+        return [
+            'eligible'   => $eligible,
+            'met'        => $met,
+            'percent'    => $percent,
+            'avg_sec'    => $avgSec,
+            'target_sec' => $targetSeconds,
+        ];
+    }
+
+    /**
+     * Compute all 4 Aerodynamic SLA Benchmarks: P1, P2, P3+, and Women Safety.
+     */
+    public function computeFourSlas($startDate): array
+    {
+        $p1 = $this->computeSpecificSla($startDate, 1, 1800);
+        $p2 = $this->computeSpecificSla($startDate, 2, 3600);
+        $p3 = $this->computeSpecificSla($startDate, 3, 7200);
+        $women = $this->computeSpecificSla($startDate, 1, 1200, 'female');
+
+        return compact('p1', 'p2', 'p3', 'women');
+    }
+
+    /**
      * Compute current day and 24h fallback SLA efficiency breakdown.
      *
      * @return array{slaValue: int, totalSlaCalls: int, completedCalls: int, slaBreakdown: \Illuminate\Support\Collection}
@@ -629,20 +669,27 @@ class DashboardController extends Controller
      *
      * @param array<int, array> $officeMap
      * @param \Closure $applyAnalyticalFilter
+     * @param string $range
      * @return array<string, \Illuminate\Support\Collection>
      */
-    protected function computeOfficeAggregations(array $officeMap, \Closure $applyAnalyticalFilter): array
+    protected function computeOfficeAggregations(array $officeMap, \Closure $applyAnalyticalFilter, string $range = 'today'): array
     {
+        $startDate = match ($range) {
+            '7d', 'week'   => now()->subDays(7)->startOfDay(),
+            '30d', 'month' => now()->subDays(30)->startOfDay(),
+            default        => now()->startOfDay(),
+        };
+
         $officeLoadQuery = DB::table('calls')
             ->select('office_id', DB::raw('count(*) as count'))
             ->whereNotNull('office_id')
             ->where('office_id', '>', 1)
-            ->where('created_at', '>=', now()->subDays(30));
+            ->where('created_at', '>=', $startDate);
 
         $applyAnalyticalFilter($officeLoadQuery);
-        $office30dCounts = $officeLoadQuery->groupBy('office_id')->get();
+        $officeCounts = $officeLoadQuery->groupBy('office_id')->get();
 
-        return $this->aggregateOfficeCounts($office30dCounts, $officeMap);
+        return $this->aggregateOfficeCounts($officeCounts, $officeMap);
     }
 
     /**
@@ -729,13 +776,7 @@ class DashboardController extends Controller
             ->values();
 
         if ($result->isEmpty()) {
-            return collect([
-                (object)['name' => 'Faisalabad North', 'sector_name' => 'Faisalabad Sector', 'zone_name' => 'Central Zone', 'count' => 56],
-                (object)['name' => 'Multan Bypass', 'sector_name' => 'Multan Sector', 'zone_name' => 'South Zone', 'count' => 42],
-                (object)['name' => 'Lahore Thokar', 'sector_name' => 'Lahore Sector', 'zone_name' => 'Central Zone', 'count' => 38],
-                (object)['name' => 'Islamabad Toll', 'sector_name' => 'Rwp Sector', 'zone_name' => 'North Zone', 'count' => 29],
-                (object)['name' => 'Peshawar Point', 'sector_name' => 'Peshawar Sector', 'zone_name' => 'West Zone', 'count' => 24],
-            ]);
+            return collect();
         }
 
         return $result->map(
@@ -755,13 +796,7 @@ class DashboardController extends Controller
             ->take(6);
 
         if ($result->isEmpty()) {
-            return collect([
-                (object)['name' => 'Rawalpindi Sector', 'count' => 78],
-                (object)['name' => 'Lahore Sector', 'count' => 62],
-                (object)['name' => 'Faisalabad Sector', 'count' => 45],
-                (object)['name' => 'Multan Sector', 'count' => 55],
-                (object)['name' => 'Peshawar Sector', 'count' => 89],
-            ]);
+            return collect();
         }
 
         return $result->map(
@@ -782,11 +817,7 @@ class DashboardController extends Controller
         $result = collect($zoneCounts);
 
         if ($result->isEmpty()) {
-            return collect([
-                (object)['type' => 'Motorway', 'count' => 52],
-                (object)['type' => 'Highway', 'count' => 31],
-                (object)['type' => 'Strategic Route', 'count' => 17],
-            ]);
+            return collect();
         }
 
         return $result->map(
@@ -1050,13 +1081,15 @@ class DashboardController extends Controller
     }
 
     /**
-     * Operations Sunburst hierarchical distribution helper for 'today' and 'week'.
+     * Operations Sunburst hierarchical distribution helper for 'today', 'week', 'month'.
      */
     protected function getSunburstDistribution(string $range = 'today'): array
     {
-        $startDate = ($range === 'week') 
-            ? now()->subDays(7)->startOfDay() 
-            : now()->startOfDay();
+        $startDate = match ($range) {
+            'month', '30d' => now()->subDays(30)->startOfDay(),
+            'week', '7d'   => now()->subDays(7)->startOfDay(),
+            default        => now()->startOfDay(),
+        };
 
         $officeMap = $this->getOfficeHierarchyMap();
 
@@ -1072,6 +1105,7 @@ class DashboardController extends Controller
             ->where('calls.created_at', '>=', $startDate)
             ->groupBy('calls.office_id', 'call_types.category')
             ->get();
+
 
         $sunburstData = [];
         foreach ($sunburstRaw as $row) {
@@ -1154,7 +1188,73 @@ class DashboardController extends Controller
     }
 
     /**
-     * SLA compliance and lifecycle averages for today, 7d, 30d.
+     * Sector load distribution helper for today, 7d, 30d.
+     */
+    public function getSectorChartData(string $range = 'today'): array
+    {
+        $startDate = match ($range) {
+            '7d', 'week'    => now()->subDays(7)->startOfDay(),
+            '30d', 'month'  => now()->subDays(30)->startOfDay(),
+            default         => now()->startOfDay(),
+        };
+
+        $officeMap = $this->getOfficeHierarchyMap();
+        $query = DB::table('calls')
+            ->select('office_id', DB::raw('count(*) as count'))
+            ->whereNotNull('office_id')
+            ->where('office_id', '>', 1)
+            ->where('created_at', '>=', $startDate)
+            ->groupBy('office_id');
+
+        $rows = $query->get();
+
+        $sectorCounts = [];
+        foreach ($rows as $row) {
+            $h = $officeMap[$row->office_id] ?? null;
+            if (!empty($h['sector']) && $h['sector'] !== 'Other') {
+                $sName = (string) $h['sector'];
+                $sectorCounts[$sName] = ($sectorCounts[$sName] ?? 0) + (int) $row->count;
+            }
+        }
+
+        return $this->formatSectorLoad($sectorCounts)->toArray();
+    }
+
+    /**
+     * Zone wise distribution helper for today, 7d, 30d.
+     */
+    public function getZoneChartData(string $range = 'today'): array
+    {
+        $startDate = match ($range) {
+            '7d', 'week'    => now()->subDays(7)->startOfDay(),
+            '30d', 'month'  => now()->subDays(30)->startOfDay(),
+            default         => now()->startOfDay(),
+        };
+
+        $officeMap = $this->getOfficeHierarchyMap();
+        $query = DB::table('calls')
+            ->select('office_id', DB::raw('count(*) as count'))
+            ->whereNotNull('office_id')
+            ->where('office_id', '>', 1)
+            ->where('created_at', '>=', $startDate)
+            ->groupBy('office_id');
+
+        $rows = $query->get();
+
+        $zoneCounts = [];
+        foreach ($rows as $row) {
+            $h = $officeMap[$row->office_id] ?? null;
+            if (!empty($h['zone']) && $h['zone'] !== 'Other') {
+                $zName = (string) $h['zone'];
+                $zoneCounts[$zName] = ($zoneCounts[$zName] ?? 0) + (int) $row->count;
+            }
+        }
+
+        return $this->formatZoneDistribution($zoneCounts)->toArray();
+    }
+
+    /**
+     * SLA compliance and 4 aerodynamic benchmarks for today, 7d, 30d.
      */
     public function getSlaChartData(string $range = 'today'): array
     {
@@ -1170,81 +1270,16 @@ class DashboardController extends Controller
             default        => 'TODAY',
         };
 
-        $junkSilentSubTypeIds = Cache::remember('dashboard_junk_silent_sub_type_ids', 3600, function (): mixed {
-            return DB::table('call_sub_types')
-                ->whereIn('name', ['Junk', 'Silent', 'Drop Call', 'Prank Call', 'Wrong Number'])
-                ->orWhere('name', 'like', '%junk%')
-                ->orWhere('name', 'like', '%silent%')
-                ->pluck('id')
-                ->toArray();
-        });
-
-        $slaQuery = DB::table('calls')
-            ->join('call_types', 'calls.call_type_id', '=', 'call_types.id')
-            ->where('calls.created_at', '>=', $startDate)
-            ->whereNotIn('call_types.name', ['Junk/Silent', 'Information'])
-            ->whereNotNull('calls.office_id')
-            ->where('calls.office_id', '>', 0);
-
-        if (!empty($junkSilentSubTypeIds)) {
-            $slaQuery->whereNotIn('calls.call_sub_type_id', $junkSilentSubTypeIds);
-        }
-
-        $slaBreakdown = (clone $slaQuery)
-            ->select(
-                'call_types.priority',
-                DB::raw('COUNT(*) as total_calls'),
-                DB::raw("SUM(CASE WHEN calls.status = 'completed' THEN 1 ELSE 0 END) as completed_calls")
-            )
-            ->groupBy('call_types.priority')
-            ->get();
-
-        $totalSlaCalls = $slaBreakdown->sum('total_calls');
-        $completedCalls = $slaBreakdown->sum('completed_calls');
-        $trueSla = $this->computeTrueSla($startDate);
-        $slaValue = $trueSla['eligible'] > 0 ? $trueSla['percent'] : 0;
-
-        $helplineTimes = DB::table('calls')
-            ->where('calls.created_at', '>=', $startDate)
-            ->selectRaw('
-                AVG(calls.wait_time_seconds) as avg_wait,
-                AVG(CASE WHEN calls.inprogress_at IS NOT NULL AND calls.created_at IS NOT NULL AND calls.inprogress_at >= calls.created_at THEN TIMESTAMPDIFF(SECOND, calls.created_at, calls.inprogress_at) END) as avg_created_to_init,
-                AVG(CASE WHEN calls.tiger_reached_at IS NOT NULL AND calls.inprogress_at IS NOT NULL AND calls.tiger_reached_at >= calls.inprogress_at THEN TIMESTAMPDIFF(SECOND, calls.inprogress_at, calls.tiger_reached_at) END) as avg_init_to_reached,
-                AVG(COALESCE(calls.tiger_response_time_sec, calls.response_time_sec)) as avg_response
-            ')
-            ->first();
-
-        $avgWaitTime      = ($helplineTimes?->avg_wait) ? (int) round($helplineTimes->avg_wait) : null; // null = no data (was a fake 14s default)
-        $avgCreatedToInit = ($helplineTimes?->avg_created_to_init) ? (int) round($helplineTimes->avg_created_to_init) : null;
-        $avgInitToReached = ($v = ($helplineTimes?->avg_init_to_reached ?: $helplineTimes?->avg_response)) ? (int) round($v) : null;
-
-        $formatDuration = function(?int $seconds): string {
-            if ($seconds === null) return '—';
-            if ($seconds < 60) return "{$seconds} sec";
-            $mins = floor($seconds / 60);
-            $secs = $seconds % 60;
-            if ($mins < 60) {
-                return sprintf('%02d:%02d min', $mins, $secs);
-            }
-            $hours = floor($mins / 60);
-            $remainingMins = $mins % 60;
-            return sprintf('%dh %02dm', $hours, $remainingMins);
-        };
-
-        $badge = $slaValue >= 90 ? ['label' => 'EXCELLENT', 'badge' => 'bg-emerald-50 text-emerald-600 border-emerald-200', 'dot' => 'bg-emerald-500']
-               : ($slaValue >= 80 ? ['label' => 'GOOD', 'badge' => 'bg-teal-50 text-teal-600 border-teal-200', 'dot' => 'bg-teal-500']
-               : ($slaValue >= 70 ? ['label' => 'FAIR', 'badge' => 'bg-amber-50 text-amber-600 border-amber-200', 'dot' => 'bg-amber-500']
-               : ['label' => 'ATTENTION', 'badge' => 'bg-rose-50 text-rose-600 border-rose-200', 'dot' => 'bg-rose-500']));
+        $fourSlas = $this->computeFourSlas($startDate);
 
         return [
-            'sla_value'                 => $slaValue,
-            'range_label'               => $rangeLabel,
-            'total_calls'               => $totalSlaCalls,
-            'completed_calls'           => $completedCalls,
-            'badge'                     => $badge,
-            'wait_time'                 => $avgWaitTime,
-            'created_to_init_formatted' => $formatDuration($avgCreatedToInit),
-            'init_to_reached_formatted' => $formatDuration($avgInitToReached),
+            'range'        => $range,
+            'range_label'  => $rangeLabel,
+            'four_slas'    => $fourSlas,
+            'p1'           => $fourSlas['p1'],
+            'p2'           => $fourSlas['p2'],
+            'p3'           => $fourSlas['p3'],
+            'women'        => $fourSlas['women'],
         ];
     }
 }

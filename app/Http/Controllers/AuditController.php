@@ -206,6 +206,21 @@ class AuditController extends Controller
             'mfa_role_policy_updated'             => 'MFA Role Policy Updated',
             'security_gate_test'                  => 'Automated Security Gate Audit',
             'tamper_detection_test'               => 'Tamper Detection Integrity Probe',
+            'patrol_login'                        => 'Patrol App Login',
+            'patrol_logout'                       => 'Patrol App Sign-Out',
+            'patrol_duty_started'                 => 'Patrol Duty Shift Started',
+            'patrol_duty_ended'                   => 'Patrol Duty Shift Concluded',
+            'patrol_case_acknowledged'            => 'Emergency Case Acknowledged',
+            'patrol_case_en_route'                => 'Patrol En-Route to Scene',
+            'patrol_case_arrived'                 => 'Patrol Arrived on Scene',
+            'patrol_case_completed'               => 'Assistance Completed & Report Submitted',
+            'patrol_case_cannot_respond'          => 'Case Response Declined',
+            'patrol_support_requested'            => 'Backup / Support Requested',
+            'call_status_in_progress'             => 'Call Initiated / Tiger Dispatched',
+            'call_status_tiger_reached'           => 'Tiger Arrived on Scene',
+            'call_status_completed'               => 'Call Formally Completed',
+            'call_status_cancelled'               => 'Call Cancelled',
+            'user_created'                        => 'User Profile Created',
             default                               => ucwords(str_replace(['_', '-'], ' ', $action)),
         };
     }
@@ -217,10 +232,10 @@ class AuditController extends Controller
     {
         if (!$action) return 'system';
 
-        if (in_array($action, ['login_success_mfa_exempt', 'logout'])) return 'auth_success';
-        if (in_array($action, ['login_failed', '2fa_failed', '2fa_challenge_locked', 'recovery_code_failed', 'EMERGENCY_ACCOUNT_LOCKED'])) return 'danger';
-        if (str_contains($action, '2fa') || str_contains($action, 'mfa') || str_contains($action, 'recovery') || str_contains($action, 'step_up')) return 'mfa';
-        if (str_contains($action, 'PASSWORD') || str_contains($action, 'LOCKOUT') || str_contains($action, 'TRANSFER')) return 'governance';
+        if (in_array($action, ['login_success_mfa_exempt', 'logout', 'patrol_login', 'patrol_logout'])) return 'auth_success';
+        if (in_array($action, ['login_failed', '2fa_failed', '2fa_challenge_locked', 'recovery_code_failed', 'EMERGENCY_ACCOUNT_LOCKED', 'patrol_case_cannot_respond'])) return 'danger';
+        if (str_contains($action, '2fa') || str_contains($action, 'mfa') || str_contains($action, 'recovery') || str_contains($action, 'step_up') || str_contains($action, 'support_requested')) return 'mfa';
+        if (str_contains($action, 'PASSWORD') || str_contains($action, 'LOCKOUT') || str_contains($action, 'TRANSFER') || str_contains($action, 'duty')) return 'governance';
 
         return 'system';
     }

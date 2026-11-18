@@ -53,6 +53,54 @@
     .ac-tea::before    { background: var(--tea); }
     .ac-pnk::before    { background: var(--pnk); }
 
+    /* ── Aerodynamic Aircraft Cockpit SLA Cards (Vibrant Gradients Matching KPI Cards) ── */
+    .aero-sla-card {
+        border-radius: 20px;
+        padding: 1.15rem 1.25rem;
+        color: #fff;
+        position: relative;
+        overflow: hidden;
+        transition: transform .25s ease, box-shadow .25s ease;
+    }
+    .aero-sla-card:hover {
+        transform: translateY(-4px);
+    }
+    .aero-card-p1 {
+        background: linear-gradient(135deg, #f43f5e 0%, #fb7185 100%);
+        box-shadow: 0 10px 24px -4px rgba(244, 63, 94, 0.35);
+    }
+    .aero-card-p2 {
+        background: linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%);
+        box-shadow: 0 10px 24px -4px rgba(14, 165, 233, 0.35);
+    }
+    .aero-card-p3 {
+        background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%);
+        box-shadow: 0 10px 24px -4px rgba(139, 92, 246, 0.35);
+    }
+    .aero-card-women {
+        background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+        box-shadow: 0 10px 24px -4px rgba(16, 185, 129, 0.35);
+    }
+    .aero-gauge-needle {
+        transform-origin: 80px 72px;
+        transition: transform 1.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .aero-arc-transition {
+        transition: stroke-dashoffset 1.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .aero-scanning::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.25) 50%, transparent 100%);
+        animation: aeroRadarSweep 0.85s infinite linear;
+        pointer-events: none;
+    }
+    @keyframes aeroRadarSweep {
+        0% { transform: translateY(-100%); }
+        100% { transform: translateY(100%); }
+    }
+
     /* ── Card Header ────────────────────────────────────────────── */
     .ch { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; }
     .ci {
@@ -402,53 +450,328 @@
     class="max-w-[1720px] mx-auto space-y-8 pb-16">
 
     {{-- ══════════════════════════════════════════════
-         HERO BANNER
+         AERODYNAMIC AIRCRAFT COCKPIT SLA CONTROLS (4 CARDS IN ONE ROW)
     ══════════════════════════════════════════════ --}}
-    <div class="relative overflow-hidden rounded-[24px] bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 shadow-xl shadow-indigo-100 p-6 lg:p-8">
-        {{-- Animated Orbs --}}
-        <div class="absolute -right-20 -top-20 w-80 h-80 bg-white/10 rounded-full blur-3xl"></div>
-        <div class="absolute right-40 -bottom-20 w-60 h-60 bg-indigo-500/20 rounded-full blur-3xl"></div>
-        
-        <div class="relative z-10 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-
-            {{-- Left: brand + greeting --}}
-            <div class="flex items-center gap-5">
-                <div class="w-14 h-14 rounded-2xl bg-white/15 border border-white/20 backdrop-blur-md flex items-center justify-center shadow-inner shrink-0 scale-110">
-                    <i class="fa-solid fa-satellite-dish text-white text-xl animate-pulse"></i>
+    <div class="space-y-3.5">
+        {{-- Cockpit Telemetry Bar & Unified Timeframe Filter --}}
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white/90 backdrop-blur-md px-5 py-3 rounded-2xl border border-slate-200/90 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-md shadow-indigo-200/50">
+                    <i class="fa-solid fa-gauge-high text-base"></i>
                 </div>
                 <div>
-                    <div class="flex items-center gap-3 mb-1">
-                        <h2 class="text-2xl font-black tracking-tight leading-none text-white">System Operational</h2>
-                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#4ade80]"></span>
+                    <div class="flex items-center gap-2">
+                        <h3 class="text-sm font-black text-slate-800 tracking-tight uppercase">Flight Dispatch & Response Velocity SLA</h3>
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> AVIONICS HUD ACTIVE
+                        </span>
                     </div>
-                    <p class="text-indigo-100 text-sm font-medium">
-                        Welcome back, <span class="text-white font-black">{{ auth()->user()->username ?? 'Commander' }}</span>
-                        <span class="mx-2 opacity-40">|</span> 
-                        <span class="font-mono text-xs opacity-90">{{ now()->format('D, d M Y') }}</span>
-                    </p>
+                    <p class="text-[10px] font-bold text-slate-400 tracking-wider uppercase">Aerodynamic Aircraft Velocity · Target Resolution Benchmarks</p>
                 </div>
             </div>
 
-            {{-- Right: quick KPI strip --}}
-            <div class="flex items-center gap-8 lg:gap-10">
-                <div class="text-right">
-                    <div class="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-200 opacity-80">Active Load</div>
-                    <div class="text-3xl font-black mt-1 text-white tabular-nums">{{ $activeCallsCount }}<span class="text-sm font-bold text-indigo-200/60 ml-1.5 uppercase">calls</span></div>
+            {{-- Today | Week | Month Global SLA Filter --}}
+            <div class="fp shrink-0">
+                <button id="btnAeroToday" class="on text-[10px] font-bold py-1 px-3 uppercase" onclick="setAerodynamicSlaRange('today', this)">Today</button>
+                <button id="btnAeroWeek" class="text-[10px] font-bold py-1 px-3 uppercase" onclick="setAerodynamicSlaRange('week', this)">Week</button>
+                <button id="btnAeroMonth" class="text-[10px] font-bold py-1 px-3 uppercase" onclick="setAerodynamicSlaRange('month', this)">Month</button>
+            </div>
+        </div>
+
+        {{-- 4 Cockpit HUD Cards in ONE Row --}}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
+
+            {{-- Card 1: Priority 1 (Emergency / Life-Safety) --}}
+            <div id="aeroCardP1" class="aero-sla-card aero-card-p1 flex flex-col justify-between" style="min-height: 225px;">
+                <div class="kc-bg-ico"><i class="fa-solid fa-jet-fighter"></i></div>
+                <div class="relative z-10 flex items-start justify-between gap-2 mb-1">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
+                            <i class="fa-solid fa-jet-fighter text-sm"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-xs font-black text-white uppercase tracking-tight truncate">Priority 1 (Emergency)</div>
+                            <div class="text-[9px] font-bold text-white/80 tracking-wider uppercase truncate">Life-Safety Intercept</div>
+                        </div>
+                    </div>
+                    <span class="kc-badge text-[9px] shrink-0 font-mono">
+                        <i class="fa-solid fa-stopwatch text-[8px]"></i> ≤ 30 MIN
+                    </span>
                 </div>
-                <div class="w-px h-10 bg-white/10"></div>
-                <div class="text-right">
-                    <div class="text-[10px] font-black uppercase tracking-[0.2em] text-rose-200">Critical</div>
-                    <div class="text-3xl font-black mt-1 text-white tabular-nums">{{ $p1EmergencyCount }}<span class="text-sm font-bold text-rose-300/60 ml-1.5 uppercase">P1</span></div>
+
+                {{-- Aircraft Cockpit Speedometer Dial with Sweeping Needle --}}
+                @php 
+                    $p1Pct = (int) ($fourSlas['p1']['percent'] ?? 100);
+                    $p1Angle = -90 + (1.8 * $p1Pct);
+                @endphp
+                <div class="relative z-10 flex flex-col items-center justify-center my-auto py-1">
+                    <div class="relative w-40 h-20 flex items-center justify-center">
+                        <svg viewBox="0 0 160 88" class="w-full h-full overflow-visible">
+                            {{-- Speed Calibration Ticks --}}
+                            <line x1="28" y1="72" x2="33" y2="72" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round" />
+                            <text x="21" y="75" fill="rgba(255,255,255,0.75)" font-size="8" font-weight="800" text-anchor="middle">0</text>
+                            
+                            <line x1="80" y1="20" x2="80" y2="25" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round" />
+                            <text x="80" y="15" fill="rgba(255,255,255,0.75)" font-size="8" font-weight="800" text-anchor="middle">50</text>
+                            
+                            <line x1="127" y1="72" x2="132" y2="72" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round" />
+                            <text x="139" y="75" fill="rgba(255,255,255,0.75)" font-size="8" font-weight="800" text-anchor="middle">100</text>
+
+                            {{-- 180° Cockpit Gauge Arc Track (R=48, Center=(80, 72)) --}}
+                            <path d="M 32 72 A 48 48 0 0 1 128 72" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="8" stroke-linecap="round" />
+
+                            {{-- Dynamic Active SLA Arc (Circumference = PI * 48 = 150.8) --}}
+                            <path id="aeroArcP1" d="M 32 72 A 48 48 0 0 1 128 72" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" class="aero-arc-transition" stroke-dasharray="150.8" stroke-dashoffset="{{ 150.8 - (150.8 * $p1Pct / 100) }}" />
+
+                            {{-- Aerodynamic Cockpit Sweeping Needle --}}
+                            <g id="aeroNeedleP1" class="aero-gauge-needle" style="transform: rotate({{ $p1Angle }}deg);">
+                                <polygon points="78.2,72 81.8,72 80.6,26 79.4,26" fill="#ffffff" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.35))" />
+                                <polygon points="79.4,26 80.6,26 80,22" fill="#ffffff" />
+                            </g>
+
+                            {{-- Pivot Hub & Jewel Core --}}
+                            <circle cx="80" cy="72" r="6.5" fill="#ffffff" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))" />
+                            <circle cx="80" cy="72" r="3" fill="#0f172a" />
+                        </svg>
+                    </div>
+
+                    {{-- Digital Speedometer Readout --}}
+                    <div class="flex items-center gap-2 mt-1">
+                        <div class="text-2xl font-black text-white leading-none tracking-tight">
+                            <span id="aeroValP1" class="tabular-nums">{{ $p1Pct }}</span><span class="text-base opacity-85">%</span>
+                        </div>
+                        <span id="aeroStatusP1" class="kc-badge text-[9px] py-0.5 px-2">
+                            {{ $p1Pct >= 90 ? 'OPTIMAL' : ($p1Pct >= 75 ? 'ALERT' : 'DEGRADED') }}
+                        </span>
+                    </div>
                 </div>
-                <div class="w-px h-10 bg-white/10"></div>
-                <div class="text-right">
-                    <div class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">Fleet</div>
-                    <div class="text-3xl font-black mt-1 text-white tabular-nums">{{ $fleetUtilization }}<span class="text-sm font-bold text-emerald-300/60 ml-1.5 uppercase">%</span></div>
+
+                {{-- Telemetry Metrics Strip --}}
+                <div class="relative z-10 pt-2 border-t border-white/20 flex items-center justify-between text-[10px] text-white/90 font-bold">
+                    <div>
+                        <span class="text-white/70 uppercase text-[9px]">Met:</span>
+                        <span id="aeroMetP1" class="font-black text-white tabular-nums ml-1">{{ $fourSlas['p1']['met'] ?? 0 }} / {{ $fourSlas['p1']['eligible'] ?? 0 }}</span>
+                    </div>
+                    <div>
+                        <span class="text-white/70 uppercase text-[9px]">Avg Speed:</span>
+                        <span id="aeroAvgP1" class="font-black text-white tabular-nums ml-1">{{ round(($fourSlas['p1']['avg_sec'] ?? 0) / 60, 1) }}m</span>
+                    </div>
                 </div>
-                <div class="w-px h-10 bg-white/10"></div>
-                <div class="text-right">
-                    <div class="text-[10px] font-black uppercase tracking-[0.2em] text-amber-200">Personnel</div>
-                    <div class="text-3xl font-black mt-1 text-white tabular-nums">{{ $activeSentinelsCount }}<span class="text-sm font-bold text-amber-300/60 ml-1.5 uppercase">active</span></div>
+            </div>
+
+            {{-- Card 2: Priority 2 (High / Urgent Breakdown) --}}
+            <div id="aeroCardP2" class="aero-sla-card aero-card-p2 flex flex-col justify-between" style="min-height: 225px;">
+                <div class="kc-bg-ico"><i class="fa-solid fa-plane-up"></i></div>
+                <div class="relative z-10 flex items-start justify-between gap-2 mb-1">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
+                            <i class="fa-solid fa-plane-up text-sm"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-xs font-black text-white uppercase tracking-tight truncate">Priority 2 (High)</div>
+                            <div class="text-[9px] font-bold text-white/80 tracking-wider uppercase truncate">Urgent Breakdown</div>
+                        </div>
+                    </div>
+                    <span class="kc-badge text-[9px] shrink-0 font-mono">
+                        <i class="fa-solid fa-stopwatch text-[8px]"></i> ≤ 60 MIN
+                    </span>
+                </div>
+
+                {{-- Aircraft Cockpit Speedometer Dial with Sweeping Needle --}}
+                @php 
+                    $p2Pct = (int) ($fourSlas['p2']['percent'] ?? 100);
+                    $p2Angle = -90 + (1.8 * $p2Pct);
+                @endphp
+                <div class="relative z-10 flex flex-col items-center justify-center my-auto py-1">
+                    <div class="relative w-40 h-20 flex items-center justify-center">
+                        <svg viewBox="0 0 160 88" class="w-full h-full overflow-visible">
+                            <line x1="28" y1="72" x2="33" y2="72" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round" />
+                            <text x="21" y="75" fill="rgba(255,255,255,0.75)" font-size="8" font-weight="800" text-anchor="middle">0</text>
+                            
+                            <line x1="80" y1="20" x2="80" y2="25" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round" />
+                            <text x="80" y="15" fill="rgba(255,255,255,0.75)" font-size="8" font-weight="800" text-anchor="middle">50</text>
+                            
+                            <line x1="127" y1="72" x2="132" y2="72" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round" />
+                            <text x="139" y="75" fill="rgba(255,255,255,0.75)" font-size="8" font-weight="800" text-anchor="middle">100</text>
+
+                            <path d="M 32 72 A 48 48 0 0 1 128 72" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="8" stroke-linecap="round" />
+
+                            <path id="aeroArcP2" d="M 32 72 A 48 48 0 0 1 128 72" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" class="aero-arc-transition" stroke-dasharray="150.8" stroke-dashoffset="{{ 150.8 - (150.8 * $p2Pct / 100) }}" />
+
+                            <g id="aeroNeedleP2" class="aero-gauge-needle" style="transform: rotate({{ $p2Angle }}deg);">
+                                <polygon points="78.2,72 81.8,72 80.6,26 79.4,26" fill="#ffffff" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.35))" />
+                                <polygon points="79.4,26 80.6,26 80,22" fill="#ffffff" />
+                            </g>
+
+                            <circle cx="80" cy="72" r="6.5" fill="#ffffff" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))" />
+                            <circle cx="80" cy="72" r="3" fill="#0f172a" />
+                        </svg>
+                    </div>
+
+                    <div class="flex items-center gap-2 mt-1">
+                        <div class="text-2xl font-black text-white leading-none tracking-tight">
+                            <span id="aeroValP2" class="tabular-nums">{{ $p2Pct }}</span><span class="text-base opacity-85">%</span>
+                        </div>
+                        <span id="aeroStatusP2" class="kc-badge text-[9px] py-0.5 px-2">
+                            {{ $p2Pct >= 90 ? 'OPTIMAL' : ($p2Pct >= 75 ? 'ALERT' : 'DEGRADED') }}
+                        </span>
+                    </div>
+                </div>
+
+                {{-- Telemetry Metrics Strip --}}
+                <div class="relative z-10 pt-2 border-t border-white/20 flex items-center justify-between text-[10px] text-white/90 font-bold">
+                    <div>
+                        <span class="text-white/70 uppercase text-[9px]">Met:</span>
+                        <span id="aeroMetP2" class="font-black text-white tabular-nums ml-1">{{ $fourSlas['p2']['met'] ?? 0 }} / {{ $fourSlas['p2']['eligible'] ?? 0 }}</span>
+                    </div>
+                    <div>
+                        <span class="text-white/70 uppercase text-[9px]">Avg Speed:</span>
+                        <span id="aeroAvgP2" class="font-black text-white tabular-nums ml-1">{{ round(($fourSlas['p2']['avg_sec'] ?? 0) / 60, 1) }}m</span>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Card 3: Priority 3+ (General Assistance / Routine Help) --}}
+            <div id="aeroCardP3" class="aero-sla-card aero-card-p3 flex flex-col justify-between" style="min-height: 225px;">
+                <div class="kc-bg-ico"><i class="fa-solid fa-plane-departure"></i></div>
+                <div class="relative z-10 flex items-start justify-between gap-2 mb-1">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
+                            <i class="fa-solid fa-plane-departure text-sm"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-xs font-black text-white uppercase tracking-tight truncate">Priority 3+ (General)</div>
+                            <div class="text-[9px] font-bold text-white/80 tracking-wider uppercase truncate">Routine Travel Help</div>
+                        </div>
+                    </div>
+                    <span class="kc-badge text-[9px] shrink-0 font-mono">
+                        <i class="fa-solid fa-stopwatch text-[8px]"></i> ≤ 120 MIN
+                    </span>
+                </div>
+
+                {{-- Aircraft Cockpit Speedometer Dial with Sweeping Needle --}}
+                @php 
+                    $p3Pct = (int) ($fourSlas['p3']['percent'] ?? 100);
+                    $p3Angle = -90 + (1.8 * $p3Pct);
+                @endphp
+                <div class="relative z-10 flex flex-col items-center justify-center my-auto py-1">
+                    <div class="relative w-40 h-20 flex items-center justify-center">
+                        <svg viewBox="0 0 160 88" class="w-full h-full overflow-visible">
+                            <line x1="28" y1="72" x2="33" y2="72" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round" />
+                            <text x="21" y="75" fill="rgba(255,255,255,0.75)" font-size="8" font-weight="800" text-anchor="middle">0</text>
+                            
+                            <line x1="80" y1="20" x2="80" y2="25" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round" />
+                            <text x="80" y="15" fill="rgba(255,255,255,0.75)" font-size="8" font-weight="800" text-anchor="middle">50</text>
+                            
+                            <line x1="127" y1="72" x2="132" y2="72" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round" />
+                            <text x="139" y="75" fill="rgba(255,255,255,0.75)" font-size="8" font-weight="800" text-anchor="middle">100</text>
+
+                            <path d="M 32 72 A 48 48 0 0 1 128 72" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="8" stroke-linecap="round" />
+
+                            <path id="aeroArcP3" d="M 32 72 A 48 48 0 0 1 128 72" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" class="aero-arc-transition" stroke-dasharray="150.8" stroke-dashoffset="{{ 150.8 - (150.8 * $p3Pct / 100) }}" />
+
+                            <g id="aeroNeedleP3" class="aero-gauge-needle" style="transform: rotate({{ $p3Angle }}deg);">
+                                <polygon points="78.2,72 81.8,72 80.6,26 79.4,26" fill="#ffffff" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.35))" />
+                                <polygon points="79.4,26 80.6,26 80,22" fill="#ffffff" />
+                            </g>
+
+                            <circle cx="80" cy="72" r="6.5" fill="#ffffff" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))" />
+                            <circle cx="80" cy="72" r="3" fill="#0f172a" />
+                        </svg>
+                    </div>
+
+                    <div class="flex items-center gap-2 mt-1">
+                        <div class="text-2xl font-black text-white leading-none tracking-tight">
+                            <span id="aeroValP3" class="tabular-nums">{{ $p3Pct }}</span><span class="text-base opacity-85">%</span>
+                        </div>
+                        <span id="aeroStatusP3" class="kc-badge text-[9px] py-0.5 px-2">
+                            {{ $p3Pct >= 90 ? 'OPTIMAL' : ($p3Pct >= 75 ? 'ALERT' : 'DEGRADED') }}
+                        </span>
+                    </div>
+                </div>
+
+                {{-- Telemetry Metrics Strip --}}
+                <div class="relative z-10 pt-2 border-t border-white/20 flex items-center justify-between text-[10px] text-white/90 font-bold">
+                    <div>
+                        <span class="text-white/70 uppercase text-[9px]">Met:</span>
+                        <span id="aeroMetP3" class="font-black text-white tabular-nums ml-1">{{ $fourSlas['p3']['met'] ?? 0 }} / {{ $fourSlas['p3']['eligible'] ?? 0 }}</span>
+                    </div>
+                    <div>
+                        <span class="text-white/70 uppercase text-[9px]">Avg Speed:</span>
+                        <span id="aeroAvgP3" class="font-black text-white tabular-nums ml-1">{{ round(($fourSlas['p3']['avg_sec'] ?? 0) / 60, 1) }}m</span>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Card 4: Women Safety & Journey Help --}}
+            <div id="aeroCardWomen" class="aero-sla-card aero-card-women flex flex-col justify-between" style="min-height: 225px;">
+                <div class="kc-bg-ico"><i class="fa-solid fa-shield-heart"></i></div>
+                <div class="relative z-10 flex items-start justify-between gap-2 mb-1">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
+                            <i class="fa-solid fa-shield-heart text-sm"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-xs font-black text-white uppercase tracking-tight truncate">Women Safety Help</div>
+                            <div class="text-[9px] font-bold text-white/80 tracking-wider uppercase truncate">Guardian Rapid Relief</div>
+                        </div>
+                    </div>
+                    <span class="kc-badge text-[9px] shrink-0 font-mono">
+                        <i class="fa-solid fa-stopwatch text-[8px]"></i> ≤ 30 MIN
+                    </span>
+                </div>
+
+                {{-- Aircraft Cockpit Speedometer Dial with Sweeping Needle --}}
+                @php 
+                    $womenPct = (int) ($fourSlas['women']['percent'] ?? 100);
+                    $womenAngle = -90 + (1.8 * $womenPct);
+                @endphp
+                <div class="relative z-10 flex flex-col items-center justify-center my-auto py-1">
+                    <div class="relative w-40 h-20 flex items-center justify-center">
+                        <svg viewBox="0 0 160 88" class="w-full h-full overflow-visible">
+                            <line x1="28" y1="72" x2="33" y2="72" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round" />
+                            <text x="21" y="75" fill="rgba(255,255,255,0.75)" font-size="8" font-weight="800" text-anchor="middle">0</text>
+                            
+                            <line x1="80" y1="20" x2="80" y2="25" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round" />
+                            <text x="80" y="15" fill="rgba(255,255,255,0.75)" font-size="8" font-weight="800" text-anchor="middle">50</text>
+                            
+                            <line x1="127" y1="72" x2="132" y2="72" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round" />
+                            <text x="139" y="75" fill="rgba(255,255,255,0.75)" font-size="8" font-weight="800" text-anchor="middle">100</text>
+
+                            <path d="M 32 72 A 48 48 0 0 1 128 72" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="8" stroke-linecap="round" />
+
+                            <path id="aeroArcWomen" d="M 32 72 A 48 48 0 0 1 128 72" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" class="aero-arc-transition" stroke-dasharray="150.8" stroke-dashoffset="{{ 150.8 - (150.8 * $womenPct / 100) }}" />
+
+                            <g id="aeroNeedleWomen" class="aero-gauge-needle" style="transform: rotate({{ $womenAngle }}deg);">
+                                <polygon points="78.2,72 81.8,72 80.6,26 79.4,26" fill="#ffffff" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.35))" />
+                                <polygon points="79.4,26 80.6,26 80,22" fill="#ffffff" />
+                            </g>
+
+                            <circle cx="80" cy="72" r="6.5" fill="#ffffff" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))" />
+                            <circle cx="80" cy="72" r="3" fill="#0f172a" />
+                        </svg>
+                    </div>
+
+                    <div class="flex items-center gap-2 mt-1">
+                        <div class="text-2xl font-black text-white leading-none tracking-tight">
+                            <span id="aeroValWomen" class="tabular-nums">{{ $womenPct }}</span><span class="text-base opacity-85">%</span>
+                        </div>
+                        <span id="aeroStatusWomen" class="kc-badge text-[9px] py-0.5 px-2">
+                            {{ $womenPct >= 90 ? 'OPTIMAL' : ($womenPct >= 75 ? 'ALERT' : 'DEGRADED') }}
+                        </span>
+                    </div>
+                </div>
+
+                {{-- Telemetry Metrics Strip --}}
+                <div class="relative z-10 pt-2 border-t border-white/20 flex items-center justify-between text-[10px] text-white/90 font-bold">
+                    <div>
+                        <span class="text-white/70 uppercase text-[9px]">Met:</span>
+                        <span id="aeroMetWomen" class="font-black text-white tabular-nums ml-1">{{ $fourSlas['women']['met'] ?? 0 }} / {{ $fourSlas['women']['eligible'] ?? 0 }}</span>
+                    </div>
+                    <div>
+                        <span class="text-white/70 uppercase text-[9px]">Avg Speed:</span>
+                        <span id="aeroAvgWomen" class="font-black text-white tabular-nums ml-1">{{ round(($fourSlas['women']['avg_sec'] ?? 0) / 60, 1) }}m</span>
+                    </div>
                 </div>
             </div>
 
@@ -706,85 +1029,22 @@
     </div>
 
     {{-- ══════════════════════════════════════════════
-         ROW 3 — PERFORMANCE & SLA  +  ZONE WISE HELPERS  +  OPERATIONS SUNBURST
+         ROW 3 — ZONE WISE HELPERS  +  SECTOR LOAD  +  OPERATIONS SUNBURST
     ══════════════════════════════════════════════ --}}
     <div class="grid lg:grid-cols-3 gap-5 items-stretch">
 
-        {{-- Card 1: Performance & SLA --}}
-        <div class="bc ac-em flex flex-col">
-            <div class="ch">
-                <div class="ci bg-emerald-100"><i class="fa-solid fa-award text-emerald-600"></i></div>
-                <div class="flex-1 min-w-0">
-                    <div class="ct">Performance & SLA</div>
-                    <div class="cst">SERVICE LEVEL AGREEMENT</div>
-                </div>
-                @php
-                    $slaStatus = $slaValue >= 90 ? ['label' => 'EXCELLENT', 'badge' => 'bg-emerald-50 text-emerald-600 border-emerald-200', 'dot' => 'bg-emerald-500']
-                               : ($slaValue >= 80 ? ['label' => 'GOOD', 'badge' => 'bg-teal-50 text-teal-600 border-teal-200', 'dot' => 'bg-teal-500']
-                               : ($slaValue >= 70 ? ['label' => 'FAIR', 'badge' => 'bg-amber-50 text-amber-600 border-amber-200', 'dot' => 'bg-amber-500']
-                               : ['label' => 'ATTENTION', 'badge' => 'bg-rose-50 text-rose-600 border-rose-200', 'dot' => 'bg-rose-500']));
-                @endphp
-                <span class="px-2 py-0.5 rounded-full text-[9px] font-black {{ $slaStatus['badge'] }} border tracking-wider shrink-0 flex items-center gap-1" id="slaBadge">
-                    <span class="w-1.5 h-1.5 rounded-full {{ $slaStatus['dot'] }}"></span> {{ $slaStatus['label'] }}
-                </span>
-                <div class="fp shrink-0">
-                    <button class="on" onclick="setSlaRange('today',this)">Today</button>
-                    <button onclick="setSlaRange('7d',this)">Week</button>
-                    <button onclick="setSlaRange('30d',this)">Month</button>
-                </div>
-            </div>
-            <div style="display: flex; align-items: center; gap: 12px; flex: 1; padding: 4px 0;">
-                {{-- Semicircular Radial Gauge (Left) --}}
-                <div style="width: 145px; height: 145px; min-width: 145px; position: relative; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
-                    <canvas id="gaugeChart" role="img" aria-label="SLA compliance gauge" style="width: 145px !important; height: 145px !important; display: block;"></canvas>
-                    <div class="absolute inset-0 flex flex-col items-center justify-end pb-2 pointer-events-none">
-                        <div class="text-3xl font-black text-slate-800 leading-none" id="slaGaugeVal">{{ $slaValue }}%</div>
-                        <div class="text-[8px] font-black text-emerald-600 uppercase tracking-wider mt-1">SLA COMPLIANT</div>
-                        <div class="text-[8px] font-bold text-slate-400 uppercase tracking-wider" id="slaRangeTag">TODAY</div>
-                    </div>
-                </div>
-                {{-- Operational KPI Metrics (Right Stacked) --}}
-                <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; height: 145px; gap: 5px;" id="slaMetricsContainer">
-                    <div class="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-100 flex flex-col justify-between" style="min-height: 42px; flex: 1;">
-                        <div class="flex items-center justify-between">
-                            <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider">AVG. WAIT TIME</span>
-                            <span class="text-[9px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">+45%</span>
-                        </div>
-                        <div class="text-base font-black text-slate-800 leading-tight mt-0.5" id="slaWaitTime">
-                            {!! $helpLineMetrics->wait_time !== null ? round($helpLineMetrics->wait_time).' <span class="text-[10px] font-bold text-slate-400">sec</span>' : '—' !!}
-                        </div>
-                    </div>
-
-                    <div class="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-100 flex flex-col justify-between" style="min-height: 42px; flex: 1;">
-                        <div class="flex items-center justify-between">
-                            <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider">CREATED → INITIATED</span>
-                            <span class="text-[9px] font-black text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-100">+12%</span>
-                        </div>
-                        <div class="text-base font-black text-slate-800 leading-tight mt-0.5" id="slaCreatedToInit">
-                            {{ $helpLineMetrics->created_to_init_formatted }}
-                        </div>
-                    </div>
-
-                    <div class="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-100 flex flex-col justify-between" style="min-height: 42px; flex: 1;">
-                        <div class="flex items-center justify-between">
-                            <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider">INITIATED → REACHED</span>
-                            <span class="text-[9px] font-black text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">+32%</span>
-                        </div>
-                        <div class="text-base font-black text-slate-800 leading-tight mt-0.5" id="slaInitToReached">
-                            {{ $helpLineMetrics->init_to_reached_formatted }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {{-- Card 2: Zone Wise Helpers --}}
+        {{-- Card 1: Zone Wise Helpers --}}
         <div class="bc ac-cor flex flex-col">
             <div class="ch">
                 <div class="ci bg-amber-100"><i class="fa-solid fa-compass text-amber-600"></i></div>
                 <div class="flex-1 min-w-0">
                     <div class="ct">Zone Wise Helpers</div>
                     <div class="cst">MOTORWAY / ZONE DISTRIBUTION</div>
+                </div>
+                <div class="fp shrink-0">
+                    <button class="on text-[10px] font-bold py-1 px-2.5 uppercase" onclick="setZoneRange('today',this)">Today</button>
+                    <button class="text-[10px] font-bold py-1 px-2.5 uppercase" onclick="setZoneRange('week',this)">Week</button>
+                    <button class="text-[10px] font-bold py-1 px-2.5 uppercase" onclick="setZoneRange('month',this)">Month</button>
                 </div>
             </div>
             <div style="display: flex; align-items: center; gap: 14px; flex: 1; padding: 4px 0;">
@@ -799,15 +1059,62 @@
                     $roadTotal = $carriageTypeSplit->sum('count') ?: 1;
                     $roadColors = ['#3b82f6', '#f59e0b', '#06b6d4', '#f43f5e', '#eab308', '#8b5cf6', '#6366f1', '#10b981', '#ec4899', '#f97316'];
                 @endphp
-                <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; height: 135px;">
-                    @foreach($carriageTypeSplit->take(7) as $road)
+                <div id="zoneLegendList" style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; height: 135px;">
+                    @forelse($carriageTypeSplit->take(7) as $road)
                     @php $rp = round(($road->count / $roadTotal) * 100); @endphp
                     <div class="flex items-center gap-1.5 text-xs">
                         <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: '{{ $roadColors[$loop->index % count($roadColors)] }}' }"></span>
                         <span class="font-semibold text-slate-600 truncate flex-1">• {{ $road->type }}</span>
                         <span class="text-[11px] font-black text-slate-500 shrink-0 font-mono">{{ $rp }}%</span>
                     </div>
-                    @endforeach
+                    @empty
+                    <div class="flex items-center justify-center h-full text-xs font-semibold text-slate-400">
+                        No Incidents Today · Standing by
+                    </div>
+                    @endforelse
+                </div>
+            </div>
+        </div>
+
+        {{-- Card 2: Sector Load --}}
+        <div class="bc ac-vio flex flex-col">
+            <div class="ch">
+                <div class="ci bg-violet-100"><i class="fa-solid fa-chart-simple text-violet-600"></i></div>
+                <div class="flex-1 min-w-0">
+                    <div class="ct">Sector Load</div>
+                    <div class="cst">SECTOR WISE HELP INTENSITY</div>
+                </div>
+                <div class="fp shrink-0">
+                    <button class="on text-[10px] font-bold py-1 px-2.5 uppercase" onclick="setSectorRange('today',this)">Today</button>
+                    <button class="text-[10px] font-bold py-1 px-2.5 uppercase" onclick="setSectorRange('week',this)">Week</button>
+                    <button class="text-[10px] font-bold py-1 px-2.5 uppercase" onclick="setSectorRange('month',this)">Month</button>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px; flex: 1; padding: 4px 0;">
+                <div style="width: 145px; height: 145px; min-width: 145px; min-height: 145px; position: relative; flex-shrink: 0; margin: 0 auto;">
+                    <canvas id="sectorPolarChart" role="img" aria-label="Sector intensity donut" style="width: 145px !important; height: 145px !important; display: block;"></canvas>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <div class="text-xl font-black text-slate-800 leading-tight" id="sectorCenterCount">{{ $sectorLoad->sum('count') }}</div>
+                        <div class="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-0.5">INCIDENTS</div>
+                    </div>
+                </div>
+                @php
+                    $sectorTotal = $sectorLoad->sum('count') ?: 1;
+                    $sectorColors = ['#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#2563eb', '#f97316'];
+                @endphp
+                <div id="sectorLegendList" style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; height: 145px;">
+                    @forelse($sectorLoad->take(6) as $sec)
+                    @php $sp = round(($sec->count / $sectorTotal) * 100); @endphp
+                    <div class="flex items-center gap-1.5 text-xs">
+                        <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ backgroundColor: '{{ $sectorColors[$loop->index % count($sectorColors)] }}' }"></span>
+                        <span class="font-semibold text-slate-600 truncate flex-1">{{ $sec->name }}</span>
+                        <span class="text-[11px] font-black text-slate-500 shrink-0">{{ $sp }}%</span>
+                    </div>
+                    @empty
+                    <div class="flex items-center justify-center h-full text-xs font-semibold text-slate-400">
+                        No Incidents Today · Standing by
+                    </div>
+                    @endforelse
                 </div>
             </div>
         </div>
@@ -823,42 +1130,37 @@
                 <div class="fp shrink-0">
                     <button class="on text-[10px] font-bold py-1 px-2.5 uppercase" onclick="setSunburstRange('today',this)">Today</button>
                     <button class="text-[10px] font-bold py-1 px-2.5 uppercase" onclick="setSunburstRange('week',this)">Week</button>
+                    <button class="text-[10px] font-bold py-1 px-2.5 uppercase" onclick="setSunburstRange('month',this)">Month</button>
                 </div>
             </div>
+            @php
+                $sbCatTotals = [];
+                $sbTotal = 0;
+                foreach ($sunburstData as $z) {
+                    $sbTotal += ($z['count'] ?? 0);
+                    foreach ($z['sectors'] ?? [] as $s) {
+                        foreach ($s['categories'] ?? [] as $cat => $cnt) {
+                            $sbCatTotals[$cat] = ($sbCatTotals[$cat] ?? 0) + $cnt;
+                        }
+                    }
+                }
+                arsort($sbCatTotals);
+                $sumSb = $sbTotal ?: 1;
+                $sbColors = ['#06b6d4', '#f59e0b', '#f43f5e', '#ea580c', '#3b82f6', '#8b5cf6', '#10b981', '#ec4899'];
+            @endphp
             <div style="display: flex; align-items: center; gap: 14px; flex: 1; padding: 4px 0;">
                 <div style="width: 135px; height: 135px; min-width: 135px; min-height: 135px; position: relative; flex-shrink: 0;">
                     <canvas id="sunburstChart" role="img" aria-label="Sunburst chart operations distribution" style="width: 135px !important; height: 135px !important; display: block;"></canvas>
                     <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <div class="text-xl font-black text-slate-800 leading-tight" id="sunburstCenterCount">207</div>
+                        <div class="text-xl font-black text-slate-800 leading-tight" id="sunburstCenterCount">{{ $sbTotal }}</div>
                         <div class="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-0.5 text-center leading-none">TOTAL INCIDENTS</div>
                     </div>
                 </div>
-                @php
-                    $sbCatTotals = [];
-                    $sbTotal = 0;
-                    foreach ($sunburstData as $z) {
-                        $sbTotal += ($z['count'] ?? 0);
-                        foreach ($z['sectors'] ?? [] as $s) {
-                            foreach ($s['categories'] ?? [] as $cat => $cnt) {
-                                $sbCatTotals[$cat] = ($sbCatTotals[$cat] ?? 0) + $cnt;
-                            }
-                        }
-                    }
-                    arsort($sbCatTotals);
-                    if (empty($sbCatTotals) && isset($callCategories)) {
-                        foreach ($callCategories as $c) {
-                            $sbCatTotals[$c->category] = $c->count;
-                            $sbTotal += $c->count;
-                        }
-                    }
-                    $sbTotal = $sbTotal ?: 1;
-                    $sbColors = ['#06b6d4', '#f59e0b', '#f43f5e', '#ea580c', '#3b82f6', '#8b5cf6', '#10b981', '#ec4899'];
-                @endphp
                 <div id="sunburstLegend" style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; height: 135px;">
                     @php $ci = 0; @endphp
-                    @foreach(array_slice($sbCatTotals, 0, 6, true) as $catName => $catCnt)
+                    @forelse(array_slice($sbCatTotals, 0, 6, true) as $catName => $catCnt)
                     @php
-                        $pct = round(($catCnt / $sbTotal) * 100);
+                        $pct = round(($catCnt / $sumSb) * 100);
                         $cleanCat = ucwords(str_replace('_', ' ', $catName));
                     @endphp
                     <div class="flex items-center gap-1.5 text-xs">
@@ -867,7 +1169,11 @@
                         <span class="text-[11px] font-black text-slate-500 shrink-0 font-mono">{{ $pct }}%</span>
                     </div>
                     @php $ci++; @endphp
-                    @endforeach
+                    @empty
+                    <div class="flex items-center justify-center h-full text-xs font-semibold text-slate-400">
+                        No Incidents Today · Standing by
+                    </div>
+                    @endforelse
                 </div>
             </div>
         </div>
@@ -875,45 +1181,11 @@
     </div>
 
     {{-- ══════════════════════════════════════════════
-         ROW 4 — SECTOR LOAD  +  TOP RESPONDERS  +  NUMBER OF INCIDENTS
+         ROW 4 — TOP RESPONDERS  +  NUMBER OF INCIDENTS
     ══════════════════════════════════════════════ --}}
-    <div class="grid lg:grid-cols-3 gap-5 items-stretch">
+    <div class="grid lg:grid-cols-2 gap-5 items-stretch">
 
-        {{-- Card 1: Sector Load --}}
-        <div class="bc ac-vio flex flex-col">
-            <div class="ch">
-                <div class="ci bg-violet-100"><i class="fa-solid fa-chart-simple text-violet-600"></i></div>
-                <div>
-                    <div class="ct">Sector Load</div>
-                    <div class="cst">Sector Wise Help Intensity</div>
-                </div>
-            </div>
-            <div style="display: flex; align-items: center; gap: 16px; flex: 1; padding: 4px 0;">
-                <div style="width: 145px; height: 145px; min-width: 145px; min-height: 145px; position: relative; flex-shrink: 0; margin: 0 auto;">
-                    <canvas id="sectorPolarChart" role="img" aria-label="Sector intensity donut" style="width: 145px !important; height: 145px !important; display: block;"></canvas>
-                    <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <div class="text-xl font-black text-slate-800 leading-tight">{{ $sectorLoad->sum('count') }}</div>
-                        <div class="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Agents</div>
-                    </div>
-                </div>
-                @php
-                    $sectorTotal = $sectorLoad->sum('count') ?: 1;
-                    $sectorColors = ['#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#2563eb', '#f97316'];
-                @endphp
-                <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; height: 145px;">
-                    @foreach($sectorLoad->take(6) as $sec)
-                    @php $sp = round(($sec->count / $sectorTotal) * 100); @endphp
-                    <div class="flex items-center gap-1.5 text-xs">
-                        <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ backgroundColor: '{{ $sectorColors[$loop->index % count($sectorColors)] }}' }"></span>
-                        <span class="font-semibold text-slate-600 truncate flex-1">{{ $sec->name }}</span>
-                        <span class="text-[11px] font-black text-slate-500 shrink-0">{{ $sp }}%</span>
-                    </div>
-                    @endforeach
-                </div>
-            </div>
-        </div>
-
-        {{-- Card 2: Top Responders --}}
+        {{-- Card 1: Top Responders --}}
         <div class="bc ac-sky flex flex-col">
             <div class="ch">
                 <div class="ci bg-sky-100"><i class="fa-solid fa-trophy text-sky-600"></i></div>
@@ -955,13 +1227,13 @@
             </div>
         </div>
 
-        {{-- Card 3: Number of Incidents --}}
+        {{-- Card 2: Number of Incidents --}}
         <div class="bc ac-rose flex flex-col">
             <div class="ch">
                 <div class="ci bg-rose-100"><i class="fa-solid fa-chart-column text-rose-600"></i></div>
                 <div class="flex-1">
                     <div class="ct">Number of Incidents</div>
-                    <div class="cst">Last 7 Days</div>
+                    <div class="cst">Daily & Weekly Incident Volume</div>
                 </div>
                 <div class="fp shrink-0">
                     <button class="on" onclick="setIncidentRange('7d',this)">Daily</button>
@@ -1060,6 +1332,32 @@
 window._dashboardCharts = window._dashboardCharts || { prio: null, weekly: null, incidentVolume: null, agent: null, sunburst: null, category: null, gauge: null, road: null, sector: null };
 window._dashboardAlpineApp = null;
 
+/* ─── Resilient Fetch Helper with Auto-Retry ─── */
+async function fetchChartData(url, retries = 2) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            const res = await fetch(url, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            if (!res.ok) {
+                if (res.status === 401 || res.status === 403) {
+                    console.warn('Session expired or unauthorized for:', url);
+                    return null;
+                }
+                throw new Error(`HTTP ${res.status}`);
+            }
+            return await res.json();
+        } catch (err) {
+            if (attempt === retries) throw err;
+            await new Promise(r => setTimeout(r, 250 * (attempt + 1)));
+        }
+    }
+    return null;
+}
+
 /* ─── Filter helpers ──────────────────────────*/
 function setFilterActive(btn) {
     if (!btn) return;
@@ -1073,8 +1371,8 @@ async function setCategoryRange(r, btn) {
     if (!canvas) return;
     canvas.style.opacity = '0.4';
     try {
-        const res = await fetch(`/dashboard/chart-data?chart=category&range=${r}`);
-        const data = await res.json();
+        const data = await fetchChartData(`/dashboard/chart-data?chart=category&range=${r}`);
+        if (!data) return;
         
         const sub = document.getElementById('categorySubtitle');
         if (sub) {
@@ -1111,52 +1409,159 @@ async function setCategoryRange(r, btn) {
             }
         }
     } catch (e) {
-        console.error('Failed to update category chart:', e);
+        console.warn('Could not update category chart:', e);
     } finally {
         canvas.style.opacity = '1';
     }
 }
 
-async function setSlaRange(r, btn) {
-    setFilterActive(btn);
-    const canvas = document.getElementById('gaugeChart');
-    if (!canvas) return;
-    canvas.style.opacity = '0.4';
+async function setAerodynamicSlaRange(r, btn) {
+    if (btn) setFilterActive(btn);
+    const cardKeys = ['P1', 'P2', 'P3', 'Women'];
+    const cards = cardKeys.map(k => document.getElementById('aeroCard' + k)).filter(Boolean);
+    cards.forEach(c => c.classList.add('aero-scanning'));
+
     try {
-        const res = await fetch(`/dashboard/chart-data?chart=sla&range=${r}`);
-        const d = await res.json();
-        if (d && typeof d.sla_value !== 'undefined') {
-            const chart = window._dashboardCharts?.gauge;
-            if (chart) {
-                chart.data.datasets[0].data = [d.sla_value, Math.max(0, 100 - d.sla_value)];
-                chart.update();
-            }
-            const gVal = document.getElementById('slaGaugeVal');
-            if (gVal) gVal.textContent = d.sla_value + '%';
-
-            const rTag = document.getElementById('slaRangeTag');
-            if (rTag) rTag.textContent = d.range_label || (r === '7d' ? 'LAST 7 DAYS' : (r === '30d' ? 'LAST 30 DAYS' : 'TODAY'));
-
-            const badge = document.getElementById('slaBadge');
-            if (badge && d.badge) {
-                badge.className = `px-2 py-0.5 rounded-full text-[9px] font-black ${d.badge.badge} border tracking-wider shrink-0 flex items-center gap-1`;
-                badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${d.badge.dot}"></span> ${d.badge.label}`;
-            }
-
-            const wt = document.getElementById('slaWaitTime');
-            if (wt) wt.innerHTML = (d.wait_time === null || d.wait_time === undefined) ? '—' : `${Math.round(d.wait_time)} <span class="text-[10px] font-bold text-slate-400">sec</span>`;
-
-            const ci = document.getElementById('slaCreatedToInit');
-            if (ci) ci.textContent = d.created_to_init_formatted;
-
-            const ir = document.getElementById('slaInitToReached');
-            if (ir) ir.textContent = d.init_to_reached_formatted;
+        const d = await fetchChartData(`/dashboard/chart-data?chart=sla&range=${r}`);
+        if (d && d.four_slas) {
+            updateAeroCard('P1', d.four_slas.p1);
+            updateAeroCard('P2', d.four_slas.p2);
+            updateAeroCard('P3', d.four_slas.p3);
+            updateAeroCard('Women', d.four_slas.women);
         }
     } catch (e) {
-        console.error('Failed to update SLA metrics:', e);
+        console.warn('Could not update aerodynamic SLA metrics:', e);
     } finally {
-        canvas.style.opacity = '1';
+        setTimeout(() => {
+            cards.forEach(c => c.classList.remove('aero-scanning'));
+        }, 400);
     }
+}
+
+function animateCounter(el, start, end, duration = 800) {
+    if (!el) return;
+    const startTime = performance.now();
+    function tick(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const ease = 1 - Math.pow(1 - progress, 3);
+        const current = Math.round(start + (end - start) * ease);
+        el.textContent = current;
+        if (progress < 1) {
+            requestAnimationFrame(tick);
+        } else {
+            el.textContent = end;
+        }
+    }
+    requestAnimationFrame(tick);
+}
+
+function updateAeroCard(key, data) {
+    if (!data) return;
+    const arc = document.getElementById('aeroArc' + key);
+    const needle = document.getElementById('aeroNeedle' + key);
+    const val = document.getElementById('aeroVal' + key);
+    const status = document.getElementById('aeroStatus' + key);
+    const met = document.getElementById('aeroMet' + key);
+    const avg = document.getElementById('aeroAvg' + key);
+
+    const pct = Math.max(0, Math.min(100, Math.round(data.percent || 0)));
+    const circumference = 150.8;
+    const offset = circumference - (circumference * pct / 100);
+    const angle = -90 + (1.8 * pct);
+
+    if (arc) arc.style.strokeDashoffset = offset.toFixed(1);
+    if (needle) needle.style.transform = `rotate(${angle.toFixed(1)}deg)`;
+    if (val) animateCounter(val, parseInt(val.textContent) || 0, pct, 800);
+    if (status) status.textContent = pct >= 90 ? 'OPTIMAL' : (pct >= 75 ? 'ALERT' : 'DEGRADED');
+    if (met) met.textContent = `${data.met || 0} / ${data.eligible || 0}`;
+    if (avg) avg.textContent = (data.avg_sec ? (data.avg_sec / 60).toFixed(1) : '0') + 'm';
+}
+
+async function setZoneRange(r, btn) {
+    if (btn) setFilterActive(btn);
+    const canvas = document.getElementById('roadChart');
+    if (canvas) canvas.style.opacity = '0.4';
+    try {
+        const data = await fetchChartData(`/dashboard/chart-data?chart=zone&range=${r}`);
+        if (!data) return;
+        if (window._dashboardAlpineApp && typeof window._dashboardAlpineApp.buildRoadChart === 'function') {
+            window._dashboardAlpineApp.buildRoadChart(data);
+        }
+        const total = (data || []).reduce((s, d) => s + (+d.count || 0), 0);
+        const cntEl = document.getElementById('zoneCenterCount');
+        if (cntEl) cntEl.textContent = total;
+
+        const legend = document.getElementById('zoneLegendList');
+        if (legend) {
+            if (total > 0 && Array.isArray(data) && data.length > 0) {
+                const sumTotal = total || 1;
+                const roadColors = ['#3b82f6', '#f59e0b', '#06b6d4', '#f43f5e', '#eab308', '#8b5cf6', '#6366f1', '#10b981', '#ec4899', '#f97316'];
+                legend.innerHTML = data.slice(0, 7).map((road, idx) => {
+                    const rp = Math.round((road.count / sumTotal) * 100);
+                    const col = roadColors[idx % roadColors.length];
+                    return `
+                        <div class="flex items-center gap-1.5 text-xs">
+                            <span class="w-2 h-2 rounded-full shrink-0" style="background-color: ${col};"></span>
+                            <span class="font-semibold text-slate-600 truncate flex-1">• ${road.type}</span>
+                            <span class="text-[11px] font-black text-slate-500 shrink-0 font-mono">${rp}%</span>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                legend.innerHTML = '<div class="flex items-center justify-center h-full text-xs font-semibold text-slate-400">No Incidents Today · Standing by</div>';
+            }
+        }
+    } catch (e) {
+        console.warn('Could not update zone chart:', e);
+    } finally {
+        if (canvas) canvas.style.opacity = '1';
+    }
+}
+
+async function setSectorRange(r, btn) {
+    if (btn) setFilterActive(btn);
+    const canvas = document.getElementById('sectorPolarChart');
+    if (canvas) canvas.style.opacity = '0.4';
+    try {
+        const data = await fetchChartData(`/dashboard/chart-data?chart=sector&range=${r}`);
+        if (!data) return;
+        if (window._dashboardAlpineApp && typeof window._dashboardAlpineApp.buildSectorPolarChart === 'function') {
+            window._dashboardAlpineApp.buildSectorPolarChart(data);
+        }
+        const total = (data || []).reduce((s, d) => s + (+d.count || 0), 0);
+        const cntEl = document.getElementById('sectorCenterCount');
+        if (cntEl) cntEl.textContent = total;
+
+        const legend = document.getElementById('sectorLegendList');
+        if (legend) {
+            if (total > 0 && Array.isArray(data) && data.length > 0) {
+                const sumTotal = total || 1;
+                const sectorColors = ['#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#2563eb', '#f97316'];
+                legend.innerHTML = data.slice(0, 6).map((sec, idx) => {
+                    const sp = Math.round((sec.count / sumTotal) * 100);
+                    const col = sectorColors[idx % sectorColors.length];
+                    return `
+                        <div class="flex items-center gap-1.5 text-xs">
+                            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${col};"></span>
+                            <span class="font-semibold text-slate-600 truncate flex-1">${sec.name}</span>
+                            <span class="text-[11px] font-black text-slate-500 shrink-0">${sp}%</span>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                legend.innerHTML = '<div class="flex items-center justify-center h-full text-xs font-semibold text-slate-400">No Incidents Today · Standing by</div>';
+            }
+        }
+    } catch (e) {
+        console.warn('Could not update sector chart:', e);
+    } finally {
+        if (canvas) canvas.style.opacity = '1';
+    }
+}
+
+async function setSlaRange(r, btn) {
+    return setAerodynamicSlaRange(r, btn);
 }
 
 async function setPrioRange(r, btn) {
@@ -1165,8 +1570,8 @@ async function setPrioRange(r, btn) {
     if (!canvas) return;
     canvas.style.opacity = '0.4';
     try {
-        const res = await fetch(`/dashboard/chart-data?chart=priority&range=${r}`);
-        const data = await res.json();
+        const data = await fetchChartData(`/dashboard/chart-data?chart=priority&range=${r}`);
+        if (!data) return;
         if (window._dashboardCharts.prio && data.labels) {
             window._dashboardCharts.prio.data.labels = data.labels;
             window._dashboardCharts.prio.data.datasets[0].data = data.p1;
@@ -1175,7 +1580,7 @@ async function setPrioRange(r, btn) {
             window._dashboardCharts.prio.update();
         }
     } catch (e) {
-        console.error('Failed to update priority chart:', e);
+        console.warn('Could not update priority chart:', e);
     } finally {
         canvas.style.opacity = '1';
     }
@@ -1421,13 +1826,13 @@ async function setSunburstRange(r, btn) {
     if (!canvas) return;
     canvas.style.opacity = '0.4';
     try {
-        const res = await fetch(`/dashboard/chart-data?chart=sunburst&range=${r}`);
-        const data = await res.json();
+        const data = await fetchChartData(`/dashboard/chart-data?chart=sunburst&range=${r}`);
+        if (!data) return;
         if (window._dashboardAlpineApp && typeof window._dashboardAlpineApp.buildSunburstChart === 'function') {
             window._dashboardAlpineApp.buildSunburstChart(data);
         }
     } catch (e) {
-        console.error('Failed to update sunburst chart:', e);
+        console.warn('Could not update sunburst chart:', e);
     } finally {
         canvas.style.opacity = '1';
     }
@@ -1439,8 +1844,8 @@ async function setAgentRange(r, btn) {
     if (!container) return;
     container.style.opacity = '0.4';
     try {
-        const res = await fetch(`/dashboard/chart-data?chart=agent&range=${r}`);
-        const data = await res.json();
+        const data = await fetchChartData(`/dashboard/chart-data?chart=agent&range=${r}`);
+        if (!data) return;
         if (data && data.labels) {
             const max = Math.max(...data.values, 1);
             container.innerHTML = data.labels.map((name, i) => {
@@ -1468,7 +1873,7 @@ async function setAgentRange(r, btn) {
             }).join('');
         }
     } catch (e) {
-        console.error('Failed to update agent leaderboard:', e);
+        console.warn('Could not update agent leaderboard:', e);
     } finally {
         container.style.opacity = '1';
     }
@@ -1534,6 +1939,26 @@ function dashboardApp(data) {
                 this.buildSunburstChart(this.sunburstData);
                 this.buildSectorPolarChart(this.sectorLoad);
                 this.buildShiftChart(this.shiftDeployment);
+
+                // Aerodynamic Cockpit HUD dials initial flight entry animation
+                setTimeout(() => {
+                    ['P1', 'P2', 'P3', 'Women'].forEach(k => {
+                        const arc = document.getElementById('aeroArc' + k);
+                        const needle = document.getElementById('aeroNeedle' + k);
+                        if (arc && needle) {
+                            const targetOffset = arc.getAttribute('stroke-dashoffset');
+                            const targetTransform = needle.style.transform;
+                            arc.style.strokeDashoffset = '150.8';
+                            needle.style.transform = 'rotate(-90deg)';
+                            requestAnimationFrame(() => {
+                                setTimeout(() => {
+                                    arc.style.strokeDashoffset = targetOffset;
+                                    needle.style.transform = targetTransform;
+                                }, 60);
+                            });
+                        }
+                    });
+                }, 120);
 
                 document.addEventListener('fullscreenchange', () => {
                     this.mapFullscreen = !!document.fullscreenElement;
@@ -1831,7 +2256,7 @@ function dashboardApp(data) {
                     maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
                     scales: {
-                        x: { stacked: true, grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' }, maxRotation: 0, autoSkip: false } },
+                        x: { stacked: true, grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' }, color: '#64748b', maxRotation: 0, autoSkip: true, maxTicksLimit: 7 } },
                         y: { stacked: true, grid: { color: '#f8fafc' }, border: { display: false }, ticks: { font: { size: 9 } } }
                     },
                     plugins: {
@@ -1956,7 +2381,6 @@ function dashboardApp(data) {
         },
 
         /* ── Zone Wise Helpers Donut ─────────── */
-        /* ── Zone Wise Helpers Donut ─────────── */
         buildRoadChart(data) {
             const ctx = document.getElementById('roadChart');
             if (!ctx) return;
@@ -1966,18 +2390,23 @@ function dashboardApp(data) {
             const roadColors = ['#3b82f6', '#f59e0b', '#06b6d4', '#f43f5e', '#eab308', '#8b5cf6', '#6366f1', '#10b981', '#ec4899', '#f97316'];
             const total = (data || []).reduce((s, d) => s + (+d.count || 0), 0);
             const cntEl = document.getElementById('zoneCenterCount');
-            if (cntEl && total > 0) cntEl.textContent = total;
+            if (cntEl) cntEl.textContent = total;
+
+            const hasData = total > 0 && Array.isArray(data) && data.length > 0;
+            const labels = hasData ? data.map(d => d.type) : ['No Incidents'];
+            const values = hasData ? data.map(d => +d.count) : [1];
+            const colors = hasData ? roadColors : ['#f1f5f9'];
 
             window._dashboardCharts.road = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: (data || []).map(d => d.type),
+                    labels: labels,
                     datasets: [{
-                        data: (data || []).map(d => +d.count),
-                        backgroundColor: roadColors,
+                        data: values,
+                        backgroundColor: colors,
                         borderWidth: 2,
                         borderColor: '#fff',
-                        hoverOffset: 6,
+                        hoverOffset: hasData ? 6 : 0,
                         borderRadius: 3
                     }]
                 },
@@ -1985,7 +2414,10 @@ function dashboardApp(data) {
                     responsive: true,
                     maintainAspectRatio: false,
                     cutout: '70%',
-                    plugins: { legend: { display: false } }
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: hasData }
+                    }
                 }
             });
         },
@@ -2025,44 +2457,48 @@ function dashboardApp(data) {
 
             const totalCount = ds1Data.reduce((s, v) => s + v, 0);
             const totalEl = document.getElementById('sunburstCenterCount');
-            if (totalEl) totalEl.textContent = totalCount || 207;
+            if (totalEl) totalEl.textContent = totalCount;
 
-            // Dynamically update the category breakdown legend list
             const legendEl = document.getElementById('sunburstLegend');
-            if (legendEl && Object.keys(catTotals).length > 0) {
-                const sortedCats = Object.entries(catTotals).sort((a,b) => b[1] - a[1]).slice(0, 6);
-                const sumCats = sortedCats.reduce((s, c) => s + c[1], 0) || 1;
-                const catColors = ['#06b6d4', '#f59e0b', '#f43f5e', '#ea580c', '#3b82f6', '#8b5cf6', '#10b981', '#ec4899'];
-                legendEl.innerHTML = sortedCats.map(([cat, cnt], idx) => {
-                    const pct = Math.round((cnt / sumCats) * 100);
-                    const clean = cat.replace(/_/g, ' ').replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
-                    const col = catColors[idx % catColors.length];
-                    return `
-                        <div class="flex items-center gap-1.5 text-xs">
-                            <span class="w-2 h-2 rounded-full shrink-0" style="background-color: ${col};"></span>
-                            <span class="font-semibold text-slate-600 truncate flex-1">• ${clean}</span>
-                            <span class="text-[11px] font-black text-slate-500 shrink-0 font-mono">${pct}%</span>
-                        </div>
-                    `;
-                }).join('');
+            if (legendEl) {
+                if (totalCount > 0 && Object.keys(catTotals).length > 0) {
+                    const sortedCats = Object.entries(catTotals).sort((a,b) => b[1] - a[1]).slice(0, 6);
+                    const sumCats = sortedCats.reduce((s, c) => s + c[1], 0) || 1;
+                    const catColors = ['#06b6d4', '#f59e0b', '#f43f5e', '#ea580c', '#3b82f6', '#8b5cf6', '#10b981', '#ec4899'];
+                    legendEl.innerHTML = sortedCats.map(([cat, cnt], idx) => {
+                        const pct = Math.round((cnt / sumCats) * 100);
+                        const clean = cat.replace(/_/g, ' ').replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+                        const col = catColors[idx % catColors.length];
+                        return `
+                            <div class="flex items-center gap-1.5 text-xs">
+                                <span class="w-2 h-2 rounded-full shrink-0" style="background-color: ${col};"></span>
+                                <span class="font-semibold text-slate-600 truncate flex-1">• ${clean}</span>
+                                <span class="text-[11px] font-black text-slate-500 shrink-0 font-mono">${pct}%</span>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    legendEl.innerHTML = '<div class="flex items-center justify-center h-full text-xs font-semibold text-slate-400">No Incidents Today · Standing by</div>';
+                }
             }
 
+            const hasData = totalCount > 0 && ds1Data.length > 0;
             window._dashboardCharts.sunburst = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
                     datasets: [
-                        { // Outer: Sectors / Categories
-                            data: ds2Data.length ? ds2Data : [28, 22, 18, 10, 8, 14],
-                            backgroundColor: ds2Colors.length ? ds2Colors : ['#06b6d4', '#f59e0b', '#f43f5e', '#ea580c', '#3b82f6', '#8b5cf6'],
-                            labels: ds2Labels.length ? ds2Labels : ['Accident', 'Vehicle Fault', 'Medical', 'Fire', 'Security', 'Other'],
+                        { // Outer: Sectors
+                            data: hasData ? ds2Data : [1],
+                            backgroundColor: hasData ? ds2Colors : ['#f8fafc'],
+                            labels: hasData ? ds2Labels : ['Standby'],
                             weight: 1.5,
                             borderWidth: 2,
                             borderColor: '#fff'
                         },
                         { // Inner: Zones
-                            data: ds1Data.length ? ds1Data : [100, 80],
-                            backgroundColor: ds1Colors.length ? ds1Colors : ['#0ea5e9', '#10b981'],
-                            labels: ds1Labels.length ? ds1Labels : ['Zone 1', 'Zone 2'],
+                            data: hasData ? ds1Data : [1],
+                            backgroundColor: hasData ? ds1Colors : ['#f1f5f9'],
+                            labels: hasData ? ds1Labels : ['Standby'],
                             weight: 1,
                             borderWidth: 2,
                             borderColor: '#fff'
@@ -2093,16 +2529,25 @@ function dashboardApp(data) {
             if (existing) existing.destroy();
 
             const sectorColors = ['#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#2563eb', '#f97316'];
+            const total = (data || []).reduce((s, d) => s + (+d.count || 0), 0);
+            const cntEl = document.getElementById('sectorCenterCount');
+            if (cntEl) cntEl.textContent = total;
+
+            const hasData = total > 0 && Array.isArray(data) && data.length > 0;
+            const labels = hasData ? data.map(d => d.name) : ['No Incidents'];
+            const values = hasData ? data.map(d => +d.count) : [1];
+            const colors = hasData ? sectorColors : ['#f1f5f9'];
+
             window._dashboardCharts.sector = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: data.map(d => d.name),
+                    labels: labels,
                     datasets: [{
-                        data: data.map(d => +d.count),
-                        backgroundColor: sectorColors,
+                        data: values,
+                        backgroundColor: colors,
                         borderWidth: 2,
                         borderColor: '#fff',
-                        hoverOffset: 6,
+                        hoverOffset: hasData ? 6 : 0,
                         borderRadius: 4
                     }]
                 },
@@ -2110,7 +2555,10 @@ function dashboardApp(data) {
                     responsive: true,
                     maintainAspectRatio: false,
                     cutout: '70%',
-                    plugins: { legend: { display: false } }
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: hasData }
+                    }
                 }
             });
         },

@@ -44,6 +44,8 @@ class UserController extends Controller
                 'designation:id,name,bps,short_code',
                 'activeScopes:id,user_id,office_id,access_level,label,is_active',
                 'activeScopes.office:id,name,type,parent_id',
+                'patrolOfficerProfile:id,user_id,badge_number,assigned_beat_id,is_on_duty',
+                'commuterProfile:id,user_id,gender,is_cnic_verified',
             ]);
 
         $this->applyUserFilters($query, $request);
@@ -174,6 +176,16 @@ class UserController extends Controller
                     $bq->whereHas('role', fn($rq) => $rq->where('name', 'beat_operator'))
                        ->orWhereHas('activeScopes.office', fn($oq) => $oq->where('type', 'beat'));
                 });
+            } elseif ($status === 'patrol_user' || $status === 'patrol' || $status === 'patrol_officer') {
+                $query->where(function ($pq) {
+                    $pq->whereHas('role', fn($rq) => $rq->where('name', 'patrol_officer'))
+                       ->orWhereHas('patrolOfficerProfile');
+                });
+            } elseif ($status === 'commuter_user' || $status === 'commuter') {
+                $query->where(function ($cq) {
+                    $cq->whereHas('role', fn($rq) => $rq->where('name', 'commuter'))
+                       ->orWhereHas('commuterProfile');
+                });
             }
         }
 
@@ -215,6 +227,14 @@ class UserController extends Controller
             'call_center' => User::where(function ($cq) {
                 $cq->whereHas('role', fn($rq) => $rq->whereIn('name', ['agent', 'agent_supervisor']))
                    ->orWhereHas('activeScopes.office', fn($oq) => $oq->whereIn('type', ['call_centre', 'call_center']));
+            })->count(),
+            'patrol'      => User::where(function ($pq) {
+                $pq->whereHas('role', fn($rq) => $rq->where('name', 'patrol_officer'))
+                   ->orWhereHas('patrolOfficerProfile');
+            })->count(),
+            'commuter'    => User::where(function ($cq) {
+                $cq->whereHas('role', fn($rq) => $rq->where('name', 'commuter'))
+                   ->orWhereHas('commuterProfile');
             })->count(),
             'inactive'    => User::where('is_active', false)->orWhere('is_blocked', true)->count(),
             'total'       => User::count(),

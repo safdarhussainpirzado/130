@@ -32,7 +32,7 @@ class TravelAdvisoryPublicApiController extends Controller
                     ->get();
 
                 $countsByRoute = TabletAdvisory::active()
-                    ->selectRaw("UPPER(REPLACE(route_name, '-', '')) as clean_route, COUNT(*) as total, SUM(CASE WHEN advisory_type = 'fog' THEN 1 ELSE 0 END) as fog_count, SUM(CASE WHEN advisory_type = 'road_closure' THEN 1 ELSE 0 END) as closure_count")
+                    ->selectRaw("UPPER(REPLACE(route_name, '-', '')) as clean_route, COUNT(*) as total, SUM(CASE WHEN category = 'fog' THEN 1 ELSE 0 END) as fog_count, SUM(CASE WHEN category = 'road_closure' AND category != 'diversion' THEN 1 ELSE 0 END) as closure_count")
                     ->groupBy('clean_route')
                     ->get()
                     ->keyBy('clean_route');
@@ -84,14 +84,13 @@ class TravelAdvisoryPublicApiController extends Controller
      */
     public function query(Request $request): Response|JsonResponse
     {
-        $road = $request->query('road', 'M-2');
-        $from = $request->query('from');
-        $to = $request->query('to');
-        $type = $request->query('type', 'all'); // all, road_closure, fog, weather, traffic, road_works, diversion
-        $direction = $request->query('direction', 'both'); // both, northbound, southbound
+        $roadParam = $request->query('road');
+        $hasAllParam = $request->has('all') || $request->query('all') !== null;
+        $isRoadEmpty = empty($roadParam) || trim((string)$roadParam) === '';
+        $isRoadAll = strtoupper(trim((string)$roadParam)) === 'ALL';
 
-        $cleanRoad = strtoupper(trim((string)$road));
-        $isAllRoads = ($cleanRoad === 'ALL' || empty($cleanRoad));
+        $isAllRoads = $hasAllParam || $isRoadEmpty || $isRoadAll;
+        $cleanRoad = $isAllRoads ? 'ALL' : strtoupper(trim((string)$roadParam));
 
         $carriageway = null;
         if (! $isAllRoads) {
@@ -111,12 +110,15 @@ class TravelAdvisoryPublicApiController extends Controller
             $to = $to ?: ($carriageway?->road_to ?: 'Lahore');
         }
 
-        $cacheKey = 'travel_advisory:query:' . md5(json_encode([$road, $from, $to, $type, $direction]));
+        $type = $request->query('type', 'all'); // all, road_closure, fog, weather, traffic, road_works, diversion
+        $direction = $request->query('direction', 'both'); // both, northbound, southbound
+
+        $cacheKey = 'travel_advisory:query:' . md5(json_encode([$cleanRoad, $from, $to, $type, $direction]));
 
         $payload = ResilientCacheService::rememberWithStampedeProtection(
             $cacheKey,
             60, // 60s TTL
-            function () use ($road, $cleanRoad, $isAllRoads, $carriageway, $from, $to, $type, $direction) {
+            function () use ($cleanRoad, $isAllRoads, $carriageway, $from, $to, $type, $direction) {
                 // 1. Fetch active advisories for this route (or all active if ALL)
                 $query = TabletAdvisory::active();
                 if (! $isAllRoads) {
@@ -127,30 +129,27 @@ class TravelAdvisoryPublicApiController extends Controller
                     ->orderBy('published_at', 'desc')
                     ->get();
 
-                // Compute category counters for pills/tabs
+                // Compute category counters for pills/tabs (Strictly mutually-exclusive categories)
                 $counters = [
                     'all'          => $allRouteAdvisories->count(),
-                    'road_closure' => $allRouteAdvisories->filter(fn($a) => $a->advisory_type === 'road_closure' || $a->category === 'road_closure')->count(),
-                    'fog'          => $allRouteAdvisories->filter(fn($a) => $a->advisory_type === 'fog' || $a->category === 'fog')->count(),
-                    'weather'      => $allRouteAdvisories->filter(fn($a) => $a->advisory_type === 'weather' || $a->category === 'weather')->count(),
-                    'traffic'      => $allRouteAdvisories->filter(fn($a) => $a->advisory_type === 'traffic' || $a->category === 'congestion')->count(),
-                    'road_works'   => $allRouteAdvisories->filter(fn($a) => $a->advisory_type === 'road_works' || $a->category === 'maintenance')->count(),
-                    'diversion'    => $allRouteAdvisories->filter(fn($a) => $a->advisory_type === 'diversion')->count(),
+                    'road_closure' => $allRouteAdvisories->filter(fn($a) => self::resolveCanonicalCategory($a) === 'road_closure')->count(),
+                    'fog'          => $allRouteAdvisories->filter(fn($a) => self::resolveCanonicalCategory($a) === 'fog')->count(),
+                    'weather'      => $allRouteAdvisories->filter(fn($a) => self::resolveCanonicalCategory($a) === 'weather')->count(),
+                    'traffic'      => $allRouteAdvisories->filter(fn($a) => self::resolveCanonicalCategory($a) === 'traffic')->count(),
+                    'road_works'   => $allRouteAdvisories->filter(fn($a) => self::resolveCanonicalCategory($a) === 'road_works')->count(),
+                    'diversion'    => $allRouteAdvisories->filter(fn($a) => self::resolveCanonicalCategory($a) === 'diversion')->count(),
                 ];
 
                 // 2. Filter advisories according to selected tab type
                 $filtered = $allRouteAdvisories;
                 if ($type && strtolower($type) !== 'all') {
                     $tab = strtolower($type);
-                    $filtered = $filtered->filter(function ($item) use ($tab) {
-                        if ($tab === 'fog') return $item->advisory_type === 'fog' || $item->category === 'fog';
-                        if ($tab === 'road_closure' || $tab === 'closure') return $item->advisory_type === 'road_closure' || $item->category === 'road_closure';
-                        if ($tab === 'road_works' || $tab === 'roadworks') return $item->advisory_type === 'road_works' || $item->category === 'maintenance';
-                        if ($tab === 'traffic') return $item->advisory_type === 'traffic' || $item->category === 'congestion';
-                        if ($tab === 'weather') return $item->advisory_type === 'weather' || $item->category === 'weather';
-                        if ($tab === 'diversion' || $tab === 'diversions') return $item->advisory_type === 'diversion';
-                        return true;
-                    });
+                    if ($tab === 'closure') $tab = 'road_closure';
+                    if ($tab === 'roadworks' || $tab === 'maintenance') $tab = 'road_works';
+                    if ($tab === 'congestion') $tab = 'traffic';
+                    if ($tab === 'diversions') $tab = 'diversion';
+
+                    $filtered = $filtered->filter(fn($item) => self::resolveCanonicalCategory($item) === $tab);
                 }
 
                 // 3. Filter by direction if specified
@@ -232,12 +231,13 @@ class TravelAdvisoryPublicApiController extends Controller
 
                 $items = $advisories->map(function ($adv) {
                     $badge = 'Live on ' . ($adv->route_name ?: 'Motorway');
-                    $subType = match ($adv->advisory_type) {
+                    $subType = match ($adv->category) {
                         'fog'          => 'Fog advisory',
                         'road_closure' => 'Road closed',
-                        'road_works'   => 'Lane closed',
-                        'traffic'      => 'Slow traffic',
+                        'road_works', 'maintenance' => 'Lane closed',
+                        'traffic', 'congestion'    => 'Slow traffic',
                         'diversion'    => 'Diversion',
+                        'weather'      => 'Weather advisory',
                         default        => 'Advisory',
                     };
 
@@ -282,16 +282,20 @@ class TravelAdvisoryPublicApiController extends Controller
      */
     public function geojson(Request $request): Response|JsonResponse
     {
-        $road = $request->query('road', 'M-2');
-        $cacheKey = 'travel_advisory:geojson:' . md5((string)$road);
+        $roadParam = $request->query('road');
+        $hasAllParam = $request->has('all') || $request->query('all') !== null;
+        $isRoadEmpty = empty($roadParam) || trim((string)$roadParam) === '';
+        $isRoadAll = strtoupper(trim((string)$roadParam)) === 'ALL';
+
+        $isAllRoads = $hasAllParam || $isRoadEmpty || $isRoadAll;
+        $cleanRoad = $isAllRoads ? 'ALL' : strtoupper(trim((string)$roadParam));
+
+        $cacheKey = 'travel_advisory:geojson:' . md5((string)$cleanRoad);
 
         $geojson = ResilientCacheService::rememberWithStampedeProtection(
             $cacheKey,
             120,
-            function () use ($road) {
-                $cleanRoad = strtoupper(trim((string)$road));
-                $isAllRoads = ($cleanRoad === 'ALL' || empty($cleanRoad));
-
+            function () use ($cleanRoad, $isAllRoads) {
                 $query = TabletAdvisory::active()
                     ->whereNotNull('start_lat')
                     ->whereNotNull('start_lng');
@@ -305,6 +309,12 @@ class TravelAdvisoryPublicApiController extends Controller
                 $features = [];
 
                 foreach ($advisories as $adv) {
+                    $categoryKey = match ($adv->category) {
+                        'congestion'  => 'traffic',
+                        'maintenance' => 'road_works',
+                        default       => $adv->category,
+                    };
+
                     $features[] = [
                         'type' => 'Feature',
                         'geometry' => [
@@ -314,7 +324,7 @@ class TravelAdvisoryPublicApiController extends Controller
                         'properties' => [
                             'id'                => $adv->id,
                             'title'             => $adv->title,
-                            'advisory_type'     => $adv->advisory_type ?: 'warning',
+                            'category'          => $categoryKey ?: 'warning',
                             'severity'          => $adv->severity,
                             'location'          => $adv->start_landmark ?: "KM {$adv->start_km}",
                             'end_location'      => $adv->end_landmark ?: "KM {$adv->end_km}",
@@ -322,8 +332,8 @@ class TravelAdvisoryPublicApiController extends Controller
                             'speed_limit_kmh'   => $adv->speed_limit_kmh,
                             'closure_type'      => $adv->closure_type,
                             'message'           => $adv->message,
-                            'icon_type'         => $this->mapIconType($adv->advisory_type),
-                            'pin_color'         => $this->mapPinColor($adv->advisory_type, $adv->severity),
+                            'icon_type'         => $this->mapIconType($categoryKey),
+                            'pin_color'         => $this->mapPinColor($categoryKey, $adv->severity),
                             'published_at'      => $adv->published_at?->toIso8601String(),
                             'expires_at'        => $adv->expires_at?->toIso8601String(),
                         ],
@@ -343,9 +353,9 @@ class TravelAdvisoryPublicApiController extends Controller
                             'properties' => [
                                 'parent_advisory_id' => $adv->id,
                                 'type'               => 'advisory_span',
-                                'advisory_type'      => $adv->advisory_type,
+                                'category'           => $categoryKey,
                                 'severity'           => $adv->severity,
-                                'color'              => $this->mapSpanColor($adv->advisory_type),
+                                'color'              => $this->mapSpanColor($categoryKey),
                             ],
                         ];
                     }
@@ -402,14 +412,16 @@ class TravelAdvisoryPublicApiController extends Controller
             $locationLabel .= " · Near KM {$adv->start_km}";
         }
 
-        $categoryDisplay = match ($adv->advisory_type) {
+        $categoryKey = self::resolveCanonicalCategory($adv);
+
+        $categoryDisplay = match ($categoryKey) {
             'fog'          => 'Fog & visibility',
             'road_works'   => 'Road works',
             'traffic'      => 'Traffic',
             'road_closure' => 'Road closure',
             'diversion'    => 'Diversions',
             'weather'      => 'Weather',
-            default        => ucfirst(str_replace('_', ' ', $adv->advisory_type ?: 'General Alert')),
+            default        => ucfirst(str_replace('_', ' ', $categoryKey ?: 'General Alert')),
         };
 
         $updatedPkt = $adv->published_at
@@ -420,12 +432,26 @@ class TravelAdvisoryPublicApiController extends Controller
             ? $adv->expires_at->timezone('Asia/Karachi')->format('H:i \P\K\T')
             : null;
 
+        if (empty($adv->start_lat) || empty($adv->start_lng) || empty($adv->end_lat) || empty($adv->end_lng)) {
+            $adv->ensureCoordinates();
+            if ($adv->isDirty(['start_lat', 'start_lng', 'end_lat', 'end_lng'])) {
+                $adv->saveQuietly();
+            }
+        }
+
+        $startCoords = ($adv->start_lat && $adv->start_lng)
+            ? [(float)$adv->start_lat, (float)$adv->start_lng]
+            : null;
+
+        $endCoords = ($adv->end_lat && $adv->end_lng)
+            ? [(float)$adv->end_lat, (float)$adv->end_lng]
+            : $startCoords;
+
         return [
             'id'                 => $adv->id,
             'uuid'               => $adv->uuid,
             'title'              => $adv->title,
-            'advisory_type'      => $adv->advisory_type,
-            'category'           => $adv->category,
+            'category'           => $categoryKey,
             'category_display'   => $categoryDisplay,
             'severity'           => $adv->severity,
             'route_name'         => $adv->route_name,
@@ -440,10 +466,10 @@ class TravelAdvisoryPublicApiController extends Controller
             'speed_limit_kmh'    => $adv->speed_limit_kmh,
             'closure_type'       => $adv->closure_type,
             'message'            => $adv->message,
-            'icon'               => $this->mapIconType($adv->advisory_type),
-            'badge_color'        => $this->mapPinColor($adv->advisory_type, $adv->severity),
-            'start_coords'       => ($adv->start_lat && $adv->start_lng) ? [(float)$adv->start_lat, (float)$adv->start_lng] : null,
-            'end_coords'         => ($adv->end_lat && $adv->end_lng) ? [(float)$adv->end_lat, (float)$adv->end_lng] : null,
+            'icon'               => $this->mapIconType($categoryKey),
+            'badge_color'        => $this->mapPinColor($categoryKey, $adv->severity),
+            'start_coords'       => $startCoords,
+            'end_coords'         => $endCoords,
             'published_at'       => $adv->published_at?->toIso8601String(),
             'expires_at'         => $adv->expires_at?->toIso8601String(),
             'expires_at_pkt'     => $expiresPkt,
@@ -515,5 +541,33 @@ class TravelAdvisoryPublicApiController extends Controller
             'Cache-Control' => 'public, max-age=60, stale-while-revalidate=30',
             'Access-Control-Allow-Origin' => '*',
         ]);
+    }
+
+    /**
+     * Resolves a mutually-exclusive canonical category key for pills, counters, and APIs.
+     */
+    public static function resolveCanonicalCategory(TabletAdvisory $adv): string
+    {
+        // Diversion takes precedence so it is never lumped into road_closure
+        if ($adv->category === 'diversion') {
+            return 'diversion';
+        }
+        if ($adv->category === 'road_closure') {
+            return 'road_closure';
+        }
+        if ($adv->category === 'road_works' || $adv->category === 'maintenance') {
+            return 'road_works';
+        }
+        if ($adv->category === 'traffic' || $adv->category === 'congestion') {
+            return 'traffic';
+        }
+        if ($adv->category === 'fog') {
+            return 'fog';
+        }
+        if ($adv->category === 'weather') {
+            return 'weather';
+        }
+
+        return $adv->category ?: 'advisory';
     }
 }

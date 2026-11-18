@@ -1863,7 +1863,6 @@ class ComprehensiveTravelAdvisorySeeder extends Seeder
                 'uuid'              => (string) Str::uuid(),
                 'title'             => $data['title'],
                 'category'          => $data['category'],
-                'advisory_type'     => $data['type'],
                 'severity'          => $data['severity'],
                 'route_name'        => $data['route'],
                 'carriageway'       => strtolower($data['carriageway']),

@@ -223,25 +223,20 @@ Route::middleware('auth')->group(function () {
     Route::get('/operations/support/requests/{supportRequest:public_id}', [\App\Http\Controllers\Admin\SupportManagementController::class, 'show'])
         ->name('operations.support.requests.show');
 
-    // Travel Advisory is hidden on production (2026-11-15); routes stay registered on other environments.
-    if (! app()->isProduction()) {
-        // Wireless Operator Rapid Incident Data Entry Hub & Management Grid
-        Route::get('/ops/travel-advisory', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorIndex'])->name('ops.travel-advisory.index');
-        Route::get('/ops/travel-advisory/create', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorCreate'])->name('ops.travel-advisory.create');
-        Route::post('/ops/travel-advisory', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorStore'])->name('ops.travel-advisory.store');
-        Route::post('/ops/travel-advisory/{id}/resolve', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorResolve'])->name('ops.travel-advisory.resolve');
-        Route::post('/ops/travel-advisory/{id}/extend', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorExtend'])->name('ops.travel-advisory.extend');
-    }
+    // Wireless Operator Rapid Incident Data Entry Hub & Management Grid
+    Route::get('/ops/travel-advisory', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorIndex'])->name('ops.travel-advisory.index');
+    Route::get('/ops/travel-advisory/create', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorCreate'])->name('ops.travel-advisory.create');
+    Route::post('/ops/travel-advisory', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorStore'])->name('ops.travel-advisory.store');
+    Route::get('/ops/travel-advisory/{id}', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorShow'])->name('ops.travel-advisory.show');
+    Route::post('/ops/travel-advisory/{id}/update', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorUpdate'])->name('ops.travel-advisory.update');
+    Route::post('/ops/travel-advisory/{id}/approve', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorApprove'])->name('ops.travel-advisory.approve');
+    Route::post('/ops/travel-advisory/{id}/reject', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorReject'])->name('ops.travel-advisory.reject');
+    Route::post('/ops/travel-advisory/{id}/resolve', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorResolve'])->name('ops.travel-advisory.resolve');
+    Route::post('/ops/travel-advisory/{id}/extend', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorExtend'])->name('ops.travel-advisory.extend');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
-
-// Public Commuter Travel Advisory Portal (nhmp.gov.pk/travel-advisory style)
-if (! app()->isProduction()) {
-    Route::get('/travel-advisory', [\App\Http\Controllers\TravelAdvisoryController::class, 'publicPortal'])
-        ->name('public.travel-advisory');
-}
 
 require __DIR__.'/auth.php';

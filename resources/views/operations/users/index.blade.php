@@ -53,70 +53,92 @@
         </button>
 
         <!-- STATS CARDS -->
-        <div class="grid grid-cols-2 md:grid-cols-6 lg:grid-cols-6 gap-4">
+        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3.5">
             <!-- HQ Administrators Card -->
             <div @click="filterStatus = (filterStatus === 'admin' ? '' : 'admin')" :class="filterStatus === 'admin' ? 'card-3d-active amber' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
-                <div class="absolute -top-4 left-4 h-10 w-10 grid place-items-center rounded-xl bg-amber-500 shadow-[0_8px_16px_rgba(245,158,11,0.2)]">
-                    <i class="fas fa-building-shield text-xs text-white"></i>
+                <div class="absolute -top-3.5 left-3.5 h-9 w-9 grid place-items-center rounded-xl bg-amber-500 shadow-[0_8px_16px_rgba(245,158,11,0.2)]">
+                    <i class="fas fa-building-shield text-[11px] text-white"></i>
                 </div>
-                <div class="p-5 text-right pt-4">
-                    <p class="text-[8px] font-black tracking-widest text-amber-500 uppercase">Administrators</p>
-                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="stats.admins"></h4>
+                <div class="p-4 text-right pt-3">
+                    <p class="text-[7.5px] font-black tracking-widest text-amber-500 uppercase">Administrators</p>
+                    <h4 class="text-xl font-extrabold text-blue-900 mt-0.5" x-text="stats.admins"></h4>
                 </div>
             </div>
 
             <!-- Zone Authority Card -->
             <div @click="filterStatus = (filterStatus === 'zone_user' ? '' : 'zone_user')" :class="filterStatus === 'zone_user' ? 'card-3d-active blue' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
-                <div class="absolute -top-4 left-4 h-10 w-10 grid place-items-center rounded-xl bg-blue-600 shadow-[0_8px_16px_rgba(37,99,235,0.2)]">
-                    <i class="fas fa-map-location-dot text-xs text-white"></i>
+                <div class="absolute -top-3.5 left-3.5 h-9 w-9 grid place-items-center rounded-xl bg-blue-600 shadow-[0_8px_16px_rgba(37,99,235,0.2)]">
+                    <i class="fas fa-map-location-dot text-[11px] text-white"></i>
                 </div>
-                <div class="p-5 text-right pt-4">
-                    <p class="text-[8px] font-black tracking-widest text-blue-500 uppercase">Zone Authority</p>
-                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="stats.zone"></h4>
+                <div class="p-4 text-right pt-3">
+                    <p class="text-[7.5px] font-black tracking-widest text-blue-500 uppercase">Zone Authority</p>
+                    <h4 class="text-xl font-extrabold text-blue-900 mt-0.5" x-text="stats.zone"></h4>
                 </div>
             </div>
 
             <!-- Sector Authority Card -->
             <div @click="filterStatus = (filterStatus === 'sector_user' ? '' : 'sector_user')" :class="filterStatus === 'sector_user' ? 'card-3d-active indigo' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
-                <div class="absolute -top-4 left-4 h-10 w-10 grid place-items-center rounded-xl bg-indigo-600 shadow-[0_8px_16px_rgba(79,70,229,0.2)]">
-                    <i class="fas fa-landmark text-xs text-white"></i>
+                <div class="absolute -top-3.5 left-3.5 h-9 w-9 grid place-items-center rounded-xl bg-indigo-600 shadow-[0_8px_16px_rgba(79,70,229,0.2)]">
+                    <i class="fas fa-landmark text-[11px] text-white"></i>
                 </div>
-                <div class="p-5 text-right pt-4">
-                    <p class="text-[8px] font-black tracking-widest text-indigo-500 uppercase">Sectors</p>
-                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="stats.sector"></h4>
+                <div class="p-4 text-right pt-3">
+                    <p class="text-[7.5px] font-black tracking-widest text-indigo-500 uppercase">Sectors</p>
+                    <h4 class="text-xl font-extrabold text-blue-900 mt-0.5" x-text="stats.sector"></h4>
                 </div>
             </div>
 
             <!-- Beat Operations Card -->
             <div @click="filterStatus = (filterStatus === 'beat_user' ? '' : 'beat_user')" :class="filterStatus === 'beat_user' ? 'card-3d-active purple' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
-                <div class="absolute -top-4 left-4 h-10 w-10 grid place-items-center rounded-xl bg-purple-600 shadow-[0_8px_16px_rgba(147,51,234,0.2)]">
-                    <i class="fas fa-tower-broadcast text-xs text-white"></i>
+                <div class="absolute -top-3.5 left-3.5 h-9 w-9 grid place-items-center rounded-xl bg-purple-600 shadow-[0_8px_16px_rgba(147,51,234,0.2)]">
+                    <i class="fas fa-tower-broadcast text-[11px] text-white"></i>
                 </div>
-                <div class="p-5 text-right pt-4">
-                    <p class="text-[8px] font-black tracking-widest text-purple-500 uppercase">Beats Ops</p>
-                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="stats.beat"></h4>
+                <div class="p-4 text-right pt-3">
+                    <p class="text-[7.5px] font-black tracking-widest text-purple-500 uppercase">Beats Ops</p>
+                    <h4 class="text-xl font-extrabold text-blue-900 mt-0.5" x-text="stats.beat"></h4>
                 </div>
             </div>
 
             <!-- Call Center Card -->
             <div @click="filterStatus = (filterStatus === 'call_centre_user' ? '' : 'call_centre_user')" :class="filterStatus === 'call_centre_user' ? 'card-3d-active emerald' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
-                <div class="absolute -top-4 left-4 h-10 w-10 grid place-items-center rounded-xl bg-emerald-600 shadow-[0_8px_16px_rgba(5,150,105,0.2)]">
-                    <i class="fas fa-headset text-xs text-white"></i>
+                <div class="absolute -top-3.5 left-3.5 h-9 w-9 grid place-items-center rounded-xl bg-emerald-600 shadow-[0_8px_16px_rgba(5,150,105,0.2)]">
+                    <i class="fas fa-headset text-[11px] text-white"></i>
                 </div>
-                <div class="p-5 text-right pt-4">
-                    <p class="text-[8px] font-black tracking-widest text-emerald-500 uppercase">Call Center</p>
-                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="stats.call_center"></h4>
+                <div class="p-4 text-right pt-3">
+                    <p class="text-[7.5px] font-black tracking-widest text-emerald-500 uppercase">Call Center</p>
+                    <h4 class="text-xl font-extrabold text-blue-900 mt-0.5" x-text="stats.call_center"></h4>
+                </div>
+            </div>
+
+            <!-- Patrol Officers (Tigers) Card -->
+            <div @click="filterStatus = (filterStatus === 'patrol_user' ? '' : 'patrol_user')" :class="filterStatus === 'patrol_user' ? 'card-3d-active cyan' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                <div class="absolute -top-3.5 left-3.5 h-9 w-9 grid place-items-center rounded-xl bg-cyan-600 shadow-[0_8px_16px_rgba(8,145,178,0.2)]">
+                    <i class="fas fa-shield-halved text-[11px] text-white"></i>
+                </div>
+                <div class="p-4 text-right pt-3">
+                    <p class="text-[7.5px] font-black tracking-widest text-cyan-600 uppercase">Patrol Tigers</p>
+                    <h4 class="text-xl font-extrabold text-blue-900 mt-0.5" x-text="stats.patrol"></h4>
+                </div>
+            </div>
+
+            <!-- Commuters (Hamsafar) Card -->
+            <div @click="filterStatus = (filterStatus === 'commuter_user' ? '' : 'commuter_user')" :class="filterStatus === 'commuter_user' ? 'card-3d-active teal' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                <div class="absolute -top-3.5 left-3.5 h-9 w-9 grid place-items-center rounded-xl bg-teal-600 shadow-[0_8px_16px_rgba(13,148,136,0.2)]">
+                    <i class="fas fa-mobile-screen-button text-[11px] text-white"></i>
+                </div>
+                <div class="p-4 text-right pt-3">
+                    <p class="text-[7.5px] font-black tracking-widest text-teal-600 uppercase">Commuters</p>
+                    <h4 class="text-xl font-extrabold text-blue-900 mt-0.5" x-text="stats.commuter"></h4>
                 </div>
             </div>
 
             <!-- Inactive Card -->
             <div @click="filterStatus = (filterStatus === 'inactive' ? '' : 'inactive')" :class="filterStatus === 'inactive' ? 'card-3d-active rose' : ''" class="relative flex flex-col bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
-                <div class="absolute -top-4 left-4 h-10 w-10 grid place-items-center rounded-xl bg-rose-600 shadow-[0_8px_16px_rgba(225,29,72,0.2)]">
-                    <i class="fas fa-user-lock text-xs text-white"></i>
+                <div class="absolute -top-3.5 left-3.5 h-9 w-9 grid place-items-center rounded-xl bg-rose-600 shadow-[0_8px_16px_rgba(225,29,72,0.2)]">
+                    <i class="fas fa-user-lock text-[11px] text-white"></i>
                 </div>
-                <div class="p-5 text-right pt-4">
-                    <p class="text-[8px] font-black tracking-widest text-rose-500 uppercase">Inactive</p>
-                    <h4 class="text-2xl font-extrabold text-blue-900 mt-1" x-text="stats.inactive"></h4>
+                <div class="p-4 text-right pt-3">
+                    <p class="text-[7.5px] font-black tracking-widest text-rose-500 uppercase">Inactive</p>
+                    <h4 class="text-xl font-extrabold text-blue-900 mt-0.5" x-text="stats.inactive"></h4>
                 </div>
             </div>
         </div>
@@ -290,7 +312,7 @@
                     <!-- Table View -->
                     <div x-show="viewMode === 'table'" x-transition class="overflow-x-auto shadow-inner bg-white rounded-3xl border border-slate-100">
                         <table class="w-full text-left" :class="density === 'condensed' ? 'condensed-table' : 'spacious-table'">
-                            <thead class="bg-blue-50 border-b border-blue-100">
+                            <thead class="bg-blue-50/95 backdrop-blur-sm border-b border-blue-100 sticky top-0 z-10 shadow-sm">
                                 <tr>
                                     <th class="px-4 py-4 border-b border-slate-50">
                                         <div class="flex items-center gap-2.5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
@@ -491,10 +513,10 @@
                 </div>
             </div>
 
-            <!-- Right Column - Operational Filters -->
-            <div class="lg:col-span-3 pb-8 transition-all duration-300" x-show="showSidebar" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-x-4" x-transition:enter-end="opacity-100 translate-x-0" x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100 translate-x-0" x-transition:leave-end="opacity-0 translate-x-4" x-cloak>
-                <div class="lg:sticky lg:top-8 bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col">
-                    <div class="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+            <!-- Right Column - Operational Filters (Sticky Intelligence Sidebar) -->
+            <div class="lg:col-span-3 pb-8 transition-all duration-300 self-start lg:sticky lg:top-6 z-30" x-show="showSidebar" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-x-4" x-transition:enter-end="opacity-100 translate-x-0" x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100 translate-x-0" x-transition:leave-end="opacity-0 translate-x-4" x-cloak>
+                <div class="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col max-h-[calc(100vh-3rem)]">
+                    <div class="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
                         <div class="flex items-center gap-3">
                             <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-blue-600 shadow-sm">
                                 <i class="fas fa-filter"></i>
@@ -509,7 +531,7 @@
                         </button>
                     </div>
 
-                    <div class="p-6 space-y-6 w-full flex-1">
+                    <div class="p-6 space-y-6 w-full flex-1 overflow-y-auto">
                         <!-- Search -->
                         <div class="space-y-3">
                             <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
@@ -600,6 +622,18 @@
                                         'bg-slate-50 text-slate-600 hover:bg-slate-100 border-2 border-slate-100'" class="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-left flex items-center justify-between group">
                                     <span>Active (Authorized)</span>
                                     <i class="fas fa-check-circle transition-opacity" :class="filterStatus === 'active' ? 'opacity-100' : 'opacity-40'"></i>
+                                </button>
+                                <button @click="filterStatus = 'patrol_user'" :class="filterStatus === 'patrol_user' ?
+                                        'bg-cyan-600 text-white shadow-md' :
+                                        'bg-slate-50 text-slate-600 hover:bg-slate-100 border-2 border-slate-100'" class="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-left flex items-center justify-between group">
+                                    <span>Patrol Tigers</span>
+                                    <i class="fas fa-shield-halved transition-opacity" :class="filterStatus === 'patrol_user' ? 'opacity-100' : 'opacity-40'"></i>
+                                </button>
+                                <button @click="filterStatus = 'commuter_user'" :class="filterStatus === 'commuter_user' ?
+                                        'bg-teal-600 text-white shadow-md' :
+                                        'bg-slate-50 text-slate-600 hover:bg-slate-100 border-2 border-slate-100'" class="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-left flex items-center justify-between group">
+                                    <span>Commuters (Hamsafar)</span>
+                                    <i class="fas fa-mobile-screen-button transition-opacity" :class="filterStatus === 'commuter_user' ? 'opacity-100' : 'opacity-40'"></i>
                                 </button>
                                 <button @click="filterStatus = 'suspended'" :class="filterStatus === 'suspended' ?
                                         'bg-slate-700 text-white shadow-md' :

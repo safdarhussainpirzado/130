@@ -791,12 +791,12 @@
 
                     <!-- TRAVEL ADVISORY -->
                     @php
-                        $isSectorOperatorOrAdmin = in_array(Auth::user()?->role?->name, ['sector_admin', \App\Models\Role::SUPER_ADMIN], true) 
+                        $userRole = Auth::user()?->role?->name;
+                        $canAccessTravelAdvisory = in_array($userRole, ['sector_admin', \App\Models\Role::SUPER_ADMIN, \App\Models\Role::AGENT_SUPERVISOR, \App\Models\Role::IT_ADMIN, 'operation_admin', 'zone_admin'], true)
                             || (Auth::user() && Auth::user()->hasPermission('travel_advisory.view'));
                     @endphp
 
-                    {{-- Travel Advisory sidebar links hidden by request (2026-11-15). Hidden on production only (see routes/web.php). --}}
-                    @if (! app()->isProduction() && $isSectorOperatorOrAdmin)
+                    @if ($canAccessTravelAdvisory)
                         <div class="nav-section">Travel Advisory</div>
                         <div class="nav-section-divider"></div>
 
@@ -804,21 +804,14 @@
                             class="nav-item {{ request()->routeIs('ops.travel-advisory.create') ? 'active' : '' }}">
                             <span class="nav-icon text-amber-500"><i class="fa-solid fa-tower-broadcast"></i></span>
                             <span class="nav-label">Log Advisory / Fog</span>
-                            <span class="nav-tooltip">Wireless Operator Entry</span>
+                            <span class="nav-tooltip">Log Travel Advisory</span>
                         </a>
 
                         <a href="{{ route('ops.travel-advisory.index') }}"
                             class="nav-item {{ request()->routeIs('ops.travel-advisory.index') ? 'active' : '' }}">
                             <span class="nav-icon text-sky-500"><i class="fa-solid fa-triangle-exclamation"></i></span>
-                            <span class="nav-label">Active Advisories Grid</span>
-                            <span class="nav-tooltip">Corridor Management</span>
-                        </a>
-
-                        <a href="{{ route('public.travel-advisory') }}" target="_blank"
-                            class="nav-item {{ request()->routeIs('public.travel-advisory') ? 'active' : '' }}">
-                            <span class="nav-icon text-emerald-500"><i class="fa-solid fa-earth-asia"></i></span>
-                            <span class="nav-label">Commuter Portal</span>
-                            <span class="nav-tooltip">Humsafar Public View</span>
+                            <span class="nav-label">Travel Advisories</span>
+                            <span class="nav-tooltip">Advisories Management Grid</span>
                         </a>
                     @endif
 

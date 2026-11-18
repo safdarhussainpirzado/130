@@ -202,6 +202,12 @@
                         class="px-3 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1">
                     <i class="fa-solid fa-user-shield text-[10px]"></i> Governance
                 </button>
+                <button type="button"
+                        @click="actionFilter = 'patrol'"
+                        :class="actionFilter === 'patrol' ? 'bg-blue-600 text-white shadow-xs' : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200'"
+                        class="px-3 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1">
+                    <i class="fa-solid fa-car text-[10px]"></i> Patrol &amp; Field Ops
+                </button>
             </div>
         </div>
     </div>
@@ -242,6 +248,7 @@
                             $entityName = match ($log->table_name) {
                                 'users'                      => 'User Profile',
                                 'calls'                      => 'Call Record',
+                                'patrol_duty_sessions'       => 'Patrol Duty Shift',
                                 'support_requests'           => 'Support Ticket',
                                 'user_scopes'                => 'Jurisdiction Scope',
                                 'password_reset_requests'    => 'Password Recovery',
@@ -729,6 +736,8 @@
                     matchesAction = data.action.includes('2fa') || data.action.includes('mfa') || data.action.includes('recovery');
                 } else if (this.actionFilter === 'governance') {
                     matchesAction = data.action.includes('password') || data.action.includes('lockout') || data.action.includes('transfer') || data.action.includes('reset');
+                } else if (this.actionFilter === 'patrol') {
+                    matchesAction = data.action.includes('patrol') || data.action.includes('duty') || data.action.includes('case') || data.action.includes('call') || data.entity.includes('patrol') || data.entity.includes('call');
                 }
                 return matchesSearch && matchesAction;
             },

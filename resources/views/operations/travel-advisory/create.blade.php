@@ -6,7 +6,7 @@
 @section('content')
 @php
     $isBeat = ($operatorOffice?->type === 'beat');
-    $isSector = ($operatorOffice?->type === 'sector');
+    $isSector = ($operatorOffice?->type === 'sector' || $operatorTier === 'sector');
     $isZone = ($operatorOffice?->type === 'zone');
 
     $userOfficeId = $isBeat ? $operatorOffice->id : null;
@@ -35,6 +35,7 @@
 
 <div x-data="rapidTravelAdvisoryHub({
     tier: '{{ $operatorTier }}',
+    isSupervisor: {{ ($isSupervisor ?? false) ? 'true' : 'false' }},
     initialUserOfficeId: {{ $userOfficeId ? (int)$userOfficeId : 'null' }},
     initialUserSectorId: {{ $userSectorId ? (int)$userSectorId : 'null' }},
     initialUserZoneId: {{ $userZoneId ? (int)$userZoneId : 'null' }},
@@ -46,28 +47,23 @@
     landmarksData: {{ Js::from($landmarks ?? []) }},
 })" class="space-y-5 max-w-7xl mx-auto pb-12 pt-1" x-cloak>
 
-    <!-- MAIN FORM: Single Smooth Flow (No Top Bulky Section, No Green Session Box) -->
+    <!-- MAIN FORM: Clean Flow for Operational Staff -->
     <form @submit.prevent="submitForm()" id="rapid-advisory-form" class="space-y-5">
         @csrf
 
-        <!-- SECTION 1: OPERATIONAL JURISDICTION CHIPS (Zone, Sector, Beat) -->
+        <!-- SECTION 1: POLICE JURISDICTION & ROAD SECTION -->
         <div class="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm space-y-4">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100">
                 <div class="flex items-center gap-2.5">
                     <span class="w-7 h-7 rounded-lg bg-blue-600 text-white font-black text-xs flex items-center justify-center shadow-sm">1</span>
                     <div>
-                        <h2 class="text-sm font-black text-slate-900 uppercase tracking-wider">Operational Jurisdiction & Spatial Anchoring</h2>
-                        <p class="text-[11px] text-slate-500">Auto-assigned for Beat operators; hierarchical selection for Sector, Zone, and Central Control</p>
+                        <h2 class="text-sm font-black text-slate-900 uppercase tracking-wider">1. Police Jurisdiction & Beat Selection</h2>
+                        <p class="text-[11px] text-slate-500">Select your Zone, Sector, and the Beat(s) where this advisory applies</p>
                     </div>
                 </div>
 
                 <!-- Navigation Quick Actions -->
                 <div class="flex items-center gap-2">
-                    <a href="{{ route('public.travel-advisory') }}" target="_blank"
-                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition shadow-sm">
-                        <i class="fa-solid fa-arrow-up-right-from-square text-sky-600"></i>
-                        <span>Commuter Portal</span>
-                    </a>
                     <a href="{{ route('ops.travel-advisory.index') }}"
                         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition shadow-sm">
                         <i class="fa-solid fa-table-list text-blue-600"></i>
@@ -76,7 +72,7 @@
                 </div>
             </div>
 
-            <!-- CHIPS ROW: Zone, Sector, Beat Auto-Assign Status -->
+            <!-- CHIPS ROW: Zone, Sector, Beats -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                 <!-- ZONE CHIP -->
                 <div class="p-3.5 rounded-2xl border transition-all"
@@ -87,15 +83,15 @@
                         </span>
                         <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md"
                             :class="tier === 'beat' || tier === 'sector' || tier === 'zone' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-blue-100 text-blue-800'">
-                            <span x-show="tier === 'beat' || tier === 'sector' || tier === 'zone'">Auto-Assign</span>
-                            <span x-show="tier === 'national'">Selectable</span>
+                            <span x-show="tier === 'beat' || tier === 'sector' || tier === 'zone'">Assigned Zone</span>
+                            <span x-show="tier === 'national'">Choose Zone</span>
                         </span>
                     </div>
 
                     <template x-if="tier === 'beat' || tier === 'sector' || tier === 'zone'">
                         <div class="flex items-center gap-2">
-                            <span class="text-sm font-black text-slate-900" x-text="selectedZoneName || 'Auto-Assigned Zone'"></span>
-                            <i class="fa-solid fa-lock text-slate-400 text-xs" title="Locked by your operational post"></i>
+                            <span class="text-sm font-black text-slate-900" x-text="selectedZoneName || 'Your Zone'"></span>
+                            <i class="fa-solid fa-lock text-slate-400 text-xs" title="Locked to your assigned post"></i>
                         </div>
                     </template>
 
@@ -121,15 +117,15 @@
                         </span>
                         <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md"
                             :class="tier === 'beat' || tier === 'sector' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-indigo-100 text-indigo-800'">
-                            <span x-show="tier === 'beat' || tier === 'sector'">Auto-Assign</span>
-                            <span x-show="tier === 'zone' || tier === 'national'">Select Sector</span>
+                            <span x-show="tier === 'beat' || tier === 'sector'">Assigned Sector</span>
+                            <span x-show="tier === 'zone' || tier === 'national'">Choose Sector</span>
                         </span>
                     </div>
 
                     <template x-if="tier === 'beat' || tier === 'sector'">
                         <div class="flex items-center gap-2">
-                            <span class="text-sm font-black text-slate-900" x-text="selectedSectorName || 'Auto-Assigned Sector'"></span>
-                            <i class="fa-solid fa-lock text-slate-400 text-xs" title="Locked by your operational post"></i>
+                            <span class="text-sm font-black text-slate-900" x-text="selectedSectorName || 'Your Sector'"></span>
+                            <i class="fa-solid fa-lock text-slate-400 text-xs" title="Locked to your assigned post"></i>
                         </div>
                     </template>
 
@@ -147,40 +143,31 @@
                     </template>
                 </div>
 
-                <!-- BEAT (OFFICE) CHIP -->
+                <!-- BEAT CHIPS (MULTI-BEAT SELECTION SUPPORTED) -->
                 <div class="p-3.5 rounded-2xl border transition-all"
-                    :class="selectedBeatId ? 'bg-gradient-to-br from-amber-50/60 to-slate-50 border-amber-300 shadow-sm' : 'bg-slate-50 border-slate-200'">
+                    :class="selectedBeatIds.length > 0 ? 'bg-gradient-to-br from-amber-50/60 to-slate-50 border-amber-300 shadow-sm' : 'bg-slate-50 border-slate-200'">
                     <div class="flex items-center justify-between mb-1.5">
                         <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                            <i class="fa-solid fa-shield-halved text-amber-600"></i> Beat (Office)
+                            <i class="fa-solid fa-shield-halved text-amber-600"></i> Beat(s)
                         </span>
-                        <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md"
-                            :class="tier === 'beat' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800'">
-                            <span x-show="tier === 'beat'">Current Beat</span>
-                            <span x-show="tier !== 'beat'">Select Beat</span>
+                        <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200"
+                            x-text="selectedBeatIds.length + ' Selected (Click to Toggle)'">
                         </span>
                     </div>
 
-                    <template x-if="tier === 'beat'">
-                        <div class="flex items-center gap-2">
-                            <span class="text-sm font-black text-slate-900" x-text="selectedBeatName || 'Current Beat'"></span>
-                            <span class="text-xs font-mono font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded" x-text="selectedBeatKmRange"></span>
-                        </div>
-                    </template>
-
-                    <template x-if="tier !== 'beat'">
-                        <div class="flex flex-wrap gap-1.5 mt-1 max-h-32 overflow-y-auto">
-                            <template x-for="b in filteredBeats" :key="b.id">
-                                <button type="button" @click="selectBeat(b.id)"
-                                    class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                                    :class="selectedBeatId == b.id ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-400' : 'bg-white text-slate-700 border border-slate-200 hover:border-amber-400'">
-                                    <span x-text="b.name"></span>
-                                    <span class="text-[10px] opacity-80 font-mono" x-show="b.km_min !== null" x-text="'(KM ' + Math.round(b.km_min) + '-' + Math.round(b.km_max) + ')'"></span>
-                                </button>
-                            </template>
-                            <span x-show="filteredBeats.length === 0" class="text-xs text-slate-400 italic">Select a Sector first</span>
-                        </div>
-                    </template>
+                    <!-- List of Sector Beats: Multi-Selection Chips -->
+                    <div class="flex flex-wrap gap-1.5 mt-1 max-h-36 overflow-y-auto pt-1">
+                        <template x-for="b in filteredBeats" :key="b.id">
+                            <button type="button" @click="toggleBeat(b.id)"
+                                class="px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                                :class="selectedBeatIds.includes(b.id) ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-md shadow-amber-500/20 ring-2 ring-amber-400' : 'bg-white text-slate-700 border border-slate-200 hover:border-amber-400 hover:bg-amber-50/30'">
+                                <i class="fa-solid fa-check text-[11px]" x-show="selectedBeatIds.includes(b.id)"></i>
+                                <span x-text="b.name"></span>
+                                <span class="text-[10px] font-mono opacity-80" x-show="b.km_min !== null" x-text="'(KM ' + Math.round(b.km_min) + '-' + Math.round(b.km_max) + ')'"></span>
+                            </button>
+                        </template>
+                        <span x-show="filteredBeats.length === 0" class="text-xs text-slate-400 italic">Select a Sector to see Beats</span>
+                    </div>
                 </div>
             </div>
 
@@ -189,161 +176,175 @@
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <label class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
                         <i class="fa-solid fa-road text-amber-500"></i>
-                        <span>Target Highway / Motorway Corridor</span>
-                        <span class="text-[10px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200">Interactive Highway Switcher</span>
+                        <span>Select Highway / Motorway</span>
                     </label>
-                    <span class="text-[11px] text-slate-500 font-medium">Click any corridor below to switch road or select from full registry</span>
+                    <span class="text-xs text-slate-500">
+                        Selected: <strong class="text-slate-900" x-text="resolvedRoadTitle"></strong>
+                    </span>
                 </div>
 
-                <!-- Quick Buttons for Major Motorways & Highways -->
-                <div class="flex flex-wrap items-center gap-1.5">
-                    <template x-for="c in quickCorridors" :key="c">
-                        <button type="button" @click="selectRoad(c)"
-                            class="px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                            :class="selectedRoadCode === c 
-                                ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400 shadow-md font-black scale-105' 
-                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'">
-                            <i class="fa-solid fa-shield-halved text-[10px]" :class="selectedRoadCode === c ? 'text-slate-950' : 'text-slate-400'"></i>
-                            <span x-text="c"></span>
+                <!-- QUICK HIGHWAY PILLS -->
+                <div class="flex flex-wrap gap-1.5">
+                    <template x-for="r in quickCorridors" :key="r">
+                        <button type="button" @click="selectRoad(r)"
+                            class="px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer font-mono"
+                            :class="selectedRoadCode === r ? 'bg-slate-900 text-white shadow-md ring-2 ring-slate-400' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
+                            x-text="r">
                         </button>
                     </template>
+                </div>
+            </div>
 
-                    <!-- Full Carriageways Registry Dropdown -->
-                    <div class="relative inline-block ml-auto sm:ml-2">
-                        <select x-model="selectedRoadCode" @change="selectRoad(selectedRoadCode)"
-                            class="bg-white border border-slate-300 text-slate-800 text-xs font-bold rounded-xl px-3 py-1.5 pr-8 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-sm cursor-pointer">
-                            <template x-for="cw in carriagewaysList" :key="cw.id">
-                                <option :value="cw.road_short || cw.road" x-text="cw.road_short + ' - ' + cw.road_name + ' (' + Math.round(cw.total_km) + ' KM)'"></option>
-                            </template>
-                        </select>
+            <!-- CARRIAGEWAY DIRECTION -->
+            <div class="mt-2 pt-4 border-t border-slate-100 space-y-2.5">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                    <label class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-arrows-split-up-and-left text-blue-600"></i>
+                        <span>Carriageway Direction</span>
+                    </label>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <button type="button" @click="setCarriageway('both')"
+                            class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                            :class="carriagewayBound === 'both' ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-400' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'">
+                            <i class="fa-solid fa-arrows-left-right text-xs"></i>
+                            <span>Both Sides (Dual Carriageway)</span>
+                        </button>
+                        <button type="button" @click="setCarriageway('northbound')"
+                            class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                            :class="carriagewayBound === 'northbound' ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-400' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'">
+                            <i class="fa-solid fa-arrow-up text-xs"></i>
+                            <span>Northbound (N)</span>
+                        </button>
+                        <button type="button" @click="setCarriageway('southbound')"
+                            class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                            :class="carriagewayBound === 'southbound' ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-400' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'">
+                            <i class="fa-solid fa-arrow-down text-xs"></i>
+                            <span>Southbound (S)</span>
+                        </button>
                     </div>
                 </div>
             </div>
 
-            <!-- DYNAMIC CORRIDOR STRIP & BOUND CHIPS -->
-            <div class="mt-4 p-4 rounded-2xl bg-slate-900 text-white flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 shadow-inner">
-                <div class="flex items-start sm:items-center gap-3">
-                    <div class="w-11 h-11 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center text-xl shrink-0">
-                        <i class="fa-solid fa-road"></i>
-                    </div>
-                    <div>
+            <!-- PROMINENT STARTING POINT & ENDING POINT OVERVIEW (HIGH VISIBILITY) -->
+            <div class="mt-4 pt-4 border-t border-slate-100 space-y-3">
+                <div class="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-900 to-blue-950 text-white border border-slate-800 shadow-md space-y-4">
+                    <div class="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-white/10">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <span class="text-xs font-bold uppercase tracking-wider text-slate-300">Selected Road Section & Coverage</span>
+                        </div>
                         <div class="flex items-center gap-2 flex-wrap">
-                            <span class="text-sm font-black text-amber-400 tracking-wide font-mono px-2 py-0.5 rounded bg-amber-400/10 border border-amber-400/30" x-text="selectedRoadCode"></span>
-                            <span class="text-xs text-slate-300 font-semibold" x-text="resolvedRoadTitle"></span>
-                            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Target Corridor</span>
-                        </div>
-                        <div class="text-xs text-slate-400 mt-1 flex flex-wrap items-center gap-3">
-                            <span class="font-mono text-slate-300 font-bold" x-text="'Beat Span: ' + selectedBeatKmRange"></span>
-                            <span class="text-slate-600">•</span>
-                            <span class="text-slate-300" x-text="'Sector: ' + selectedSectorName"></span>
-                            <span class="text-slate-600">•</span>
-                            <span class="text-slate-300" x-text="'Zone: ' + selectedZoneName"></span>
+                            <span class="px-2.5 py-1 rounded-lg bg-amber-400 text-slate-950 font-black text-xs font-mono" x-text="resolvedRouteCode"></span>
+                            <span class="text-xs font-semibold text-slate-200" x-text="selectedBeatNames"></span>
+                            <span class="px-2 py-0.5 rounded bg-blue-500/30 text-blue-300 text-[11px] font-mono border border-blue-400/30" x-text="totalCoverageKm + ' KM Span'"></span>
                         </div>
                     </div>
-                </div>
 
-                <!-- CARRIAGEWAY BOUND CHIPS -->
-                <div class="flex items-center gap-2 flex-wrap">
-                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-1">Bound:</span>
-                    <button type="button" @click="setCarriageway('both')"
-                        class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                        :class="carriagewayBound === 'both' ? 'bg-gradient-to-r from-blue-500 to-sky-600 text-white shadow-md shadow-blue-500/30 ring-2 ring-blue-400' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'">
-                        <i class="fa-solid fa-arrows-left-right text-xs"></i>
-                        <span>Dual / Both Sides</span>
-                    </button>
-                    <button type="button" @click="setCarriageway('northbound')"
-                        class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                        :class="carriagewayBound === 'northbound' ? 'bg-gradient-to-r from-blue-500 to-sky-600 text-white shadow-md shadow-blue-500/30 ring-2 ring-blue-400' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'">
-                        <i class="fa-solid fa-arrow-up text-xs"></i>
-                        <span>Northbound (N)</span>
-                    </button>
-                    <button type="button" @click="setCarriageway('southbound')"
-                        class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                        :class="carriagewayBound === 'southbound' ? 'bg-gradient-to-r from-blue-500 to-sky-600 text-white shadow-md shadow-blue-500/30 ring-2 ring-blue-400' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'">
-                        <i class="fa-solid fa-arrow-down text-xs"></i>
-                        <span>Southbound (S)</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- KM SPAN & LANDMARK SELECTOR (Decimals Allowed via step="any" and min="0") -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-                <!-- Start Location & KM -->
-                <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-                    <div class="flex items-center justify-between">
-                        <label class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                            <i class="fa-solid fa-location-dot text-emerald-600"></i> Start Location / Milestone
-                        </label>
-                        <span class="text-[10px] text-slate-400 font-mono">From Post</span>
-                    </div>
-
-                    <!-- Quick Landmark Chips for Current Beat -->
-                    <div class="flex flex-wrap gap-1 max-h-24 overflow-y-auto" x-show="beatLandmarks.length > 0">
-                        <template x-for="lm in beatLandmarks" :key="'start-' + lm.id">
-                            <button type="button" @click="setStartLandmark(lm.location_name, lm.km_numeric)"
-                                class="text-[10px] font-bold px-2 py-0.5 rounded bg-white border border-slate-200 hover:border-emerald-500 text-slate-700 hover:text-emerald-700 transition cursor-pointer"
-                                x-text="lm.location_name + ' (KM ' + lm.km_numeric + ')'">
-                            </button>
-                        </template>
-                    </div>
-
-                    <div class="grid grid-cols-3 gap-2">
-                        <div class="col-span-2">
-                            <input type="text" x-model="startLandmark" @input="onManualInputUpdate()"
-                                placeholder="e.g. Start Landmark"
-                                class="w-full text-xs bg-white border border-slate-200 rounded-xl p-2 font-medium focus:ring-2 focus:ring-blue-500">
+                    <!-- HIGH CONTRAST START & END POINTS -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        <!-- Starting Point Card -->
+                        <div class="p-4 rounded-xl bg-white/10 backdrop-blur-md border border-emerald-500/30 flex items-start gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-lg shrink-0">
+                                <i class="fa-solid fa-play"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400">Starting Point</div>
+                                <div class="text-xl font-black text-white font-mono mt-0.5" x-text="'KM ' + (startKm !== null ? startKm : '0.00')"></div>
+                                <div class="text-xs text-slate-200 font-semibold truncate mt-0.5" x-text="startLandmark || 'Starting Milestone'"></div>
+                            </div>
                         </div>
-                        <div>
-                            <!-- step="any" min="0" allows any non-negative decimal -->
-                            <input type="number" step="any" min="0" x-model.number="startKm" @input="onManualKmUpdate('start')" required
-                                class="w-full text-xs font-mono font-bold bg-white border border-slate-200 rounded-xl p-2 text-center focus:ring-2 focus:ring-blue-500">
+
+                        <!-- Ending Point Card -->
+                        <div class="p-4 rounded-xl bg-white/10 backdrop-blur-md border border-rose-500/30 flex items-start gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/40 flex items-center justify-center text-lg shrink-0">
+                                <i class="fa-solid fa-flag-checkered"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-[10px] font-extrabold uppercase tracking-wider text-rose-400">Ending Point</div>
+                                <div class="text-xl font-black text-white font-mono mt-0.5" x-text="'KM ' + (endKm !== null ? endKm : '0.00')"></div>
+                                <div class="text-xs text-slate-200 font-semibold truncate mt-0.5" x-text="endLandmark || 'Ending Milestone'"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- End Location & KM -->
-                <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-                    <div class="flex items-center justify-between">
-                        <label class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                            <i class="fa-solid fa-location-dot text-rose-600"></i> End Location / Milestone
-                        </label>
-                        <span class="text-[10px] text-slate-400 font-mono">To Post</span>
-                    </div>
-
-                    <!-- Quick Landmark Chips for Current Beat -->
-                    <div class="flex flex-wrap gap-1 max-h-24 overflow-y-auto" x-show="beatLandmarks.length > 0">
-                        <template x-for="lm in beatLandmarks" :key="'end-' + lm.id">
-                            <button type="button" @click="setEndLandmark(lm.location_name, lm.km_numeric)"
-                                class="text-[10px] font-bold px-2 py-0.5 rounded bg-white border border-slate-200 hover:border-rose-500 text-slate-700 hover:text-rose-700 transition cursor-pointer"
-                                x-text="lm.location_name + ' (KM ' + lm.km_numeric + ')'">
-                            </button>
-                        </template>
-                    </div>
-
-                    <div class="grid grid-cols-3 gap-2">
-                        <div class="col-span-2">
-                            <input type="text" x-model="endLandmark" @input="onManualInputUpdate()"
-                                placeholder="e.g. End Landmark"
-                                class="w-full text-xs bg-white border border-slate-200 rounded-xl p-2 font-medium focus:ring-2 focus:ring-blue-500">
+                <!-- FINE-TUNE MILESTONE INPUTS & QUICK LANDMARK CHIPS -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                    <!-- Start Location & KM -->
+                    <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <label class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                <i class="fa-solid fa-location-dot text-emerald-600"></i> Start Location / Milestone
+                            </label>
+                            <span class="text-[10px] text-slate-400 font-mono">From Post</span>
                         </div>
-                        <div>
-                            <!-- step="any" min="0" allows any non-negative decimal -->
-                            <input type="number" step="any" min="0" x-model.number="endKm" @input="onManualKmUpdate('end')" required
-                                class="w-full text-xs font-mono font-bold bg-white border border-slate-200 rounded-xl p-2 text-center focus:ring-2 focus:ring-blue-500">
+
+                        <!-- Quick Landmark Chips -->
+                        <div class="flex flex-wrap gap-1 max-h-24 overflow-y-auto" x-show="combinedLandmarks.length > 0">
+                            <template x-for="lm in combinedLandmarks" :key="'start-' + lm.id">
+                                <button type="button" @click="setStartLandmark(lm.location_name, lm.km_numeric)"
+                                    class="text-[10px] font-bold px-2 py-0.5 rounded bg-white border border-slate-200 hover:border-emerald-500 text-slate-700 hover:text-emerald-700 transition cursor-pointer"
+                                    x-text="lm.location_name + ' (KM ' + lm.km_numeric + ')'">
+                                </button>
+                            </template>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2">
+                            <div class="col-span-2">
+                                <input type="text" x-model="startLandmark" @input="onManualInputUpdate()"
+                                    placeholder="e.g. Start Landmark"
+                                    class="w-full text-xs bg-white border border-slate-200 rounded-xl p-2 font-medium focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <input type="number" step="any" min="0" x-model.number="startKm" @input="onManualKmUpdate('start')" required
+                                    class="w-full text-xs font-mono font-bold bg-white border border-slate-200 rounded-xl p-2 text-center focus:ring-2 focus:ring-blue-500">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- End Location & KM -->
+                    <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <label class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                <i class="fa-solid fa-location-dot text-rose-600"></i> End Location / Milestone
+                            </label>
+                            <span class="text-[10px] text-slate-400 font-mono">To Post</span>
+                        </div>
+
+                        <!-- Quick Landmark Chips -->
+                        <div class="flex flex-wrap gap-1 max-h-24 overflow-y-auto" x-show="combinedLandmarks.length > 0">
+                            <template x-for="lm in combinedLandmarks" :key="'end-' + lm.id">
+                                <button type="button" @click="setEndLandmark(lm.location_name, lm.km_numeric)"
+                                    class="text-[10px] font-bold px-2 py-0.5 rounded bg-white border border-slate-200 hover:border-rose-500 text-slate-700 hover:text-rose-700 transition cursor-pointer"
+                                    x-text="lm.location_name + ' (KM ' + lm.km_numeric + ')'">
+                                </button>
+                            </template>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2">
+                            <div class="col-span-2">
+                                <input type="text" x-model="endLandmark" @input="onManualInputUpdate()"
+                                    placeholder="e.g. End Landmark"
+                                    class="w-full text-xs bg-white border border-slate-200 rounded-xl p-2 font-medium focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <input type="number" step="any" min="0" x-model.number="endKm" @input="onManualKmUpdate('end')" required
+                                    class="w-full text-xs font-mono font-bold bg-white border border-slate-200 rounded-xl p-2 text-center focus:ring-2 focus:ring-blue-500">
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- SECTION 2: INCIDENT CATEGORY & DYNAMIC CHIPS -->
+        <!-- SECTION 2: INCIDENT REASON & SEVERITY LEVEL -->
         <div class="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm space-y-5">
-            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
                 <div class="flex items-center gap-2.5">
                     <span class="w-7 h-7 rounded-lg bg-slate-900 text-white font-black text-xs flex items-center justify-center shadow-sm">2</span>
                     <div>
-                        <h2 class="text-sm font-black text-slate-900 uppercase tracking-wider">Select Incident Type & Severity</h2>
-                        <p class="text-[11px] text-slate-500">Contextual guidance and parameters dynamically adjust based on category</p>
+                        <h2 class="text-sm font-black text-slate-900 uppercase tracking-wider">2. Incident Reason & Severity Level</h2>
+                        <p class="text-[11px] text-slate-500">Select why the road is affected and how urgently commuters need to be notified</p>
                     </div>
                 </div>
                 <div class="flex items-center gap-1.5">
@@ -355,7 +356,7 @@
                     </button>
                     <button type="button" @click="setSeverity('warning')"
                         class="px-2.5 py-1 rounded-lg text-xs font-extrabold transition cursor-pointer"
-                        :class="severity === 'warning' ? 'bg-amber-500 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
+                        :class="severity === 'warning' ? 'bg-amber-500 text-slate-900 shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
                         Warning
                     </button>
                     <button type="button" @click="setSeverity('critical')"
@@ -366,11 +367,11 @@
                 </div>
             </div>
 
-            <!-- 6 TACTILE INCIDENT CATEGORY CHIPS -->
-            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+            <!-- INCIDENT CATEGORIES (PLAIN ENGLISH) -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                 <!-- Fog & Smog -->
                 <button type="button" @click="setCategory('fog')"
-                    class="p-3 rounded-2xl border-2 transition-all flex flex-col items-center text-center gap-2 group cursor-pointer"
+                    class="p-3.5 rounded-2xl border text-left flex items-center gap-3 transition-all duration-150 group cursor-pointer"
                     :class="advisoryType === 'fog' ? 'border-amber-500 bg-amber-50/70 shadow-md shadow-amber-500/10' : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100/70'">
                     <span class="w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-transform group-hover:scale-105"
                         :class="advisoryType === 'fog' ? 'bg-amber-500 text-white shadow-sm' : 'bg-amber-100 text-amber-600'">
@@ -378,69 +379,69 @@
                     </span>
                     <div>
                         <div class="text-xs font-black text-slate-900">Fog & Smog</div>
-                        <div class="text-[10px] text-slate-500">Zero visibility</div>
+                        <div class="text-[10px] text-slate-500">Low visibility</div>
                     </div>
                 </button>
 
                 <!-- Road Closure -->
                 <button type="button" @click="setCategory('road_closure')"
-                    class="p-3 rounded-2xl border-2 transition-all flex flex-col items-center text-center gap-2 group cursor-pointer"
-                    :class="advisoryType === 'road_closure' ? 'border-rose-600 bg-rose-50/70 shadow-md shadow-rose-500/10' : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100/70'">
+                    class="p-3.5 rounded-2xl border text-left flex items-center gap-3 transition-all duration-150 group cursor-pointer"
+                    :class="advisoryType === 'road_closure' ? 'border-rose-500 bg-rose-50/70 shadow-md shadow-rose-500/10' : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100/70'">
                     <span class="w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-transform group-hover:scale-105"
-                        :class="advisoryType === 'road_closure' ? 'bg-rose-600 text-white shadow-sm' : 'bg-rose-100 text-rose-600'">
+                        :class="advisoryType === 'road_closure' ? 'bg-rose-500 text-white shadow-sm' : 'bg-rose-100 text-rose-600'">
                         <i class="fa-solid fa-ban"></i>
                     </span>
                     <div>
                         <div class="text-xs font-black text-slate-900">Road Closure</div>
-                        <div class="text-[10px] text-slate-500">Emergency block</div>
-                    </div>
-                </button>
-
-                <!-- Diversion -->
-                <button type="button" @click="setCategory('diversion')"
-                    class="p-3 rounded-2xl border-2 transition-all flex flex-col items-center text-center gap-2 group cursor-pointer"
-                    :class="advisoryType === 'diversion' ? 'border-purple-600 bg-purple-50/70 shadow-md shadow-purple-500/10' : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100/70'">
-                    <span class="w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-transform group-hover:scale-105"
-                        :class="advisoryType === 'diversion' ? 'bg-purple-600 text-white shadow-sm' : 'bg-purple-100 text-purple-600'">
-                        <i class="fa-solid fa-arrows-split-up-and-left"></i>
-                    </span>
-                    <div>
-                        <div class="text-xs font-black text-slate-900">Diversion</div>
-                        <div class="text-[10px] text-slate-500">Reroute traffic</div>
-                    </div>
-                </button>
-
-                <!-- Road Works -->
-                <button type="button" @click="setCategory('road_works')"
-                    class="p-3 rounded-2xl border-2 transition-all flex flex-col items-center text-center gap-2 group cursor-pointer"
-                    :class="advisoryType === 'road_works' ? 'border-orange-500 bg-orange-50/70 shadow-md shadow-orange-500/10' : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100/70'">
-                    <span class="w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-transform group-hover:scale-105"
-                        :class="advisoryType === 'road_works' ? 'bg-orange-500 text-white shadow-sm' : 'bg-orange-100 text-orange-600'">
-                        <i class="fa-solid fa-triangle-exclamation"></i>
-                    </span>
-                    <div>
-                        <div class="text-xs font-black text-slate-900">Road Works</div>
-                        <div class="text-[10px] text-slate-500">Repair zone</div>
+                        <div class="text-[10px] text-slate-500">Blockage & detour</div>
                     </div>
                 </button>
 
                 <!-- Traffic Congestion -->
                 <button type="button" @click="setCategory('traffic')"
-                    class="p-3 rounded-2xl border-2 transition-all flex flex-col items-center text-center gap-2 group cursor-pointer"
+                    class="p-3.5 rounded-2xl border text-left flex items-center gap-3 transition-all duration-150 group cursor-pointer"
                     :class="advisoryType === 'traffic' ? 'border-red-500 bg-red-50/70 shadow-md shadow-red-500/10' : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100/70'">
                     <span class="w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-transform group-hover:scale-105"
                         :class="advisoryType === 'traffic' ? 'bg-red-500 text-white shadow-sm' : 'bg-red-100 text-red-600'">
-                        <i class="fa-solid fa-car"></i>
+                        <i class="fa-solid fa-cars"></i>
                     </span>
                     <div>
-                        <div class="text-xs font-black text-slate-900">Congestion</div>
-                        <div class="text-[10px] text-slate-500">Queue & delay</div>
+                        <div class="text-xs font-black text-slate-900">Traffic Jam</div>
+                        <div class="text-[10px] text-slate-500">Slow movement</div>
                     </div>
                 </button>
 
-                <!-- Weather & Rain -->
+                <!-- Road Maintenance -->
+                <button type="button" @click="setCategory('road_works')"
+                    class="p-3.5 rounded-2xl border text-left flex items-center gap-3 transition-all duration-150 group cursor-pointer"
+                    :class="advisoryType === 'road_works' ? 'border-orange-500 bg-orange-50/70 shadow-md shadow-orange-500/10' : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100/70'">
+                    <span class="w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-transform group-hover:scale-105"
+                        :class="advisoryType === 'road_works' ? 'bg-orange-500 text-white shadow-sm' : 'bg-orange-100 text-orange-600'">
+                        <i class="fa-solid fa-person-digging"></i>
+                    </span>
+                    <div>
+                        <div class="text-xs font-black text-slate-900">Road Works</div>
+                        <div class="text-[10px] text-slate-500">Repairs & lane work</div>
+                    </div>
+                </button>
+
+                <!-- Diversion -->
+                <button type="button" @click="setCategory('diversion')"
+                    class="p-3.5 rounded-2xl border text-left flex items-center gap-3 transition-all duration-150 group cursor-pointer"
+                    :class="advisoryType === 'diversion' ? 'border-purple-500 bg-purple-50/70 shadow-md shadow-purple-500/10' : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100/70'">
+                    <span class="w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-transform group-hover:scale-105"
+                        :class="advisoryType === 'diversion' ? 'bg-purple-500 text-white shadow-sm' : 'bg-purple-100 text-purple-600'">
+                        <i class="fa-solid fa-signs-post"></i>
+                    </span>
+                    <div>
+                        <div class="text-xs font-black text-slate-900">Diversion</div>
+                        <div class="text-[10px] text-slate-500">Alternate route</div>
+                    </div>
+                </button>
+
+                <!-- Rain & Bad Weather -->
                 <button type="button" @click="setCategory('weather')"
-                    class="p-3 rounded-2xl border-2 transition-all flex flex-col items-center text-center gap-2 group cursor-pointer"
+                    class="p-3.5 rounded-2xl border text-left flex items-center gap-3 transition-all duration-150 group cursor-pointer"
                     :class="advisoryType === 'weather' ? 'border-sky-500 bg-sky-50/70 shadow-md shadow-sky-500/10' : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100/70'">
                     <span class="w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-transform group-hover:scale-105"
                         :class="advisoryType === 'weather' ? 'bg-sky-500 text-white shadow-sm' : 'bg-sky-100 text-sky-600'">
@@ -453,11 +454,11 @@
                 </button>
             </div>
 
-            <!-- FOG OPTIONS -->
+            <!-- FOG SETTINGS -->
             <div x-show="advisoryType === 'fog'" x-transition class="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80 space-y-4">
                 <div class="flex items-center justify-between">
                     <span class="text-xs font-bold text-amber-900 flex items-center gap-2">
-                        <i class="fa-solid fa-eye-slash text-amber-600"></i> Fog Visibility Range (Select Preset Chip or Fine-Tune Slider)
+                        <i class="fa-solid fa-eye-slash text-amber-600"></i> Fog Visibility Range (Select Preset Distance or Adjust Slider)
                     </span>
                     <span class="text-base font-black font-mono text-amber-900 px-3 py-1 rounded-xl bg-white border border-amber-300 shadow-sm" x-text="visibilityMeters + ' Meters'"></span>
                 </div>
@@ -474,7 +475,7 @@
                         class="p-2.5 rounded-xl border text-center transition-all cursor-pointer"
                         :class="visibilityMeters > 35 && visibilityMeters <= 100 ? 'bg-amber-500 text-white border-amber-500 shadow-md' : 'bg-white text-slate-700 border-slate-200 hover:border-amber-400'">
                         <div class="text-xs font-black">50 - 100m (Dense Fog)</div>
-                        <div class="text-[10px] opacity-80">Severe Caution</div>
+                        <div class="text-[10px] opacity-80">Heavy Caution</div>
                     </button>
                     <button type="button" @click="setVisibility(150)"
                         class="p-2.5 rounded-xl border text-center transition-all cursor-pointer"
@@ -485,8 +486,8 @@
                     <button type="button" @click="setVisibility(500)"
                         class="p-2.5 rounded-xl border text-center transition-all cursor-pointer"
                         :class="visibilityMeters > 250 ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' : 'bg-white text-slate-700 border-slate-200 hover:border-emerald-400'">
-                        <div class="text-xs font-black">500m+ (Patchy Haze)</div>
-                        <div class="text-[10px] opacity-80">Light Smog</div>
+                        <div class="text-xs font-black">500m+ (Light Haze)</div>
+                        <div class="text-[10px] opacity-80">Patchy Smog</div>
                     </button>
                 </div>
 
@@ -495,7 +496,7 @@
 
                 <!-- Speed Guidance Chips for Fog -->
                 <div>
-                    <label class="text-[11px] font-bold uppercase tracking-wider text-amber-900 block mb-1.5">Fog Advisory Speed Limit:</label>
+                    <label class="text-[11px] font-bold uppercase tracking-wider text-amber-900 block mb-1.5">Recommended Speed Limit:</label>
                     <div class="flex flex-wrap gap-2">
                         <button type="button" @click="setSpeedLimit(30)"
                             class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer"
@@ -515,7 +516,7 @@
                         <button type="button" @click="setSpeedLimit(0)"
                             class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer"
                             :class="speedLimit === 0 ? 'bg-rose-700 text-white' : 'bg-white text-slate-700 border border-slate-200 hover:border-rose-400'">
-                            0 km/h (Complete Closure)
+                            0 km/h (Full Closure)
                         </button>
                     </div>
                 </div>
@@ -561,111 +562,90 @@
                         class="p-2.5 rounded-xl border text-center transition cursor-pointer"
                         :class="closureType === 'full' ? 'bg-rose-600 text-white border-rose-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'">
                         <div class="text-xs font-bold">Full Closure</div>
-                        <div class="text-[10px] opacity-75">Carriageway blocked</div>
-                    </button>
-                </div>
-            </div>
-
-            <!-- EXPIRY PRESETS -->
-            <div class="p-4 rounded-2xl bg-blue-50/60 border border-blue-200/80 space-y-3">
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-                    <label class="text-xs font-bold text-blue-900 flex items-center gap-1.5">
-                        <i class="fa-solid fa-clock-rotate-left text-blue-600"></i> Advisory Validity & Expiry Timeline
-                    </label>
-                    <div class="text-xs font-bold text-blue-800">
-                        <span>Calculated Expiry: </span>
-                        <span class="font-mono bg-white px-2 py-0.5 rounded border border-blue-200" x-text="computedExpiryText"></span>
-                    </div>
-                </div>
-
-                <div class="flex flex-wrap gap-2">
-                    <button type="button" @click="setDuration(1)"
-                        class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer"
-                        :class="durationHours === 1 ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-200 hover:border-blue-400'">
-                        1 Hour
-                    </button>
-                    <button type="button" @click="setDuration(2)"
-                        class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer"
-                        :class="durationHours === 2 ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-200 hover:border-blue-400'">
-                        2 Hours
-                    </button>
-                    <button type="button" @click="setDuration(4)"
-                        class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer"
-                        :class="durationHours === 4 ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-200 hover:border-blue-400'">
-                        4 Hours (Standard)
-                    </button>
-                    <button type="button" @click="setDuration(6)"
-                        class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer"
-                        :class="durationHours === 6 ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-200 hover:border-blue-400'">
-                        6 Hours (Fog Shift)
-                    </button>
-                    <button type="button" @click="setDuration(12)"
-                        class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer"
-                        :class="durationHours === 12 ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-200 hover:border-blue-400'">
-                        12 Hours
-                    </button>
-                    <button type="button" @click="setDuration(24)"
-                        class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer"
-                        :class="durationHours === 24 ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-200 hover:border-blue-400'">
-                        24 Hours
+                        <div class="text-[10px] opacity-75">All traffic stopped</div>
                     </button>
                 </div>
             </div>
         </div>
 
-        <!-- SECTION 3: DYNAMIC COMMUTER ADVISORY MESSAGE -->
+        <!-- SECTION 3: PUBLIC ADVISORY MESSAGE & DETAILS -->
         <div class="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm space-y-4">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-slate-100">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100">
                 <div class="flex items-center gap-2.5">
                     <span class="w-7 h-7 rounded-lg bg-emerald-600 text-white font-black text-xs flex items-center justify-center shadow-sm">3</span>
                     <div>
-                        <h2 class="text-sm font-black text-slate-900 uppercase tracking-wider">Dynamic Commuter Advisory Synthesis</h2>
-                        <p class="text-[11px] text-slate-500">Auto-generated in real-time from your selected chips; click to append or customize anytime</p>
+                        <h2 class="text-sm font-black text-slate-900 uppercase tracking-wider">3. Public Advisory Message & Details</h2>
+                        <p class="text-[11px] text-slate-500">Auto-generated message for commuters and public travel portals. You can edit this text anytime.</p>
                     </div>
                 </div>
-                <div class="flex items-center gap-2">
-                    <button type="button" @click="resetToAutoGenerated()"
-                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition cursor-pointer">
-                        <i class="fa-solid fa-rotate-left text-xs"></i>
-                        <span>Re-generate Text</span>
-                    </button>
-                </div>
+                <button type="button" @click="resetToAutoGenerated()"
+                    class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition flex items-center gap-1.5 cursor-pointer self-start sm:self-auto">
+                    <i class="fa-solid fa-rotate text-blue-600"></i>
+                    <span>Reset to Auto-Generated Message</span>
+                </button>
             </div>
 
             <!-- Title -->
-            <div>
-                <label class="text-xs font-bold text-slate-700 block mb-1">Broadcast Title <span class="text-rose-500">*</span></label>
-                <input type="text" x-model="title" required
-                    class="w-full text-sm font-bold bg-slate-50 border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-500">
+            <div class="space-y-1.5">
+                <label class="text-xs font-bold text-slate-800 flex items-center justify-between">
+                    <span>Advisory Headline / Title <span class="text-rose-500">*</span></span>
+                    <span class="text-[10px] text-slate-400 font-mono" x-text="(title || '').length + ' / 150'"></span>
+                </label>
+                <input type="text" x-model="title" required maxlength="150"
+                    placeholder="e.g. Dense Fog Alert - Visibility Below 35m (M-2)"
+                    class="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-3 font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500">
             </div>
 
-            <!-- Message Textarea -->
-            <div>
-                <div class="flex items-center justify-between mb-1">
-                    <label class="text-xs font-bold text-slate-700">Public Commuter Advisory Details <span class="text-rose-500">*</span></label>
-                    <span class="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
-                        <i class="fa-solid fa-wand-magic-sparkles"></i> Auto-synchronized with chips
+            <!-- Public Advisory Message Body -->
+            <div class="space-y-1.5">
+                <div class="flex items-center justify-between">
+                    <label class="text-xs font-bold text-slate-800">
+                        Advisory Details for Commuters <span class="text-rose-500">*</span>
+                    </label>
+                    <span class="text-[11px] font-bold text-emerald-600 flex items-center gap-1" x-show="!isCustomMessageEdited">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Auto-synced with selections
+                    </span>
+                    <span class="text-[11px] font-bold text-amber-600 flex items-center gap-1" x-show="isCustomMessageEdited">
+                        <i class="fa-solid fa-pen"></i> Custom edited
                     </span>
                 </div>
-                <textarea x-model="message" rows="3" required
-                    class="w-full text-xs font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-xl p-3 leading-relaxed focus:ring-2 focus:ring-blue-500"></textarea>
+                <textarea x-model="message" @input="isCustomMessageEdited = true" rows="3" required maxlength="1000"
+                    placeholder="Enter full advisory details for public commuters..."
+                    class="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-3 font-normal text-slate-800 leading-relaxed focus:bg-white focus:ring-2 focus:ring-blue-500"></textarea>
+            </div>
+
+            <!-- Advisory Active Duration -->
+            <div class="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-slate-700">Expected Duration:</span>
+                    <div class="flex items-center gap-1.5">
+                        <template x-for="h in [1, 2, 4, 6, 12, 24]" :key="h">
+                            <button type="button" @click="setDuration(h)"
+                                class="px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer"
+                                :class="durationHours === h ? 'bg-slate-900 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
+                                x-text="h + 'h'">
+                            </button>
+                        </template>
+                    </div>
+                </div>
+                <span class="text-xs text-slate-500 font-mono" x-text="'Valid until: ' + computedExpiryText"></span>
             </div>
         </div>
 
-        <!-- SECTION 4: LUXURY COMMUTER PREVIEW & ONE-CLICK BROADCAST BUTTON -->
-        <div class="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 text-white border border-slate-800 shadow-xl space-y-5">
-            <div class="flex items-center justify-between pb-3 border-b border-white/10">
+        <!-- SECTION 4: PUBLIC NOTICE PREVIEW & SUBMISSION -->
+        <div class="rounded-3xl p-5 sm:p-6 bg-gradient-to-br from-slate-900 via-slate-850 to-blue-950 text-white border border-slate-800 shadow-xl space-y-5">
+            <div class="flex items-center justify-between pb-3 border-b border-white/10 flex-wrap gap-2">
                 <div class="flex items-center gap-2.5">
-                    <div class="w-8 h-8 rounded-lg bg-amber-500 text-slate-900 flex items-center justify-center font-black text-sm">
+                    <div class="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center text-sm">
                         <i class="fa-solid fa-eye"></i>
                     </div>
                     <div>
-                        <h3 class="text-sm font-black text-white uppercase tracking-wider">Live Commuter Portal Preview</h3>
-                        <p class="text-[11px] text-slate-400">Exact live rendering as seen on nhmp.gov.pk & 130 Humsafar Mobile App</p>
+                        <h3 class="text-sm font-black text-white uppercase tracking-wider">4. Public Notice Preview (How Commuters See This)</h3>
+                        <p class="text-[11px] text-slate-400">Live preview as displayed on the 130 Humsafar App and NHMP website</p>
                     </div>
                 </div>
                 <span class="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-[11px] font-mono border border-emerald-500/30 flex items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> Live Broadcast Ready
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> Live Broadcast Preview
                 </span>
             </div>
 
@@ -704,13 +684,35 @@
                 <p class="text-xs text-slate-200 leading-relaxed font-normal bg-black/20 p-3 rounded-xl border border-white/5" x-text="message"></p>
             </div>
 
-            <!-- 1-Click Broadcast Button (AJAX Powered, zero full-page reload) -->
-            <div>
+            <!-- SUPERVISOR DIRECT PUBLISH TOGGLE (IF USER IS SUPERVISOR) -->
+            <template x-if="isSupervisor">
+                <div class="p-3.5 bg-blue-900/40 rounded-2xl border border-blue-500/30 flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                        <i class="fa-solid fa-tower-broadcast text-blue-400 text-base"></i>
+                        <div>
+                            <span class="text-xs font-black text-white block">Publish Live Immediately (Skip Approval Queue)</span>
+                            <span class="text-[11px] text-blue-200">As a Call Center Supervisor, you can directly broadcast this advisory live across public APIs.</span>
+                        </div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" x-model="autoApprove" class="sr-only peer">
+                        <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                    </label>
+                </div>
+            </template>
+
+            <!-- SUBMIT BUTTON -->
+            <div class="space-y-2">
                 <button type="submit" :disabled="isSubmitting"
                     class="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-sky-600 to-blue-700 hover:from-blue-500 hover:to-sky-500 text-white font-black text-sm tracking-wide shadow-xl shadow-blue-500/30 transition-all duration-150 transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-60">
-                    <i class="fa-solid" :class="isSubmitting ? 'fa-spinner fa-spin' : 'fa-tower-broadcast animate-pulse'"></i>
-                    <span x-text="isSubmitting ? 'Broadcasting Advisory Across Network...' : 'Broadcast Travel Advisory (Instant National Cache Invalidation)'"></span>
+                    <i class="fa-solid" :class="isSubmitting ? 'fa-spinner fa-spin' : (isSupervisor && autoApprove ? 'fa-tower-broadcast animate-pulse' : 'fa-paper-plane')"></i>
+                    <span x-text="isSubmitting ? 'Dispatching Travel Advisory...' : (isSupervisor && autoApprove ? 'Approve & Broadcast Advisory Live' : 'Submit Travel Advisory for Supervisor Approval')"></span>
                 </button>
+
+                <p class="text-center text-[11px] text-slate-400" x-show="!isSupervisor || !autoApprove">
+                    <i class="fa-solid fa-circle-info text-amber-400 mr-1"></i>
+                    Advisory will be queued for Call Center Agent Supervisor review and approval before going live on public apps and portals.
+                </p>
             </div>
         </div>
     </form>
@@ -754,6 +756,8 @@ const SECTOR_TO_ROAD_MAP = {
 function rapidTravelAdvisoryHub(config) {
     return {
         tier: config.tier || 'beat',
+        isSupervisor: config.isSupervisor || false,
+        autoApprove: false,
         zonesList: config.zonesData || [],
         sectorsList: config.sectorsData || [],
         beatsList: config.beatsData || [],
@@ -766,7 +770,7 @@ function rapidTravelAdvisoryHub(config) {
 
         selectedZoneId: config.initialUserZoneId || '',
         selectedSectorId: config.initialUserSectorId || '',
-        selectedBeatId: config.initialUserOfficeId || '',
+        selectedBeatIds: config.initialUserOfficeId ? [config.initialUserOfficeId] : [],
 
         advisoryType: 'fog',
         severity: 'warning',
@@ -790,8 +794,8 @@ function rapidTravelAdvisoryHub(config) {
             // Priority 1: If operator has an assigned sector, initialize that road
             if (this.selectedSectorId && SECTOR_TO_ROAD_MAP[this.selectedSectorId]) {
                 this.selectedRoadCode = SECTOR_TO_ROAD_MAP[this.selectedSectorId];
-            } else if (this.selectedBeatId) {
-                const b = this.beatsList.find(x => x.id == this.selectedBeatId);
+            } else if (this.selectedBeatIds.length > 0) {
+                const b = this.beatsList.find(x => x.id == this.selectedBeatIds[0]);
                 if (b && (b.sector_id || b.parent_id)) {
                     const secId = b.sector_id || b.parent_id;
                     if (SECTOR_TO_ROAD_MAP[secId]) {
@@ -801,13 +805,13 @@ function rapidTravelAdvisoryHub(config) {
             }
 
             // Priority 2: If user has assigned beat, load it
-            if (this.selectedBeatId && this.beatsList.some(x => x.id == this.selectedBeatId)) {
-                const b = this.beatsList.find(x => x.id == this.selectedBeatId);
+            if (this.selectedBeatIds.length > 0) {
+                const b = this.beatsList.find(x => x.id == this.selectedBeatIds[0]);
                 if (b) {
                     if (b.sector_id || b.parent_id) this.selectedSectorId = b.sector_id || b.parent_id;
                     if (b.zone_id) this.selectedZoneId = b.zone_id;
                 }
-                this.selectBeat(this.selectedBeatId, false);
+                this.recalculateSpanFromSelectedBeats();
             } else if (this.selectedSectorId) {
                 this.selectSector(this.selectedSectorId, false);
             } else if (this.zonesList.length > 0) {
@@ -826,18 +830,6 @@ function rapidTravelAdvisoryHub(config) {
             return s ? s.name : 'Sector Office';
         },
 
-        get selectedBeatName() {
-            const b = this.beatsList.find(x => x.id == this.selectedBeatId);
-            return b ? b.name : 'Current Beat';
-        },
-
-        get selectedBeatKmRange() {
-            const b = this.beatsList.find(x => x.id == this.selectedBeatId);
-            if (b && b.km_range) return b.km_range;
-            if (b && b.km_min !== null && b.km_min !== undefined) return `KM ${parseFloat(b.km_min).toFixed(2)} - ${parseFloat(b.km_max).toFixed(2)}`;
-            return 'KM 0 - 50';
-        },
-
         get filteredSectors() {
             if (!this.selectedZoneId) return this.sectorsList;
             return this.sectorsList.filter(s => (s.zone_id == this.selectedZoneId || s.parent_id == this.selectedZoneId));
@@ -853,9 +845,44 @@ function rapidTravelAdvisoryHub(config) {
             return this.beatsList.filter(b => (b.sector_id == this.selectedSectorId || b.parent_id == this.selectedSectorId));
         },
 
-        get beatLandmarks() {
-            if (!this.selectedBeatId || !this.landmarksMap[this.selectedBeatId]) return [];
-            return this.landmarksMap[this.selectedBeatId];
+        get selectedBeats() {
+            return this.beatsList
+                .filter(b => this.selectedBeatIds.includes(b.id))
+                .sort((a, b) => (parseFloat(a.km_min) || 0) - (parseFloat(b.km_min) || 0));
+        },
+
+        get selectedBeatNames() {
+            if (this.selectedBeats.length === 0) return 'No Beat Selected';
+            if (this.selectedBeats.length === 1) return this.selectedBeats[0].name;
+            if (this.selectedBeats.length === 2) return `${this.selectedBeats[0].name} & ${this.selectedBeats[1].name}`;
+            return `${this.selectedBeats.map(b => b.name).join(', ')}`;
+        },
+
+        get selectedBeatKmSpanText() {
+            if (this.selectedBeats.length === 0) return `KM ${this.startKm} - ${this.endKm}`;
+            const minKm = Math.min(...this.selectedBeats.map(b => (b.km_min !== null ? parseFloat(b.km_min) : 0)));
+            const maxKm = Math.max(...this.selectedBeats.map(b => (b.km_max !== null ? parseFloat(b.km_max) : 0)));
+            return `KM ${minKm.toFixed(2)} - ${maxKm.toFixed(2)}`;
+        },
+
+        get totalCoverageKm() {
+            const diff = Math.abs(parseFloat(this.endKm || 0) - parseFloat(this.startKm || 0));
+            return diff.toFixed(1);
+        },
+
+        get combinedLandmarks() {
+            const list = [];
+            const seen = new Set();
+            for (const b of this.selectedBeats) {
+                const lms = this.landmarksMap[b.id] || [];
+                for (const lm of lms) {
+                    if (!seen.has(lm.id)) {
+                        seen.add(lm.id);
+                        list.push(lm);
+                    }
+                }
+            }
+            return list.sort((a, b) => (parseFloat(a.km_numeric) || 0) - (parseFloat(b.km_numeric) || 0));
         },
 
         get resolvedRouteCode() {
@@ -866,43 +893,14 @@ function rapidTravelAdvisoryHub(config) {
             const code = this.resolvedRouteCode;
             const clean = code.replace('-', '');
             const cw = this.carriagewaysList.find(x => (x.road_short === code || x.road === clean || x.road === code));
-            if (cw) return `${cw.road_name || cw.road} (${cw.road_from} ⇄ ${cw.road_to})`;
-            return `${code} Motorway / Highway Corridor`;
+            if (cw) return `${cw.road_name || cw.road} (${cw.road_from || ''} - ${cw.road_to || ''})`;
+            return `${code} Corridor`;
         },
 
         get computedExpiryText() {
-            const d = new Date();
-            d.setMinutes(d.getMinutes() + (this.durationHours * 60));
-            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' PKT';
-        },
-
-        selectRoad(code) {
-            this.selectedRoadCode = code;
-
-            // Find sectors that belong to this road
-            const clean = code.replace('-', '').toUpperCase();
-            const matchingSectors = this.sectorsList.filter(s => {
-                if (SECTOR_TO_ROAD_MAP[s.id] === code) return true;
-                const sName = (s.name || '').toUpperCase();
-                return sName.includes(code.toUpperCase()) || sName.includes(clean);
-            });
-
-            // If current selected sector is not on this road, switch to first matching sector
-            const isCurrentSectorOnRoad = matchingSectors.some(s => s.id == this.selectedSectorId);
-            if (!isCurrentSectorOnRoad && matchingSectors.length > 0) {
-                this.selectSector(matchingSectors[0].id, false);
-            } else if (matchingSectors.length === 0) {
-                // If road has no discrete sectors in hierarchy, set default km range from carriageway
-                const cw = this.carriagewaysList.find(x => (x.road_short === code || x.road === clean));
-                if (cw) {
-                    this.startKm = 0;
-                    this.endKm = Math.min(cw.total_km || 50, 50);
-                    this.startLandmark = `${code} Origin Point`;
-                    this.endLandmark = `${code} Junction`;
-                }
-            }
-
-            this.generateAdvisoryMessage(true);
+            const now = new Date();
+            now.setMinutes(now.getMinutes() + Math.round(this.durationHours * 60));
+            return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' (' + this.durationHours + 'h duration)';
         },
 
         selectZone(id) {
@@ -912,7 +910,7 @@ function rapidTravelAdvisoryHub(config) {
                 this.selectSector(availableSectors[0].id);
             } else {
                 this.selectedSectorId = '';
-                this.selectedBeatId = '';
+                this.selectedBeatIds = [];
             }
         },
 
@@ -923,19 +921,19 @@ function rapidTravelAdvisoryHub(config) {
                 this.selectedZoneId = sec.zone_id || sec.parent_id;
             }
 
-            // Sync road if sector is mapped to a road
             if (updateRoad && SECTOR_TO_ROAD_MAP[id]) {
                 this.selectedRoadCode = SECTOR_TO_ROAD_MAP[id];
             }
 
             const availableBeats = this.beatsList.filter(b => (b.sector_id == id || b.parent_id == id));
             if (availableBeats.length > 0) {
-                this.selectBeat(availableBeats[0].id);
+                this.selectedBeatIds = [availableBeats[0].id];
+                this.recalculateSpanFromSelectedBeats();
             } else {
-                this.selectedBeatId = '';
+                this.selectedBeatIds = [];
                 if (sec && sec.km_min !== null && sec.km_min !== undefined) {
                     this.startKm = parseFloat(sec.km_min);
-                    this.endKm = parseFloat(sec.km_max || sec.km_min + 30);
+                    this.endKm = parseFloat(sec.km_max || (sec.km_min + 30));
                     this.startLandmark = `${sec.name} Start`;
                     this.endLandmark = `${sec.name} End`;
                 }
@@ -943,26 +941,41 @@ function rapidTravelAdvisoryHub(config) {
             this.generateAdvisoryMessage();
         },
 
-        selectBeat(id, triggerRegen = true) {
-            this.selectedBeatId = id;
-            const b = this.beatsList.find(x => x.id == id);
-            if (b) {
-                if (b.sector_id || b.parent_id) this.selectedSectorId = b.sector_id || b.parent_id;
-                if (b.zone_id) this.selectedZoneId = b.zone_id;
-                if (b.km_min !== null && b.km_min !== undefined) this.startKm = parseFloat(b.km_min);
-                if (b.km_max !== null && b.km_max !== undefined) this.endKm = parseFloat(b.km_max);
-
-                // Auto-pick landmark names if available
-                const lms = this.landmarksMap[id];
-                if (lms && lms.length > 0) {
-                    this.startLandmark = lms[0].location_name;
-                    this.endLandmark = lms[lms.length - 1].location_name;
-                } else {
-                    this.startLandmark = `${b.name} Start Post`;
-                    this.endLandmark = `${b.name} End Post`;
+        toggleBeat(id) {
+            const idx = this.selectedBeatIds.indexOf(id);
+            if (idx > -1) {
+                if (this.selectedBeatIds.length > 1) {
+                    this.selectedBeatIds.splice(idx, 1);
                 }
+            } else {
+                this.selectedBeatIds.push(id);
             }
-            if (triggerRegen) this.generateAdvisoryMessage();
+            this.recalculateSpanFromSelectedBeats();
+            this.generateAdvisoryMessage();
+        },
+
+        recalculateSpanFromSelectedBeats() {
+            if (this.selectedBeats.length === 0) return;
+
+            const minKm = Math.min(...this.selectedBeats.map(b => (b.km_min !== null ? parseFloat(b.km_min) : 0)));
+            const maxKm = Math.max(...this.selectedBeats.map(b => (b.km_max !== null ? parseFloat(b.km_max) : 0)));
+
+            this.startKm = minKm;
+            this.endKm = maxKm;
+
+            const firstBeat = this.selectedBeats[0];
+            const lastBeat = this.selectedBeats[this.selectedBeats.length - 1];
+
+            const firstLms = this.landmarksMap[firstBeat.id] || [];
+            const lastLms = this.landmarksMap[lastBeat.id] || [];
+
+            this.startLandmark = firstLms.length > 0 ? firstLms[0].location_name : `${firstBeat.name} Start`;
+            this.endLandmark = lastLms.length > 0 ? lastLms[lastLms.length - 1].location_name : `${lastBeat.name} End`;
+        },
+
+        selectRoad(code) {
+            this.selectedRoadCode = code;
+            this.generateAdvisoryMessage();
         },
 
         setStartLandmark(name, km) {
@@ -1001,6 +1014,12 @@ function rapidTravelAdvisoryHub(config) {
             } else if (type === 'road_works') {
                 this.severity = 'advisory';
                 this.closureType = 'lane_1';
+                this.speedLimit = 60;
+            } else if (type === 'traffic') {
+                this.severity = 'warning';
+                this.speedLimit = 40;
+            } else if (type === 'weather') {
+                this.severity = 'warning';
                 this.speedLimit = 60;
             }
             this.generateAdvisoryMessage();
@@ -1053,11 +1072,25 @@ function rapidTravelAdvisoryHub(config) {
             this.generateAdvisoryMessage(true);
         },
 
-        // DYNAMIC ADVISORY GENERATOR
+        // DYNAMIC ADVISORY SYNTHESIS (PLAIN ENGLISH FOR LAYMEN)
         generateAdvisoryMessage(force = false) {
             const route = this.resolvedRouteCode;
             const boundText = this.carriagewayBound === 'both' ? 'Both Directions' : (this.carriagewayBound === 'northbound' ? 'Northbound (N)' : 'Southbound (S)');
-            const beatName = this.selectedBeatName;
+
+            // Multi-beat representation
+            let beatText = '';
+            if (this.selectedBeats.length === 1) {
+                beatText = `under ${this.selectedBeats[0].name}`;
+            } else if (this.selectedBeats.length === 2) {
+                beatText = `across ${this.selectedBeats[0].name} and ${this.selectedBeats[1].name}`;
+            } else if (this.selectedBeats.length > 2) {
+                const names = this.selectedBeats.map(b => b.name);
+                const last = names.pop();
+                beatText = `across ${names.join(', ')} and ${last}`;
+            } else {
+                beatText = `in Sector ${this.selectedSectorName}`;
+            }
+
             const startLoc = this.startLandmark || `KM ${this.startKm}`;
             const endLoc = this.endLandmark || `KM ${this.endKm}`;
 
@@ -1067,30 +1100,30 @@ function rapidTravelAdvisoryHub(config) {
             if (this.advisoryType === 'fog') {
                 if (this.visibilityMeters <= 35) {
                     t = `Dense Fog Alert - Visibility Below 35m (${route})`;
-                    m = `Dense fog advisory on ${route} (${boundText}) between ${startLoc} and ${endLoc} (KM ${this.startKm} to ${this.endKm}) under ${beatName}. Atmospheric visibility has critically dropped to under ${this.visibilityMeters}m. Commuters are advised to slow down to ${this.speedLimit} km/h, use fog lights, and follow NHMP convoy piloting. Expected duration: ${this.durationHours} hours.`;
+                    m = `Dense fog reported on ${route} (${boundText}) between ${startLoc} and ${endLoc} (KM ${this.startKm} to ${this.endKm}) ${beatText}. Atmospheric visibility has critically dropped below ${this.visibilityMeters}m. Commuters are advised to slow down to ${this.speedLimit} km/h, use fog lights, and follow NHMP convoy piloting. Expected duration: ${this.durationHours} hours.`;
                 } else if (this.visibilityMeters <= 100) {
                     t = `Moderate Fog Advisory - Visibility ${this.visibilityMeters}m (${route})`;
-                    m = `Moderate fog patches reported on ${route} (${boundText}) between ${startLoc} and ${endLoc} (KM ${this.startKm} - ${this.endKm}). Visibility is restricted to ${this.visibilityMeters}m. Please maintain a safe headway, keep low beams on, and observe a ${this.speedLimit} km/h advisory speed. Valid for ${this.durationHours} hours.`;
+                    m = `Moderate fog patches reported on ${route} (${boundText}) between ${startLoc} and ${endLoc} (KM ${this.startKm} to ${this.endKm}) ${beatText}. Visibility is restricted to ${this.visibilityMeters}m. Please maintain a safe distance, keep headlights on low beam, and drive within ${this.speedLimit} km/h. Valid for ${this.durationHours} hours.`;
                 } else {
                     t = `Patchy Haze & Smog Advisory (${route})`;
-                    m = `Light fog and smog haze observed along ${route} (${boundText}) from ${startLoc} to ${endLoc}. Tarmac clear with visibility around ${this.visibilityMeters}m. Normal speeds permissible with caution.`;
+                    m = `Light fog and smog haze observed along ${route} (${boundText}) between ${startLoc} and ${endLoc} (KM ${this.startKm} to ${this.endKm}) ${beatText}. Visibility is around ${this.visibilityMeters}m. Road surface is clear, please drive with caution.`;
                 }
             } else if (this.advisoryType === 'road_closure') {
                 t = `Emergency Road Closure on ${route}`;
-                m = `ATTENTION COMMUTERS: Complete carriageway closure in effect on ${route} (${boundText}) between ${startLoc} and ${endLoc} (KM ${this.startKm} to ${this.endKm}) under ${beatName}. Traffic is stopped for traveler safety. Please obey on-site NHMP wireless patrol instructions. Clearance expected in ${this.durationHours} hours.`;
+                m = `Road closure in effect on ${route} (${boundText}) between ${startLoc} and ${endLoc} (KM ${this.startKm} to ${this.endKm}) ${beatText}. All traffic is temporarily stopped for commuter safety. Please follow NHMP patrol instructions on site. Clearance expected in ${this.durationHours} hours.`;
             } else if (this.advisoryType === 'diversion') {
                 t = `Traffic Diversion Active on ${route}`;
-                m = `Traffic diversion implemented on ${route} (${boundText}) at ${startLoc} (KM ${this.startKm}). Commuters are being rerouted through alternate regional corridors. Follow directional signboards and NHMP officers on site. Duration: ${this.durationHours} hours.`;
+                m = `Traffic diversion in effect on ${route} (${boundText}) between ${startLoc} and ${endLoc} (KM ${this.startKm} to ${this.endKm}) ${beatText}. Commuters are being safely rerouted through alternate routes. Please follow NHMP patrol signboards and on-site instructions. Expected duration: ${this.durationHours} hours.`;
             } else if (this.advisoryType === 'road_works') {
                 const laneText = this.closureType ? this.closureType.replace('_', ' ') : 'Slow lane';
-                t = `Active Road Works & Lane Restriction (${route})`;
-                m = `Routine highway rehabilitation work in progress on ${route} (${boundText}) between ${startLoc} and ${endLoc} (KM ${this.startKm} to ${this.endKm}). ${laneText} restricted. Advisory speed limit: ${this.speedLimit} km/h. Please slow down and observe work-zone signage.`;
+                t = `Road Maintenance & Lane Restriction (${route})`;
+                m = `Road maintenance in progress on ${route} (${boundText}) between ${startLoc} and ${endLoc} (KM ${this.startKm} to ${this.endKm}) ${beatText}. ${laneText} restricted. Advisory speed limit: ${this.speedLimit} km/h. Please slow down and observe work zone signage.`;
             } else if (this.advisoryType === 'traffic') {
                 t = `Traffic Congestion / Queue Alert (${route})`;
-                m = `Slow-moving commuter volume reported on ${route} (${boundText}) approaching ${startLoc} (KM ${this.startKm}). Electronic toll booths active and NHMP ground patrols facilitating flow. Commuters should expect minor delays for the next ${this.durationHours} hours.`;
+                m = `Heavy traffic congestion and slow-moving vehicles reported on ${route} (${boundText}) between ${startLoc} and ${endLoc} (KM ${this.startKm} to ${this.endKm}) ${beatText}. NHMP ground patrols are on site managing the flow. Commuters should expect minor delays for the next ${this.durationHours} hours.`;
             } else if (this.advisoryType === 'weather') {
-                t = `Inclement Weather & Wet Tarmac Alert (${route})`;
-                m = `Heavy rain and slippery tarmac reported on ${route} (${boundText}) between ${startLoc} and ${endLoc}. Commuters are cautioned against sudden braking and advised to keep safe following distance.`;
+                t = `Rain & Slippery Road Advisory (${route})`;
+                m = `Rainfall and slippery tarmac reported on ${route} (${boundText}) between ${startLoc} and ${endLoc} (KM ${this.startKm} to ${this.endKm}) ${beatText}. Commuters are advised to reduce speed, avoid sudden braking, and maintain a safe following distance.`;
             }
 
             this.title = t;
@@ -1099,17 +1132,21 @@ function rapidTravelAdvisoryHub(config) {
             }
         },
 
-        // AJAX SUBMISSION WITH NOTIFICATION.JS (ZERO PAGE RELOAD)
+        // AJAX SUBMISSION WITH NOTIFICATION.JS (ZERO FULL-PAGE RELOAD)
         async submitForm() {
             if (this.isSubmitting) return;
             this.isSubmitting = true;
 
+            const primaryBeatId = this.selectedBeatIds.length > 0 ? this.selectedBeatIds[0] : null;
+
             const payload = {
+                category: this.advisoryType,
                 advisory_type: this.advisoryType,
                 severity: this.severity,
                 zone_id: this.selectedZoneId,
                 sector_id: this.selectedSectorId,
-                office_id: this.selectedBeatId,
+                office_id: primaryBeatId,
+                beat_ids: this.selectedBeatIds,
                 route_name: this.resolvedRouteCode,
                 carriageway: this.carriagewayBound,
                 start_km: this.startKm,
@@ -1122,6 +1159,7 @@ function rapidTravelAdvisoryHub(config) {
                 duration_hours: this.durationHours,
                 title: this.title,
                 message: this.message,
+                auto_approve: this.isSupervisor && this.autoApprove,
             };
 
             try {
@@ -1141,7 +1179,7 @@ function rapidTravelAdvisoryHub(config) {
 
                 if (res.ok && data.success) {
                     if (window.showSuccess) {
-                        window.showSuccess(data.message || 'Travel advisory broadcasted successfully across Humsafar Network.', 'Broadcast Active');
+                        window.showSuccess(data.message || 'Travel advisory submitted successfully.', 'Submission Success');
                     }
                     this.isCustomMessageEdited = false;
                     this.generateAdvisoryMessage(true);

@@ -36,18 +36,19 @@
     currentStatus: '{{ $currentStatus ?? "active" }}',
     currentType: '{{ $currentType ?? "all" }}',
     search: '{{ $search ?? "" }}',
+    canApprove: {{ ($canApprove ?? false) ? 'true' : 'false' }},
 })" class="space-y-5 max-w-[1700px] mx-auto pb-12 pt-1" x-cloak>
 
-    <!-- 3D TACTILE FILTER CARDS (Strict Single Row / 6 Columns, 100% AJAX/Alpine) -->
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 pt-1 w-full" style="grid-template-columns: repeat(6, minmax(0, 1fr));">
+    <!-- 3D TACTILE FILTER CARDS (Strict Responsive Grid, 100% AJAX/Alpine) -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 xl:grid-cols-9 gap-3 pt-1 w-full" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
         <!-- 1. ALL ACTIVE ALERTS -->
         <div @click="setCardFilter('all')"
             :class="activeCard === 'all' ? 'card-3d-active blue' : ''"
             class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
-            <div class="absolute -top-3 sm:-top-4 left-3 sm:left-6 h-8 w-8 sm:h-10 sm:w-10 xl:h-12 xl:w-12 grid place-items-center rounded-xl bg-blue-600 shadow-[0_8px_16px_rgba(37,99,235,0.25)] z-10 text-white">
+            <div class="absolute -top-3 sm:-top-4 left-3 sm:left-4 h-8 w-8 sm:h-10 sm:w-10 xl:h-11 xl:w-11 grid place-items-center rounded-xl bg-blue-600 shadow-[0_8px_16px_rgba(37,99,235,0.25)] z-10 text-white">
                 <i class="fa-solid fa-layer-group text-xs sm:text-sm"></i>
             </div>
-            <div class="p-3 sm:p-4 text-right pt-2 relative">
+            <div class="p-3 sm:p-3.5 text-right pt-2 relative">
                 <p class="text-[9px] font-black tracking-widest text-blue-600 uppercase truncate">Active Alerts</p>
                 <div class="flex items-center justify-end gap-1.5 mt-1">
                     <span class="text-[9px] font-black text-white bg-blue-600 px-1.5 py-0.5 rounded-full shadow-sm shrink-0">LIVE</span>
@@ -56,85 +57,134 @@
             </div>
         </div>
 
-        <!-- 2. FOG & SMOG -->
+        <!-- 2. PENDING REVIEW (SUPERVISOR QUEUE) -->
+        <div @click="setCardFilter('pending')"
+            :class="activeCard === 'pending' ? 'card-3d-active amber ring-2 ring-amber-400' : ''"
+            class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
+            <div class="absolute -top-3 sm:-top-4 left-3 sm:left-4 h-8 w-8 sm:h-10 sm:w-10 xl:h-11 xl:w-11 grid place-items-center rounded-xl bg-amber-500 shadow-[0_8px_16px_rgba(245,158,11,0.25)] z-10 text-white">
+                <i class="fa-solid fa-hourglass-half text-xs sm:text-sm" :class="metrics.pending_approval > 0 ? 'animate-spin' : ''" style="animation-duration: 4s;"></i>
+            </div>
+            <div class="p-3 sm:p-3.5 text-right pt-2 relative">
+                <p class="text-[9px] font-black tracking-widest text-amber-600 uppercase truncate">Pending</p>
+                <div class="flex items-center justify-end gap-1.5 mt-1">
+                    <span class="text-[9px] font-black text-white bg-amber-500 px-1.5 py-0.5 rounded-full shadow-sm shrink-0" :class="metrics.pending_approval > 0 ? 'animate-pulse' : ''">REVIEW</span>
+                    <h4 class="text-xl sm:text-2xl font-black text-amber-950 truncate" x-text="metrics.pending_approval || 0"></h4>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. REJECTED ALERTS -->
+        <div @click="setCardFilter('rejected')"
+            :class="activeCard === 'rejected' ? 'card-3d-active rose ring-2 ring-rose-400' : ''"
+            class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
+            <div class="absolute -top-3 sm:-top-4 left-3 sm:left-4 h-8 w-8 sm:h-10 sm:w-10 xl:h-11 xl:w-11 grid place-items-center rounded-xl bg-rose-600 shadow-[0_8px_16px_rgba(225,29,72,0.25)] z-10 text-white">
+                <i class="fa-solid fa-ban text-xs sm:text-sm"></i>
+            </div>
+            <div class="p-3 sm:p-3.5 text-right pt-2 relative">
+                <p class="text-[9px] font-black tracking-widest text-rose-600 uppercase truncate">Rejected</p>
+                <div class="flex items-center justify-end gap-1.5 mt-1">
+                    <span class="text-[9px] font-black text-white bg-rose-600 px-1.5 py-0.5 rounded-full shadow-sm shrink-0">DECLINED</span>
+                    <h4 class="text-xl sm:text-2xl font-black text-rose-950 truncate" x-text="metrics.rejected || 0"></h4>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. FOG & SMOG -->
         <div @click="setCardFilter('fog')"
             :class="activeCard === 'fog' ? 'card-3d-active amber' : ''"
             class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
-            <div class="absolute -top-3 sm:-top-4 left-3 sm:left-6 h-8 w-8 sm:h-10 sm:w-10 xl:h-12 xl:w-12 grid place-items-center rounded-xl bg-amber-500 shadow-[0_8px_16px_rgba(245,158,11,0.25)] z-10 text-white">
+            <div class="absolute -top-3 sm:-top-4 left-3 sm:left-4 h-8 w-8 sm:h-10 sm:w-10 xl:h-11 xl:w-11 grid place-items-center rounded-xl bg-amber-500 shadow-[0_8px_16px_rgba(245,158,11,0.25)] z-10 text-white">
                 <i class="fa-solid fa-smog text-xs sm:text-sm"></i>
             </div>
-            <div class="p-3 sm:p-4 text-right pt-2 relative">
+            <div class="p-3 sm:p-3.5 text-right pt-2 relative">
                 <p class="text-[9px] font-black tracking-widest text-amber-600 uppercase truncate">Fog & Smog</p>
                 <div class="flex items-center justify-end gap-1.5 mt-1">
                     <span class="text-[9px] font-black text-white bg-amber-500 px-1.5 py-0.5 rounded-full shadow-sm shrink-0">VIS</span>
-                    <h4 class="text-xl sm:text-2xl font-black text-slate-900 truncate" x-text="metrics.fog_alerts"></h4>
+                    <h4 class="text-xl sm:text-2xl font-black text-slate-900 truncate" x-text="metrics.fog_alerts || 0"></h4>
                 </div>
             </div>
         </div>
 
-        <!-- 3. CLOSURES & DIVERSIONS -->
+        <!-- 5. CLOSURES & DIVERSIONS -->
         <div @click="setCardFilter('closure')"
             :class="activeCard === 'closure' ? 'card-3d-active rose' : ''"
             class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
-            <div class="absolute -top-3 sm:-top-4 left-3 sm:left-6 h-8 w-8 sm:h-10 sm:w-10 xl:h-12 xl:w-12 grid place-items-center rounded-xl bg-rose-600 shadow-[0_8px_16px_rgba(225,29,72,0.25)] z-10 text-white">
-                <i class="fa-solid fa-ban text-xs sm:text-sm"></i>
+            <div class="absolute -top-3 sm:-top-4 left-3 sm:left-4 h-8 w-8 sm:h-10 sm:w-10 xl:h-11 xl:w-11 grid place-items-center rounded-xl bg-rose-600 shadow-[0_8px_16px_rgba(225,29,72,0.25)] z-10 text-white">
+                <i class="fa-solid fa-road-barrier text-xs sm:text-sm"></i>
             </div>
-            <div class="p-3 sm:p-4 text-right pt-2 relative">
+            <div class="p-3 sm:p-3.5 text-right pt-2 relative">
                 <p class="text-[9px] font-black tracking-widest text-rose-600 uppercase truncate">Closures</p>
                 <div class="flex items-center justify-end gap-1.5 mt-1">
                     <span class="text-[9px] font-black text-white bg-rose-600 px-1.5 py-0.5 rounded-full shadow-sm shrink-0">BLOCK</span>
-                    <h4 class="text-xl sm:text-2xl font-black text-slate-900 truncate" x-text="metrics.road_closures"></h4>
+                    <h4 class="text-xl sm:text-2xl font-black text-slate-900 truncate" x-text="metrics.road_closures || 0"></h4>
                 </div>
             </div>
         </div>
 
-        <!-- 4. ROAD WORKS -->
+        <!-- 6. ROAD WORKS -->
         <div @click="setCardFilter('works')"
             :class="activeCard === 'works' ? 'card-3d-active amber' : ''"
             class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
-            <div class="absolute -top-3 sm:-top-4 left-3 sm:left-6 h-8 w-8 sm:h-10 sm:w-10 xl:h-12 xl:w-12 grid place-items-center rounded-xl bg-orange-500 shadow-[0_8px_16px_rgba(249,115,22,0.25)] z-10 text-white">
+            <div class="absolute -top-3 sm:-top-4 left-3 sm:left-4 h-8 w-8 sm:h-10 sm:w-10 xl:h-11 xl:w-11 grid place-items-center rounded-xl bg-orange-500 shadow-[0_8px_16px_rgba(249,115,22,0.25)] z-10 text-white">
                 <i class="fa-solid fa-triangle-exclamation text-xs sm:text-sm"></i>
             </div>
-            <div class="p-3 sm:p-4 text-right pt-2 relative">
+            <div class="p-3 sm:p-3.5 text-right pt-2 relative">
                 <p class="text-[9px] font-black tracking-widest text-orange-600 uppercase truncate">Road Works</p>
                 <div class="flex items-center justify-end gap-1.5 mt-1">
                     <span class="text-[9px] font-black text-white bg-orange-500 px-1.5 py-0.5 rounded-full shadow-sm shrink-0">LANES</span>
-                    <h4 class="text-xl sm:text-2xl font-black text-slate-900 truncate" x-text="metrics.road_works"></h4>
+                    <h4 class="text-xl sm:text-2xl font-black text-slate-900 truncate" x-text="metrics.road_works || 0"></h4>
                 </div>
             </div>
         </div>
 
-        <!-- 5. CRITICAL HAZARDS -->
+        <!-- 7. TRAFFIC CONGESTION -->
+        <div @click="setCardFilter('traffic')"
+            :class="activeCard === 'traffic' ? 'card-3d-active red ring-2 ring-red-400' : ''"
+            class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
+            <div class="absolute -top-3 sm:-top-4 left-3 sm:left-4 h-8 w-8 sm:h-10 sm:w-10 xl:h-11 xl:w-11 grid place-items-center rounded-xl bg-red-500 shadow-[0_8px_16px_rgba(239,68,68,0.25)] z-10 text-white">
+                <i class="fa-solid fa-car text-xs sm:text-sm"></i>
+            </div>
+            <div class="p-3 sm:p-3.5 text-right pt-2 relative">
+                <p class="text-[9px] font-black tracking-widest text-red-600 uppercase truncate">Congestion</p>
+                <div class="flex items-center justify-end gap-1.5 mt-1">
+                    <span class="text-[9px] font-black text-white bg-red-500 px-1.5 py-0.5 rounded-full shadow-sm shrink-0">JAM</span>
+                    <h4 class="text-xl sm:text-2xl font-black text-slate-900 truncate" x-text="metrics.traffic_alerts || 0"></h4>
+                </div>
+            </div>
+        </div>
+
+        <!-- 8. CRITICAL HAZARDS -->
         <div @click="setCardFilter('critical')"
             :class="activeCard === 'critical' ? 'card-3d-active rose' : ''"
             class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
-            <div class="absolute -top-3 sm:-top-4 left-3 sm:left-6 h-8 w-8 sm:h-10 sm:w-10 xl:h-12 xl:w-12 grid place-items-center rounded-xl bg-red-600 shadow-[0_8px_16px_rgba(220,38,38,0.25)] z-10 text-white">
+            <div class="absolute -top-3 sm:-top-4 left-3 sm:left-4 h-8 w-8 sm:h-10 sm:w-10 xl:h-11 xl:w-11 grid place-items-center rounded-xl bg-red-600 shadow-[0_8px_16px_rgba(220,38,38,0.25)] z-10 text-white">
                 <i class="fa-solid fa-radiation text-xs sm:text-sm"></i>
             </div>
-            <div class="p-3 sm:p-4 text-right pt-2 relative">
+            <div class="p-3 sm:p-3.5 text-right pt-2 relative">
                 <p class="text-[9px] font-black tracking-widest text-red-600 uppercase truncate">Critical</p>
                 <div class="flex items-center justify-end gap-1.5 mt-1">
                     <span class="text-[9px] font-black text-white bg-red-600 px-1.5 py-0.5 rounded-full shadow-sm shrink-0">HAZARD</span>
-                    <h4 class="text-xl sm:text-2xl font-black text-slate-900 truncate" x-text="metrics.critical_hazards"></h4>
+                    <h4 class="text-xl sm:text-2xl font-black text-slate-900 truncate" x-text="metrics.critical_hazards || 0"></h4>
                 </div>
             </div>
         </div>
 
-        <!-- 6. EXPIRED / RESOLVED -->
+        <!-- 9. EXPIRED / RESOLVED -->
         <div @click="setCardFilter('resolved')"
             :class="activeCard === 'resolved' ? 'card-3d-active slate' : ''"
             class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
-            <div class="absolute -top-3 sm:-top-4 left-3 sm:left-6 h-8 w-8 sm:h-10 sm:w-10 xl:h-12 xl:w-12 grid place-items-center rounded-xl bg-slate-600 shadow-[0_8px_16px_rgba(71,85,105,0.25)] z-10 text-white">
+            <div class="absolute -top-3 sm:-top-4 left-3 sm:left-4 h-8 w-8 sm:h-10 sm:w-10 xl:h-11 xl:w-11 grid place-items-center rounded-xl bg-slate-600 shadow-[0_8px_16px_rgba(71,85,105,0.25)] z-10 text-white">
                 <i class="fa-solid fa-clock-rotate-left text-xs sm:text-sm"></i>
             </div>
-            <div class="p-3 sm:p-4 text-right pt-2 relative">
+            <div class="p-3 sm:p-3.5 text-right pt-2 relative">
                 <p class="text-[9px] font-black tracking-widest text-slate-500 uppercase truncate">Resolved</p>
                 <div class="flex items-center justify-end gap-1.5 mt-1">
                     <span class="text-[9px] font-black text-white bg-slate-600 px-1.5 py-0.5 rounded-full shadow-sm shrink-0">ARCHIVE</span>
-                    <h4 class="text-xl sm:text-2xl font-black text-slate-900 truncate" x-text="metrics.expired_resolved"></h4>
+                    <h4 class="text-xl sm:text-2xl font-black text-slate-900 truncate" x-text="metrics.expired_resolved || 0"></h4>
                 </div>
             </div>
         </div>
+    </div>
     </div>
 
     <!-- HIGHWAY ROUTE PILLS & SEARCH TOOLBAR WITH EMBEDDED ACTION BUTTONS -->
@@ -160,13 +210,8 @@
                 </template>
             </div>
 
-            <!-- Action Buttons: Open Commuter Portal & Log Advisory / Fog -->
+            <!-- Action Buttons: Log Advisory / Fog -->
             <div class="flex items-center gap-2 shrink-0">
-                <a href="{{ route('public.travel-advisory') }}" target="_blank"
-                    class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 shadow-sm hover:bg-slate-100 transition-all">
-                    <i class="fa-solid fa-arrow-up-right-from-square text-sky-600"></i>
-                    <span>Open Commuter Portal</span>
-                </a>
                 <a href="{{ route('ops.travel-advisory.create') }}"
                     class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 shadow-md shadow-blue-600/25 active:translate-y-0.5 transition-all">
                     <i class="fa-solid fa-plus-circle"></i>
@@ -182,14 +227,16 @@
                 <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs">
                     <i class="fa-solid fa-clock-rotate-left text-slate-400 text-xs"></i>
                     <select x-model="currentStatus" @change="fetchData()" class="bg-transparent font-bold text-slate-700 outline-none cursor-pointer">
-                        <option value="active">Active Advisories</option>
+                        <option value="active">Active / Live Alerts</option>
+                        <option value="pending">Pending Review (Supervisors)</option>
+                        <option value="rejected">Rejected Advisories</option>
                         <option value="all">All Records</option>
                         <option value="resolved">Resolved Only</option>
                         <option value="expired">Expired Only</option>
                     </select>
                 </div>
 
-                <!-- Type filter dropdown -->
+                <!-- Type filter dropdown (All Categories) -->
                 <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs">
                     <i class="fa-solid fa-tags text-slate-400 text-xs"></i>
                     <select x-model="currentType" @change="fetchData()" class="bg-transparent font-bold text-slate-700 outline-none cursor-pointer">
@@ -200,11 +247,13 @@
                         <option value="traffic">Traffic Congestion</option>
                         <option value="weather">Weather & Rain</option>
                         <option value="diversion">Diversions</option>
+                        <option value="security">Security Alerts</option>
+                        <option value="emergency_alert">Emergency Alerts</option>
                     </select>
                 </div>
             </div>
 
-            <!-- Search input -->
+            <!-- Search input & Reset -->
             <div class="flex items-center gap-2">
                 <div class="relative w-full sm:w-72">
                     <input type="text" x-model="search" @input.debounce.300ms="fetchData()" placeholder="Search landmarks, KM, title..."
@@ -213,8 +262,9 @@
                 </div>
                 <button type="button" @click="resetFilters()"
                     x-show="currentRoad !== 'all' || currentType !== 'all' || currentStatus !== 'active' || search"
-                    class="px-3 py-2 bg-slate-100 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-200 transition-colors cursor-pointer" title="Reset Filters">
-                    <i class="fa-solid fa-rotate-left"></i>
+                    class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm" title="Reset All Filters">
+                    <i class="fa-solid fa-rotate-left text-blue-600"></i>
+                    <span class="hidden sm:inline">Reset</span>
                 </button>
             </div>
         </div>
@@ -272,15 +322,15 @@
                                     </template>
                                     <template x-if="item.advisory_type === 'road_closure'">
                                         <span class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-rose-100 text-rose-800 border border-rose-200">
-                                            <i class="fa-solid fa-ban mr-1"></i> Road Closure
+                                            <i class="fa-solid fa-road-barrier mr-1"></i> Closure
                                         </span>
                                     </template>
-                                    <template x-if="item.advisory_type === 'road_works'">
+                                    <template x-if="item.advisory_type === 'road_works' || item.advisory_type === 'maintenance'">
                                         <span class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-orange-100 text-orange-800 border border-orange-200">
                                             <i class="fa-solid fa-triangle-exclamation mr-1"></i> Works
                                         </span>
                                     </template>
-                                    <template x-if="item.advisory_type === 'traffic'">
+                                    <template x-if="item.advisory_type === 'traffic' || item.advisory_type === 'congestion'">
                                         <span class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-red-100 text-red-800 border border-red-200">
                                             <i class="fa-solid fa-car mr-1"></i> Congestion
                                         </span>
@@ -293,6 +343,21 @@
                                     <template x-if="item.advisory_type === 'diversion'">
                                         <span class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-purple-100 text-purple-800 border border-purple-200">
                                             <i class="fa-solid fa-arrows-split-up-and-left mr-1"></i> Diversion
+                                        </span>
+                                    </template>
+                                    <template x-if="item.advisory_type === 'security'">
+                                        <span class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-indigo-100 text-indigo-800 border border-indigo-200">
+                                            <i class="fa-solid fa-shield-halved mr-1"></i> Security
+                                        </span>
+                                    </template>
+                                    <template x-if="item.advisory_type === 'emergency_alert'">
+                                        <span class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-rose-600 text-white border border-rose-700">
+                                            <i class="fa-solid fa-triangle-exclamation mr-1"></i> Emergency
+                                        </span>
+                                    </template>
+                                    <template x-if="!['fog','road_closure','road_works','maintenance','traffic','congestion','weather','diversion','security','emergency_alert'].includes(item.advisory_type)">
+                                        <span class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-slate-100 text-slate-800 border border-slate-200">
+                                            <i class="fa-solid fa-bell mr-1"></i> <span x-text="(item.advisory_type || 'Alert').toUpperCase()"></span>
                                         </span>
                                     </template>
 
@@ -374,6 +439,25 @@
 
                             <!-- Validity / Expiry Timer -->
                             <td class="py-3.5 px-4 whitespace-nowrap">
+                                <template x-if="item.is_pending">
+                                    <div>
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-black bg-amber-100 text-amber-800 border border-amber-300 shadow-sm animate-pulse">
+                                            <i class="fa-solid fa-hourglass-half text-amber-600"></i> Awaiting Approval
+                                        </span>
+                                        <div class="text-[10px] text-slate-500 font-semibold mt-1 flex items-center gap-1">
+                                            <i class="fa-solid fa-user-clock text-slate-400"></i>
+                                            <span x-text="'By ' + item.creator_name"></span>
+                                        </div>
+                                    </div>
+                                </template>
+                                <template x-if="item.status === 'rejected'">
+                                    <div>
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-black bg-red-100 text-red-800 border border-red-300">
+                                            <i class="fa-solid fa-ban text-red-600"></i> Rejected
+                                        </span>
+                                        <div class="text-[10px] text-red-500 font-semibold mt-1 truncate max-w-[140px]" :title="item.rejection_reason" x-text="item.rejection_reason || 'Declined'"></div>
+                                    </div>
+                                </template>
                                 <template x-if="item.is_resolved">
                                     <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
                                         <i class="fa-solid fa-check-double text-slate-500"></i> Resolved
@@ -400,29 +484,134 @@
                             <!-- Action Buttons (Zero Page Reload AJAX) -->
                             <td class="py-3.5 px-4 text-right whitespace-nowrap">
                                 <div class="flex items-center justify-end gap-1.5">
-                                    <template x-if="!item.is_resolved">
+                                    <!-- 1. PENDING APPROVAL ACTIONS -->
+                                    <template x-if="item.is_pending">
                                         <div class="flex items-center gap-1.5">
-                                            <!-- Extend by +2 Hours -->
-                                            <button type="button" @click="extendAdvisory(item.id)" title="Extend validity by +2 hours"
+                                            <!-- Supervisor: Approve, Edit, Reject -->
+                                            <template x-if="canApprove">
+                                                <div class="flex items-center gap-1.5">
+                                                    <button type="button" @click="openApproveModal(item)" title="Approve & Broadcast to Public"
+                                                        class="px-2.5 py-1.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer flex items-center gap-1">
+                                                        <i class="fa-solid fa-check-to-slot"></i>
+                                                        <span>Approve</span>
+                                                    </button>
+
+                                                    <button type="button" @click="openEditModal(item)" title="Edit and Refine Advisory"
+                                                        class="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-blue-400 shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1">
+                                                        <i class="fa-solid fa-pen-to-square text-blue-600"></i>
+                                                        <span>Edit</span>
+                                                    </button>
+
+                                                    <button type="button" @click="openRejectModal(item)" title="Reject Advisory"
+                                                        class="px-2.5 py-1.5 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-all active:scale-95 cursor-pointer flex items-center gap-1">
+                                                        <i class="fa-solid fa-ban"></i>
+                                                        <span>Reject</span>
+                                                    </button>
+                                                </div>
+                                            </template>
+
+                                            <!-- Sector Operator: Pending Badge + Edit -->
+                                            <template x-if="!canApprove">
+                                                <div class="flex items-center gap-1.5">
+                                                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200">
+                                                        <i class="fa-solid fa-hourglass-half animate-pulse text-amber-500"></i>
+                                                        <span>Pending Review</span>
+                                                    </span>
+                                                    <button type="button" @click="openEditModal(item)" title="Edit Advisory"
+                                                        class="p-2 rounded-xl text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:text-blue-600 hover:border-blue-300 shadow-sm transition-all active:scale-95 cursor-pointer">
+                                                        <i class="fa-solid fa-pen-to-square"></i>
+                                                    </button>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+
+                                    <!-- 2. PUBLISHED / LIVE ACTIONS (Available to both Sector & Supervisors) -->
+                                    <template x-if="!item.is_pending && !item.is_resolved && !item.is_rejected">
+                                        <div class="flex items-center gap-1.5">
+                                            <!-- Edit Button (Both Sector & Supervisor) -->
+                                            <button type="button" @click="openEditModal(item)" title="Edit Parameters"
+                                                class="p-2 rounded-xl text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:text-blue-600 hover:border-blue-300 shadow-sm transition-all active:scale-95 cursor-pointer">
+                                                <i class="fa-solid fa-pen-to-square"></i>
+                                            </button>
+
+                                            <!-- Extend validity by Timing Modal (Both Sector & Supervisor) -->
+                                            <button type="button" @click="openExtendModal(item)" title="Extend validity & timer"
                                                 class="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-blue-400 shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1">
                                                 <i class="fa-solid fa-clock-rotate-left text-blue-600"></i>
                                                 <span>+2h</span>
                                             </button>
 
-                                            <!-- Mark Resolved -->
-                                            <button type="button" @click="resolveAdvisory(item.id)" title="Clear / Mark as Resolved"
+                                            <!-- Mark Resolved with Confirmation Modal (Both Sector & Supervisor) -->
+                                            <button type="button" @click="openResolveModal(item)" title="Clear / Mark as Resolved"
                                                 class="px-3 py-1.5 rounded-xl text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1">
                                                 <i class="fa-solid fa-check"></i>
                                                 <span>Clear</span>
                                             </button>
+
+                                            <!-- Reject Live Advisory (Supervisors Only) -->
+                                            <template x-if="canApprove">
+                                                <button type="button" @click="openRejectModal(item)" title="Reject Advisory"
+                                                    class="px-2 py-1.5 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1">
+                                                    <i class="fa-solid fa-ban"></i>
+                                                    <span>Reject</span>
+                                                </button>
+                                            </template>
                                         </div>
                                     </template>
 
-                                    <!-- View on Public Portal Map -->
-                                    <a :href="'{{ route('public.travel-advisory') }}?road=' + (item.route_name || '')" target="_blank" title="View on Live Commuter Map"
-                                        class="p-2 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors">
-                                        <i class="fa-solid fa-map-location-dot"></i>
-                                    </a>
+                                    <!-- 3. REJECTED ACTIONS -->
+                                    <template x-if="item.is_rejected">
+                                        <div class="flex items-center gap-1.5">
+                                            <!-- Supervisor: Re-approve or Edit -->
+                                            <template x-if="canApprove">
+                                                <div class="flex items-center gap-1.5">
+                                                    <button type="button" @click="openApproveModal(item)" title="Re-approve & Publish Live"
+                                                        class="px-2.5 py-1.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer flex items-center gap-1">
+                                                        <i class="fa-solid fa-rotate-left"></i>
+                                                        <span>Re-approve</span>
+                                                    </button>
+                                                    <button type="button" @click="openEditModal(item)" title="Edit and Refine Advisory"
+                                                        class="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1">
+                                                        <i class="fa-solid fa-pen-to-square text-blue-600"></i>
+                                                        <span>Edit</span>
+                                                    </button>
+                                                </div>
+                                            </template>
+                                            <template x-if="!canApprove">
+                                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200" title="Rejected by Supervisor">
+                                                    <i class="fa-solid fa-ban text-rose-500"></i>
+                                                    <span>Rejected</span>
+                                                </span>
+                                            </template>
+                                        </div>
+                                    </template>
+
+                                    <!-- 4. RESOLVED ACTIONS -->
+                                    <template x-if="item.is_resolved">
+                                        <div class="flex items-center gap-1.5">
+                                            <!-- Supervisor: Re-open or Edit -->
+                                            <template x-if="canApprove">
+                                                <div class="flex items-center gap-1.5">
+                                                    <button type="button" @click="openExtendModal(item)" title="Re-open & Extend Validity"
+                                                        class="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-blue-400 shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1">
+                                                        <i class="fa-solid fa-clock-rotate-left text-blue-600"></i>
+                                                        <span>Re-open</span>
+                                                    </button>
+                                                    <button type="button" @click="openEditModal(item)" title="Edit"
+                                                        class="p-2 rounded-xl text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 shadow-sm transition-all active:scale-95 cursor-pointer">
+                                                        <i class="fa-solid fa-pen-to-square"></i>
+                                                    </button>
+                                                </div>
+                                            </template>
+                                            <template x-if="!canApprove">
+                                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold text-slate-600 bg-slate-100 border border-slate-200">
+                                                    <i class="fa-solid fa-check-double text-slate-400"></i>
+                                                    <span>Resolved</span>
+                                                </span>
+                                            </template>
+                                        </div>
+                                    </template>
                                 </div>
                             </td>
                         </tr>
@@ -468,6 +657,546 @@
             </div>
         </div>
     </div>
+
+    <!-- =========================================================================
+         SUPERVISOR MODAL 1: EDIT & REFINE ADVISORY PARAMETERS
+         ========================================================================= -->
+    <div x-show="isEditModalOpen" 
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         @keydown.escape.window="closeEditModal()"
+         class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" @click="closeEditModal()"></div>
+        
+        <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+            <div x-show="isEditModalOpen"
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave="transition ease-in duration-150"
+                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 @click.stop
+                 class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-2xl border border-slate-200">
+                
+                <!-- Modal Header -->
+                <div class="bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600 px-6 py-4 text-white flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-inner">
+                            <i class="fa-solid fa-pen-to-square text-base"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-black tracking-tight">Review & Edit Advisory</h3>
+                            <p class="text-xs text-blue-100 font-medium">Call Center Agent Supervisor Corridor Control</p>
+                        </div>
+                    </div>
+                    <button type="button" @click="closeEditModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition cursor-pointer">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- Modal Body Form -->
+                <form @submit.prevent="submitEditModal()" class="p-6 space-y-4">
+                    <!-- Title -->
+                    <div>
+                        <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">
+                            Advisory Headline / Title <span class="text-rose-500">*</span>
+                        </label>
+                        <input type="text" x-model="editForm.title" required maxlength="150"
+                            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="e.g. M-2 Dense Fog Advisory - Kot Abdul Malik to Sheikhupura">
+                    </div>
+
+                    <!-- Message / Citizen Broadcast Notice -->
+                    <div>
+                        <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">
+                            Commuter Message (Public Portal & Humsafar App) <span class="text-rose-500">*</span>
+                        </label>
+                        <textarea x-model="editForm.message" required rows="3" maxlength="1000"
+                            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Provide clear, concise guidance for the traveling public..."></textarea>
+                    </div>
+
+                    <!-- Grid: Type, Severity, Carriageway -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">Type</label>
+                            <select x-model="editForm.advisory_type" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-blue-500">
+                                <option value="fog">Fog & Smog</option>
+                                <option value="road_closure">Road Closure</option>
+                                <option value="road_works">Road Works</option>
+                                <option value="traffic">Traffic Congestion</option>
+                                <option value="weather">Extreme Weather</option>
+                                <option value="diversion">Route Diversion</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">Severity</label>
+                            <select x-model="editForm.severity" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-blue-500">
+                                <option value="info">Info / Normal</option>
+                                <option value="advisory">Advisory / Caution</option>
+                                <option value="warning">Warning / Severe</option>
+                                <option value="critical">Critical / Emergency</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">Carriageway</label>
+                            <select x-model="editForm.carriageway" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-blue-500">
+                                <option value="both">Both Bounds</option>
+                                <option value="northbound">Northbound</option>
+                                <option value="southbound">Southbound</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Grid: Visibility, Speed Limit, Extended Duration -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">Visibility (Meters)</label>
+                            <input type="number" x-model="editForm.visibility_meters" min="0" max="5000"
+                                class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700"
+                                placeholder="e.g. 30">
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">Speed Limit (km/h)</label>
+                            <input type="number" x-model="editForm.speed_limit_kmh" min="0" max="150"
+                                class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700"
+                                placeholder="e.g. 50">
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">Valid For (Hours)</label>
+                            <input type="number" x-model="editForm.duration_hours" step="0.5" min="0.5" max="72"
+                                class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700"
+                                placeholder="e.g. 4">
+                        </div>
+                    </div>
+
+                    <!-- Landmarks / Closure details -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">Start Landmark / Interchange</label>
+                            <input type="text" x-model="editForm.start_landmark" maxlength="100"
+                                class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700"
+                                placeholder="e.g. Kot Abdul Malik">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">End Landmark / Interchange</label>
+                            <input type="text" x-model="editForm.end_landmark" maxlength="100"
+                                class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700"
+                                placeholder="e.g. Sheikhupura Interchange">
+                        </div>
+                    </div>
+
+                    <!-- Approve Now Checkbox (if pending and user is supervisor) -->
+                    <div x-show="editForm.is_pending && canApprove" class="p-3.5 bg-emerald-50 rounded-2xl border border-emerald-200 flex items-center justify-between">
+                        <div class="flex items-center gap-2.5">
+                            <i class="fa-solid fa-tower-broadcast text-emerald-600 text-base"></i>
+                            <div>
+                                <span class="text-xs font-black text-emerald-900 block">Approve & Broadcast Immediately</span>
+                                <span class="text-[11px] text-emerald-700">Advisory will transition directly from Pending to Live Broadcast.</span>
+                            </div>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" x-model="editForm.approve_now" class="sr-only peer">
+                            <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                        </label>
+                    </div>
+
+                    <!-- Modal Actions -->
+                    <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                        <button type="button" @click="closeEditModal()"
+                            class="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer">
+                            Cancel
+                        </button>
+                        <button type="submit" :disabled="modalLoading"
+                            class="px-5 py-2.5 rounded-xl text-xs font-black text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
+                            <i class="fa-solid fa-floppy-disk" x-show="!modalLoading"></i>
+                            <i class="fa-solid fa-circle-notch animate-spin" x-show="modalLoading"></i>
+                            <span x-text="editForm.approve_now ? 'Save & Broadcast Live' : 'Save Changes'"></span>
+                        </button>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- =========================================================================
+         SUPERVISOR MODAL 2: DIRECT APPROVE & PUBLISH LIVE
+         ========================================================================= -->
+    <div x-show="isApproveModalOpen" 
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         @keydown.escape.window="closeApproveModal()"
+         class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" @click="closeApproveModal()"></div>
+        
+        <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+            <div x-show="isApproveModalOpen"
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave="transition ease-in duration-150"
+                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 @click.stop
+                 class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-lg border border-slate-200">
+                
+                <div class="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4 text-white flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-inner">
+                            <i class="fa-solid fa-check-to-slot text-base"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-black tracking-tight">Approve Travel Advisory</h3>
+                            <p class="text-xs text-emerald-100 font-medium">Publish live to Commuters & Humsafar</p>
+                        </div>
+                    </div>
+                    <button type="button" @click="closeApproveModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition cursor-pointer">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <div class="p-6 space-y-4">
+                    <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase text-white bg-blue-600" x-text="approveTarget?.route_name || 'Corridor'"></span>
+                            <span class="text-xs font-black text-slate-800" x-text="approveTarget?.title"></span>
+                        </div>
+                        <p class="text-xs text-slate-600 leading-relaxed" x-text="approveTarget?.message"></p>
+                        <div class="text-[10px] font-bold text-slate-400 flex items-center gap-1.5 pt-1">
+                            <i class="fa-solid fa-user-clock text-slate-400"></i>
+                            <span>Logged by: </span>
+                            <span class="text-slate-700" x-text="approveTarget?.creator_name || 'Field Wireless Operator'"></span>
+                        </div>
+                    </div>
+
+                    <p class="text-xs text-slate-600">
+                        Approving this advisory will instantly broadcast it across the <strong>Public Travel Advisory Portal</strong>, the <strong>Humsafar Mobile API</strong>, and real-time public ticker channels.
+                    </p>
+
+                    <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                        <button type="button" @click="closeApproveModal()"
+                            class="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer">
+                            Cancel
+                        </button>
+                        <button type="button" @click="submitApproveModal()" :disabled="modalLoading"
+                            class="px-5 py-2.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
+                            <i class="fa-solid fa-check-double" x-show="!modalLoading"></i>
+                            <i class="fa-solid fa-circle-notch animate-spin" x-show="modalLoading"></i>
+                            <span>Confirm & Publish Live</span>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- =========================================================================
+         SUPERVISOR MODAL 3: REJECT / DECLINE ADVISORY
+         ========================================================================= -->
+    <div x-show="isRejectModalOpen" 
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         @keydown.escape.window="closeRejectModal()"
+         class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" @click="closeRejectModal()"></div>
+        
+        <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+            <div x-show="isRejectModalOpen"
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave="transition ease-in duration-150"
+                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 @click.stop
+                 class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-lg border border-slate-200">
+                
+                <div class="bg-gradient-to-r from-rose-600 to-red-600 px-6 py-4 text-white flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-inner">
+                            <i class="fa-solid fa-ban text-base"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-black tracking-tight">Reject Travel Advisory</h3>
+                            <p class="text-xs text-rose-100 font-medium">Decline field wireless operator log</p>
+                        </div>
+                    </div>
+                    <button type="button" @click="closeRejectModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition cursor-pointer">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <div class="p-6 space-y-4">
+                    <div class="p-3.5 bg-rose-50/50 rounded-2xl border border-rose-100">
+                        <div class="text-xs font-black text-rose-900" x-text="rejectTarget?.title"></div>
+                        <div class="text-[11px] text-slate-500 mt-1 line-clamp-2" x-text="rejectTarget?.message"></div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">
+                            Reason for Rejection <span class="text-rose-500">*</span>
+                        </label>
+                        <div class="flex flex-wrap gap-1.5 mb-2">
+                            <button type="button" @click="rejectionReason = 'Incident Cleared / Normal Traffic Flow Restored'"
+                                class="px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-600 border border-slate-200 transition">
+                                + Traffic Restored
+                            </button>
+                            <button type="button" @click="rejectionReason = 'Duplicate advisory report already published on this corridor'"
+                                class="px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-600 border border-slate-200 transition">
+                                + Duplicate Entry
+                            </button>
+                            <button type="button" @click="rejectionReason = 'Inaccurate location / KM markers verified by field patrol'"
+                                class="px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-600 border border-slate-200 transition">
+                                + Inaccurate Marker
+                            </button>
+                            <button type="button" @click="rejectionReason = 'Weather / fog conditions normalized, visibility > 200m'"
+                                class="px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-600 border border-slate-200 transition">
+                                + Visibility Normal
+                            </button>
+                        </div>
+                        <textarea x-model="rejectionReason" required rows="3" maxlength="500"
+                            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500"
+                            placeholder="State reason (e.g., Inaccurate KM marker, fog has already lifted, duplicate entry)..."></textarea>
+                    </div>
+
+                    <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                        <button type="button" @click="closeRejectModal()"
+                            class="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer">
+                            Cancel
+                        </button>
+                        <button type="button" @click="submitRejectModal()" :disabled="modalLoading"
+                            class="px-5 py-2.5 rounded-xl text-xs font-black text-white bg-rose-600 hover:bg-rose-700 shadow-md shadow-rose-600/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
+                            <i class="fa-solid fa-ban" x-show="!modalLoading"></i>
+                            <i class="fa-solid fa-circle-notch animate-spin" x-show="modalLoading"></i>
+                            <span>Confirm Rejection</span>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- =========================================================================
+         SUPERVISOR MODAL 4: CLEAR & RESOLVE ADVISORY
+         ========================================================================= -->
+    <div x-show="isResolveModalOpen" 
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         @keydown.escape.window="closeResolveModal()"
+         class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" @click="closeResolveModal()"></div>
+        
+        <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+            <div x-show="isResolveModalOpen"
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave="transition ease-in duration-150"
+                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 @click.stop
+                 class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-lg border border-slate-200">
+                
+                <div class="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 px-6 py-4 text-white flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-inner">
+                            <i class="fa-solid fa-check text-base"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-black tracking-tight">Clear & Resolve Advisory</h3>
+                            <p class="text-xs text-emerald-100 font-medium">Remove incident from live corridor broadcasts</p>
+                        </div>
+                    </div>
+                    <button type="button" @click="closeResolveModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition cursor-pointer">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <div class="p-6 space-y-4">
+                    <div class="p-3.5 bg-emerald-50/60 rounded-2xl border border-emerald-100 space-y-1">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase text-white bg-blue-600" x-text="resolveTarget?.route_name || 'Corridor'"></span>
+                            <span class="text-xs font-black text-slate-800" x-text="resolveTarget?.title"></span>
+                        </div>
+                        <div class="text-[11px] text-slate-600" x-text="resolveTarget?.message"></div>
+                        <div class="text-[10px] font-bold text-slate-400 pt-1" x-text="'Span: KM ' + resolveTarget?.start_km + ' - ' + resolveTarget?.end_km"></div>
+                    </div>
+
+                    <div class="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5">
+                        <i class="fa-solid fa-triangle-exclamation text-amber-600 mt-0.5 shrink-0"></i>
+                        <div>
+                            <span class="font-bold block">Confirmation Required</span>
+                            <span>Clearing this advisory will immediately update all public feeds, mobile apps, and traffic tickers. Confirm that this incident has cleared and road conditions are safe.</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">
+                            Resolution Remarks / Notes (Optional)
+                        </label>
+                        <div class="flex flex-wrap gap-1.5 mb-2">
+                            <button type="button" @click="resolveRemarks = 'Incident cleared, normal traffic resumed.'"
+                                class="px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-600 border border-slate-200 transition">
+                                + Traffic Resumed
+                            </button>
+                            <button type="button" @click="resolveRemarks = 'Road works completed, all lanes re-opened.'"
+                                class="px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-600 border border-slate-200 transition">
+                                + Lanes Re-opened
+                            </button>
+                            <button type="button" @click="resolveRemarks = 'Weather clear, visibility normal.'"
+                                class="px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-600 border border-slate-200 transition">
+                                + Weather Clear
+                            </button>
+                        </div>
+                        <input type="text" x-model="resolveRemarks" maxlength="255"
+                            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            placeholder="e.g. Traffic normalized, obstruction cleared...">
+                    </div>
+
+                    <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                        <button type="button" @click="closeResolveModal()"
+                            class="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer">
+                            Cancel
+                        </button>
+                        <button type="button" @click="submitResolveModal()" :disabled="modalLoading"
+                            class="px-5 py-2.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
+                            <i class="fa-solid fa-check" x-show="!modalLoading"></i>
+                            <i class="fa-solid fa-circle-notch animate-spin" x-show="modalLoading"></i>
+                            <span>Confirm & Clear Advisory</span>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- =========================================================================
+         SUPERVISOR MODAL 5: EXTEND VALIDITY & TIMING MODAL
+         ========================================================================= -->
+    <div x-show="isExtendModalOpen" 
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         @keydown.escape.window="closeExtendModal()"
+         class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" @click="closeExtendModal()"></div>
+        
+        <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+            <div x-show="isExtendModalOpen"
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave="transition ease-in duration-150"
+                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 @click.stop
+                 class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-lg border border-slate-200">
+                
+                <div class="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 px-6 py-4 text-white flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-inner">
+                            <i class="fa-solid fa-clock-rotate-left text-base"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-black tracking-tight">Extend Advisory Validity</h3>
+                            <p class="text-xs text-blue-100 font-medium">Add duration & keep live broadcast active</p>
+                        </div>
+                    </div>
+                    <button type="button" @click="closeExtendModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition cursor-pointer">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <div class="p-6 space-y-4">
+                    <div class="p-3.5 bg-blue-50/60 rounded-2xl border border-blue-100 space-y-1">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase text-white bg-blue-600" x-text="extendTarget?.route_name || 'Corridor'"></span>
+                            <span class="text-xs font-black text-slate-800" x-text="extendTarget?.title"></span>
+                        </div>
+                        <div class="text-[11px] text-slate-600" x-text="extendTarget?.message"></div>
+                        <div class="text-[10px] font-bold text-blue-700 pt-1 flex items-center gap-1.5">
+                            <i class="fa-solid fa-hourglass-half"></i>
+                            <span x-text="'Current Validity: Expires ' + (extendTarget?.expires_at_human || 'soon')"></span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-2">
+                            Extension Duration (Hours) <span class="text-rose-500">*</span>
+                        </label>
+                        <!-- Quick Hour Pills -->
+                        <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
+                            <template x-for="h in [1, 2, 4, 6, 12, 24]" :key="h">
+                                <button type="button" @click="extendHours = h"
+                                    :class="extendHours === h ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-300 font-black' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold'"
+                                    class="py-2 rounded-xl text-xs transition-all text-center cursor-pointer"
+                                    x-text="'+' + h + 'h'">
+                                </button>
+                            </template>
+                        </div>
+
+                        <!-- Custom Hours Input -->
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-slate-500 shrink-0">Custom Duration:</span>
+                            <div class="relative flex-1">
+                                <input type="number" x-model.number="extendHours" step="0.5" min="0.5" max="72"
+                                    class="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <span class="absolute right-3 top-2 text-xs font-bold text-slate-400">hours</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between text-xs">
+                        <span class="text-slate-500 font-medium">New Validity Extension:</span>
+                        <span class="font-black text-blue-600" x-text="'+' + extendHours + ' Hours from now'"></span>
+                    </div>
+
+                    <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                        <button type="button" @click="closeExtendModal()"
+                            class="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer">
+                            Cancel
+                        </button>
+                        <button type="button" @click="submitExtendModal()" :disabled="modalLoading"
+                            class="px-5 py-2.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-md shadow-blue-600/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
+                            <i class="fa-solid fa-clock-rotate-left" x-show="!modalLoading"></i>
+                            <i class="fa-solid fa-circle-notch animate-spin" x-show="modalLoading"></i>
+                            <span x-text="'Confirm Extension (+' + extendHours + 'h)'"></span>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <!-- Alpine Logic Component (Strictly Zero Page Reloads / AJAX Powered) -->
@@ -477,6 +1206,39 @@ function advisoryIndexManager(config) {
         items: config.initialItems || [],
         metrics: config.initialMetrics || {},
         pagination: config.pagination || { current_page: 1, last_page: 1, per_page: 15, total: 0, from: 0, to: 0 },
+
+        canApprove: config.canApprove || false,
+        isEditModalOpen: false,
+        isApproveModalOpen: false,
+        isRejectModalOpen: false,
+        isResolveModalOpen: false,
+        isExtendModalOpen: false,
+        modalLoading: false,
+
+        editForm: {
+            id: null,
+            title: '',
+            message: '',
+            advisory_type: 'fog',
+            severity: 'advisory',
+            carriageway: 'both',
+            start_km: 0,
+            end_km: 0,
+            start_landmark: '',
+            end_landmark: '',
+            visibility_meters: null,
+            speed_limit_kmh: null,
+            duration_hours: 4,
+            is_pending: false,
+            approve_now: false,
+        },
+        approveTarget: null,
+        rejectTarget: null,
+        rejectionReason: '',
+        resolveTarget: null,
+        resolveRemarks: '',
+        extendTarget: null,
+        extendHours: 2,
 
         currentRoad: config.currentRoad || 'all',
         currentStatus: config.currentStatus || 'active',
@@ -494,6 +1256,14 @@ function advisoryIndexManager(config) {
                 this.currentStatus = 'active';
                 this.currentType = 'all';
                 this.currentSeverity = 'all';
+            } else if (type === 'pending') {
+                this.currentStatus = 'pending';
+                this.currentType = 'all';
+                this.currentSeverity = 'all';
+            } else if (type === 'rejected') {
+                this.currentStatus = 'rejected';
+                this.currentType = 'all';
+                this.currentSeverity = 'all';
             } else if (type === 'fog') {
                 this.currentStatus = 'active';
                 this.currentType = 'fog';
@@ -506,8 +1276,12 @@ function advisoryIndexManager(config) {
                 this.currentStatus = 'active';
                 this.currentType = 'road_works';
                 this.currentSeverity = 'all';
+            } else if (type === 'traffic') {
+                this.currentStatus = 'active';
+                this.currentType = 'traffic';
+                this.currentSeverity = 'all';
             } else if (type === 'critical') {
-                this.currentStatus = 'all';
+                this.currentStatus = 'active';
                 this.currentType = 'all';
                 this.currentSeverity = 'critical';
             } else if (type === 'resolved') {
@@ -516,6 +1290,338 @@ function advisoryIndexManager(config) {
                 this.currentSeverity = 'all';
             }
             this.fetchData(1);
+        },
+
+        // SUPERVISOR WORKFLOW METHODS
+        async openEditModal(item) {
+            this.modalLoading = true;
+            this.editForm = {
+                id: item.id,
+                title: item.title || '',
+                message: item.message || '',
+                advisory_type: item.advisory_type || 'fog',
+                severity: item.severity || 'advisory',
+                carriageway: item.carriageway || 'both',
+                start_km: item.start_km || 0,
+                end_km: item.end_km || item.start_km || 0,
+                start_landmark: item.start_landmark || '',
+                end_landmark: item.end_landmark || '',
+                visibility_meters: item.visibility_meters !== null && item.visibility_meters !== undefined ? item.visibility_meters : '',
+                speed_limit_kmh: item.speed_limit_kmh !== null && item.speed_limit_kmh !== undefined ? item.speed_limit_kmh : '',
+                duration_hours: 4,
+                is_pending: !!item.is_pending,
+                approve_now: false,
+            };
+            this.isEditModalOpen = true;
+
+            // Optionally fetch freshest details from show endpoint
+            try {
+                const res = await fetch(`/ops/travel-advisory/${item.id}`, {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                const d = await res.json();
+                if (d.success && d.advisory) {
+                    const adv = d.advisory;
+                    this.editForm.title = adv.title;
+                    this.editForm.message = adv.message;
+                    this.editForm.advisory_type = adv.advisory_type || 'fog';
+                    this.editForm.severity = adv.severity || 'advisory';
+                    this.editForm.carriageway = adv.carriageway || 'both';
+                    this.editForm.start_km = adv.start_km || 0;
+                    this.editForm.end_km = adv.end_km || 0;
+                    this.editForm.start_landmark = adv.start_landmark || '';
+                    this.editForm.end_landmark = adv.end_landmark || '';
+                    this.editForm.visibility_meters = adv.visibility_meters;
+                    this.editForm.speed_limit_kmh = adv.speed_limit_kmh;
+                }
+            } catch (e) {
+                console.warn('Could not fetch freshest item, using table row data', e);
+            } finally {
+                this.modalLoading = false;
+            }
+        },
+
+        closeEditModal() {
+            this.isEditModalOpen = false;
+        },
+
+        async submitEditModal() {
+            if (!this.editForm.title || !this.editForm.message) {
+                if (window.showError) window.showError('Title and Message are required.', 'Validation Error');
+                return;
+            }
+            this.editForm.category = this.editForm.advisory_type;
+            this.modalLoading = true;
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+
+            try {
+                const res = await fetch(`/ops/travel-advisory/${this.editForm.id}/update`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify(this.editForm)
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    if (window.showSuccess) window.showSuccess(data.message, 'Saved Successfully');
+                    this.isEditModalOpen = false;
+                    this.fetchData();
+                } else {
+                    if (window.showError) window.showError(data.message || 'Update failed.', 'Error');
+                }
+            } catch (err) {
+                console.error('Error updating advisory:', err);
+                if (window.showError) window.showError('Server error while saving advisory.', 'Server Error');
+            } finally {
+                this.modalLoading = false;
+            }
+        },
+
+        openApproveModal(item) {
+            this.approveTarget = item;
+            this.isApproveModalOpen = true;
+        },
+
+        closeApproveModal() {
+            this.isApproveModalOpen = false;
+            this.approveTarget = null;
+        },
+
+        async submitApproveModal() {
+            if (!this.approveTarget) return;
+            this.modalLoading = true;
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+
+            try {
+                const res = await fetch(`/ops/travel-advisory/${this.approveTarget.id}/approve`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    if (window.showSuccess) window.showSuccess(data.message, 'Broadcast Approved');
+                    this.isApproveModalOpen = false;
+                    this.approveTarget = null;
+                    this.fetchData();
+                } else {
+                    if (window.showError) window.showError(data.message || 'Approval failed.', 'Error');
+                }
+            } catch (err) {
+                console.error('Error approving advisory:', err);
+                if (window.showError) window.showError('Server error while approving advisory.', 'Server Error');
+            } finally {
+                this.modalLoading = false;
+            }
+        },
+
+        openRejectModal(item) {
+            this.rejectTarget = item;
+            this.rejectionReason = '';
+            this.isRejectModalOpen = true;
+        },
+
+        closeRejectModal() {
+            this.isRejectModalOpen = false;
+            this.rejectTarget = null;
+            this.rejectionReason = '';
+        },
+
+        async submitRejectModal() {
+            if (!this.rejectTarget) return;
+            if (!this.rejectionReason.trim()) {
+                if (window.showError) window.showError('Please provide a reason for rejecting this advisory.', 'Validation Required');
+                return;
+            }
+            this.modalLoading = true;
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+
+            try {
+                const res = await fetch(`/ops/travel-advisory/${this.rejectTarget.id}/reject`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ reason: this.rejectionReason.trim() })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    if (window.showSuccess) window.showSuccess(data.message, 'Advisory Rejected');
+                    const rejectedId = this.rejectTarget.id;
+                    const wasPending = !!this.rejectTarget.is_pending;
+                    const wasLive = !!this.rejectTarget.is_live;
+
+                    this.isRejectModalOpen = false;
+                    this.rejectTarget = null;
+                    this.rejectionReason = '';
+
+                    // Adjust metrics counters immediately
+                    if (wasPending && this.metrics.pending_approval > 0) this.metrics.pending_approval--;
+                    if (wasLive && this.metrics.total_active > 0) this.metrics.total_active--;
+                    this.metrics.rejected = (this.metrics.rejected || 0) + 1;
+
+                    // Update item or remove from active / pending view
+                    if (this.currentStatus === 'active' || this.currentStatus === 'pending') {
+                        this.items = this.items.filter(x => x.id !== rejectedId);
+                    } else {
+                        const item = this.items.find(x => x.id === rejectedId);
+                        if (item) {
+                            item.status = 'rejected';
+                            item.is_pending = false;
+                            item.is_live = false;
+                            item.is_rejected = true;
+                            item.rejection_reason = this.rejectionReason;
+                        }
+                    }
+                    this.fetchData();
+                } else {
+                    if (window.showError) window.showError(data.message || 'Rejection failed.', 'Error');
+                }
+            } catch (err) {
+                console.error('Error rejecting advisory:', err);
+                if (window.showError) window.showError('Server error while rejecting advisory.', 'Server Error');
+            } finally {
+                this.modalLoading = false;
+            }
+        },
+
+        // RESOLVE / CLEAR ADVISORY MODAL WORKFLOW
+        openResolveModal(item) {
+            this.resolveTarget = item;
+            this.resolveRemarks = '';
+            this.isResolveModalOpen = true;
+        },
+
+        closeResolveModal() {
+            this.isResolveModalOpen = false;
+            this.resolveTarget = null;
+            this.resolveRemarks = '';
+        },
+
+        async submitResolveModal() {
+            if (!this.resolveTarget) return;
+            this.modalLoading = true;
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+
+            try {
+                const res = await fetch(`/ops/travel-advisory/${this.resolveTarget.id}/resolve`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ remarks: this.resolveRemarks.trim() })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    if (window.showSuccess) window.showSuccess(data.message, 'Advisory Cleared');
+                    const resolvedId = this.resolveTarget.id;
+                    this.isResolveModalOpen = false;
+                    this.resolveTarget = null;
+                    this.resolveRemarks = '';
+
+                    if (this.currentStatus === 'active') {
+                        this.items = this.items.filter(x => x.id !== resolvedId);
+                    } else {
+                        const item = this.items.find(x => x.id === resolvedId);
+                        if (item) {
+                            item.is_resolved = true;
+                            item.is_live = false;
+                            item.is_expired = false;
+                            item.status = 'resolved';
+                        }
+                    }
+                    if (this.metrics.total_active > 0) this.metrics.total_active--;
+                    this.metrics.expired_resolved = (this.metrics.expired_resolved || 0) + 1;
+                    this.fetchData();
+                } else {
+                    if (window.showError) window.showError(data.message || 'Resolution failed.', 'Resolution Failed');
+                }
+            } catch (err) {
+                console.error('Error resolving advisory:', err);
+                if (window.showError) window.showError('Server error while resolving advisory.', 'Server Error');
+            } finally {
+                this.modalLoading = false;
+            }
+        },
+
+        // EXTEND / TIMING WORKFLOW MODAL
+        openExtendModal(item) {
+            this.extendTarget = item;
+            this.extendHours = 2;
+            this.isExtendModalOpen = true;
+        },
+
+        closeExtendModal() {
+            this.isExtendModalOpen = false;
+            this.extendTarget = null;
+            this.extendHours = 2;
+        },
+
+        async submitExtendModal() {
+            if (!this.extendTarget) return;
+            const hours = parseFloat(this.extendHours);
+            if (isNaN(hours) || hours <= 0) {
+                if (window.showError) window.showError('Please enter a valid positive duration in hours.', 'Validation Required');
+                return;
+            }
+            this.modalLoading = true;
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+
+            try {
+                const res = await fetch(`/ops/travel-advisory/${this.extendTarget.id}/extend`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ hours: hours })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    if (window.showSuccess) window.showSuccess(data.message, 'Validity Extended');
+                    const targetId = this.extendTarget.id;
+                    this.isExtendModalOpen = false;
+                    this.extendTarget = null;
+
+                    const item = this.items.find(x => x.id === targetId);
+                    if (item) {
+                        item.expires_at_human = data.expires_at_human || ('in ' + hours + ' hours');
+                        item.is_live = true;
+                        item.is_expired = false;
+                        item.is_resolved = false;
+                        item.status = 'published';
+                    }
+                    this.fetchData();
+                } else {
+                    if (window.showError) window.showError(data.message || 'Extension failed.', 'Extension Failed');
+                }
+            } catch (err) {
+                console.error('Error extending advisory:', err);
+                if (window.showError) window.showError('Server error while extending advisory.', 'Server Error');
+            } finally {
+                this.modalLoading = false;
+            }
         },
 
         setRoad(road) {
@@ -571,87 +1677,6 @@ function advisoryIndexManager(config) {
                 console.error('Error fetching travel advisories:', err);
             } finally {
                 this.isLoading = false;
-            }
-        },
-
-        // EXTEND ADVISORY BY 2 HOURS VIA AJAX
-        async extendAdvisory(id) {
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
-
-            try {
-                const res = await fetch(`/ops/travel-advisory/${id}/extend`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                });
-
-                const data = await res.json();
-                if (data.success) {
-                    if (window.showSuccess) {
-                        window.showSuccess(data.message, 'Validity Extended');
-                    }
-                    // Update in-place in items array
-                    const item = this.items.find(x => x.id === id);
-                    if (item) {
-                        item.expires_at_human = data.expires_at_human || 'in 2 hours';
-                        item.is_live = true;
-                        item.is_expired = false;
-                        item.is_resolved = false;
-                    }
-                } else if (window.showError) {
-                    window.showError(data.message || 'Could not extend advisory.', 'Extension Failed');
-                }
-            } catch (err) {
-                console.error('Error extending advisory:', err);
-                if (window.showError) window.showError('Network error extending advisory.', 'Server Error');
-            }
-        },
-
-        // RESOLVE ADVISORY VIA AJAX
-        async resolveAdvisory(id) {
-            if (!confirm('Clear and resolve this active advisory from commuter feeds?')) return;
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
-
-            try {
-                const res = await fetch(`/ops/travel-advisory/${id}/resolve`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                });
-
-                const data = await res.json();
-                if (data.success) {
-                    if (window.showSuccess) {
-                        window.showSuccess(data.message, 'Advisory Resolved');
-                    }
-                    // If viewing active records, remove or update status
-                    if (this.currentStatus === 'active') {
-                        this.items = this.items.filter(x => x.id !== id);
-                        if (this.metrics.total_active > 0) this.metrics.total_active--;
-                        this.metrics.expired_resolved++;
-                    } else {
-                        const item = this.items.find(x => x.id === id);
-                        if (item) {
-                            item.is_resolved = true;
-                            item.is_live = false;
-                            item.is_expired = false;
-                            item.status = 'resolved';
-                        }
-                    }
-                } else if (window.showError) {
-                    window.showError(data.message || 'Could not resolve advisory.', 'Resolution Failed');
-                }
-            } catch (err) {
-                console.error('Error resolving advisory:', err);
-                if (window.showError) window.showError('Network error resolving advisory.', 'Server Error');
             }
         }
     };
