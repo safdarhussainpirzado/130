@@ -5,6 +5,7 @@
 set -euo pipefail
 
 PM="${PMTILES:-/root/bin/pmtiles}"
+RUNNER_IMAGE="${RUNNER_IMAGE:-nginx:alpine}"   # any local image with /bin/sh; the tool is mounted in read-only
 OUT_DIR="${OUT_DIR:-/var/lib/nhmp-geo}"
 OUT="$OUT_DIR/pakistan.pmtiles"
 TMP="$OUT_DIR/.pakistan.pmtiles.part"
@@ -21,8 +22,15 @@ done
 [ -n "$URL" ] || { echo "no recent Protomaps build reachable"; exit 1; }
 
 echo "$(date -u +%FT%TZ) extracting $URL bbox=$BBOX maxzoom=$MAXZ"
-nice -n 15 ionice -c3 "$PM" extract "$URL" "$TMP" --bbox="$BBOX" --maxzoom="$MAXZ"
-"$PM" verify "$TMP"
+# The downloaded tool runs sandboxed: no extra privileges, read-only root fs, only the output dir writable.
+pm() {
+  docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges --user 82:82 \
+    -v "$PM":/pm:ro -v "$OUT_DIR":/out --entrypoint /pm "$RUNNER_IMAGE" "$@"
+}
+nice -n 15 ionice -c3 docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges --user 82:82 \
+  -v "$PM":/pm:ro -v "$OUT_DIR":/out --entrypoint /pm "$RUNNER_IMAGE" \
+  extract "$URL" /out/.pakistan.pmtiles.part --bbox="$BBOX" --maxzoom="$MAXZ"
+pm verify /out/.pakistan.pmtiles.part
 SIZE=$(stat -c %s "$TMP")
 [ "$SIZE" -ge "$MIN_BYTES" ] || { echo "extract too small ($SIZE bytes), keeping previous map"; exit 1; }
 chmod 644 "$TMP"
