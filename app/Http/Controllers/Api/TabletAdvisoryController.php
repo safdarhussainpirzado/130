@@ -180,44 +180,6 @@ class TabletAdvisoryController extends Controller
     }
 
     /**
-     * Create New Advisory (Authenticated Staff/Admin only).
-     */
-    public function store(Request $request): JsonResponse
-    {
-        $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:255',
-            'category' => 'required|string|in:weather,road_closure,congestion,fog,security,maintenance,emergency_alert',
-            'severity' => 'required|string|in:info,advisory,warning,critical',
-            'route_name' => 'required|string|max:50',
-            'carriageway' => 'required|string|in:northbound,southbound,both,all',
-            'start_km' => 'nullable|numeric|min:0',
-            'end_km' => 'nullable|numeric|min:0',
-            'message' => 'required|string|max:5000',
-            'status' => 'nullable|string|in:draft,published,withdrawn',
-            'is_emergency' => 'nullable|boolean',
-            'expires_at' => 'nullable|date',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
-        }
-
-        $validated = $validator->validated();
-        if (($validated['status'] ?? 'draft') === 'published') {
-            $validated['published_at'] = now();
-        }
-        $validated['created_by'] = $request->user()?->id;
-
-        $advisory = TabletAdvisory::create($validated);
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Tablet advisory created successfully',
-            'data' => $advisory
-        ], 201);
-    }
-
-    /**
      * Update Advisory Status (Publish / Withdraw / Expire with instant cache invalidation).
      */
     public function updateStatus(Request $request, string $uuid): JsonResponse

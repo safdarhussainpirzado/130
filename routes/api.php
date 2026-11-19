@@ -55,8 +55,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         })->name('api.unified-search');
 
     // Tablet Advisory Administrative Management
-    Route::post('/v1/advisories', [\App\Http\Controllers\Api\TabletAdvisoryController::class, 'store'])
-        ->name('api.advisories.store');
+    // Advisory creation is web-only (approval workflow); the API cannot create advisories.
     Route::patch('/v1/advisories/{uuid}/status', [\App\Http\Controllers\Api\TabletAdvisoryController::class, 'updateStatus'])
         ->name('api.advisories.update-status');
 });

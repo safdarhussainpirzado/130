@@ -772,7 +772,7 @@ class RoadWorkAdvisoryProductionSeeder extends Seeder
 
             $values = [
                 'title'             => $item['title'],
-                'category'          => $item['category'],
+                'category'          => (($item['closure_type'] ?? null) === 'diversion') ? 'diversion' : $item['category'],
                 'severity'          => $item['severity'],
                 'route_name'        => $item['route'],
                 'carriageway'       => $item['bound'],
@@ -789,7 +789,7 @@ class RoadWorkAdvisoryProductionSeeder extends Seeder
                 'closure_type'      => $item['closure_type'],
                 'message'           => $item['message'],
                 'status'            => 'published',
-                'is_emergency'      => false,
+                'is_emergency'      => ($item['severity'] ?? '') === 'critical',
                 'reported_by_tier'  => 'beat',
                 'start_lat'         => $startLat,
                 'start_lng'         => $startLng,

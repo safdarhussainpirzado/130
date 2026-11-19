@@ -186,12 +186,6 @@ class TabletAdvisory extends Model
 
         $target = $typeMap[strtolower($type)] ?? strtolower($type);
 
-        if ($target === 'diversion') {
-            return $query->where(function (Builder $dq) {
-                $dq->where('category', 'diversion')->orWhere('closure_type', 'diversion');
-            });
-        }
-
         return $query->where('category', $target);
     }
 

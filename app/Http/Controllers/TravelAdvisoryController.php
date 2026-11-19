@@ -239,7 +239,7 @@ class TravelAdvisoryController extends Controller
             'closure_type'      => $validated['closure_type'] ?? null,
             'message'           => $validated['message'],
             'status'            => $status,
-            'is_emergency'      => $validated['is_emergency'] ?? ($validated['severity'] === 'critical'),
+            'is_emergency'      => (bool) ($validated['is_emergency'] ?? false) || $validated['severity'] === 'critical',
             'reported_by_tier'  => $user?->office?->type ?? 'beat',
             'corridor_key'      => $corridorKey,
             'start_lat'         => $startCoord['lat'] ?? null,
@@ -310,10 +310,7 @@ class TravelAdvisoryController extends Controller
                 $query->where('category', 'road_closure')
                       ->where('category', '!=', 'diversion');
             } elseif ($cleanType === 'diversion') {
-                // Diversions are logged either as their own category or as a road-works/closure with closure_type = diversion.
-                $query->where(function ($dq) {
-                    $dq->where('category', 'diversion')->orWhere('closure_type', 'diversion');
-                });
+                $query->where('category', 'diversion');
             } elseif ($cleanType === 'road_works') {
                 $query->whereIn('category', ['road_works', 'maintenance']);
             } elseif ($cleanType === 'traffic') {
@@ -350,9 +347,7 @@ class TravelAdvisoryController extends Controller
             'fog_alerts'       => TabletAdvisory::active()->where('category', 'fog')->count(),
             'road_closures'    => TabletAdvisory::active()->where('category', 'road_closure')->where('category', '!=', 'diversion')->count(),
             'road_works'       => TabletAdvisory::active()->whereIn('category', ['road_works', 'maintenance'])->count(),
-            'diversions'       => TabletAdvisory::active()->where(function ($dq) {
-                $dq->where('category', 'diversion')->orWhere('closure_type', 'diversion');
-            })->count(),
+            'diversions'       => TabletAdvisory::active()->where('category', 'diversion')->count(),
             'traffic_alerts'   => TabletAdvisory::active()->whereIn('category', ['traffic', 'congestion'])->count(),
             'critical_hazards' => TabletAdvisory::active()->where('severity', 'critical')->count(),
             'expired_resolved' => TabletAdvisory::where('status', 'resolved')->count(),
@@ -524,7 +519,7 @@ class TravelAdvisoryController extends Controller
         $advisory->visibility_meters = $validated['visibility_meters'] ?? null;
         $advisory->speed_limit_kmh   = $validated['speed_limit_kmh'] ?? null;
         $advisory->closure_type      = $validated['closure_type'] ?? null;
-        $advisory->is_emergency      = $validated['is_emergency'] ?? (($validated['severity'] ?? $advisory->severity) === 'critical');
+        $advisory->is_emergency      = (bool) ($validated['is_emergency'] ?? $advisory->is_emergency) || (($validated['severity'] ?? $advisory->severity) === 'critical');
 
         if (!empty($validated['duration_hours'])) {
             $baseTime = $advisory->published_at ?: Carbon::now();

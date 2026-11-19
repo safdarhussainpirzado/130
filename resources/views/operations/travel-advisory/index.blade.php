@@ -262,8 +262,6 @@
                         <option value="traffic">Traffic Congestion</option>
                         <option value="weather">Weather & Rain</option>
                         <option value="diversion">Diversions</option>
-                        <option value="security">Security Alerts</option>
-                        <option value="emergency_alert">Emergency Alerts</option>
                     </select>
                 </div>
             </div>
@@ -359,17 +357,7 @@
                                             <i class="fa-solid fa-arrows-split-up-and-left mr-1"></i> Diversion
                                         </span>
                                     </template>
-                                    <template x-if="item.advisory_type === 'security'">
-                                        <span class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-indigo-100 text-indigo-800 border border-indigo-200">
-                                            <i class="fa-solid fa-shield-halved mr-1"></i> Security
-                                        </span>
-                                    </template>
-                                    <template x-if="item.advisory_type === 'emergency_alert'">
-                                        <span class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-rose-600 text-white border border-rose-700">
-                                            <i class="fa-solid fa-triangle-exclamation mr-1"></i> Emergency
-                                        </span>
-                                    </template>
-                                    <template x-if="!['fog','road_closure','road_works','maintenance','traffic','congestion','weather','diversion','security','emergency_alert'].includes(item.advisory_type)">
+                                    <template x-if="!['fog','road_closure','road_works','maintenance','traffic','congestion','weather','diversion'].includes(item.advisory_type)">
                                         <span class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-slate-100 text-slate-800 border border-slate-200">
                                             <i class="fa-solid fa-bell mr-1"></i> <span x-text="(item.advisory_type || 'Alert').toUpperCase()"></span>
                                         </span>
