@@ -1207,6 +1207,40 @@ function advisoryIndexManager(config) {
         },
 
         // SUPERVISOR WORKFLOW METHODS
+        // ---- Toast helpers: every action reports success or failure through notification.js ----
+        notify(kind, message, title) {
+            const text = message || (kind === 'success' ? 'Done.' : 'Something went wrong.');
+            const fn = kind === 'success' ? window.showSuccess : window.showError;
+            if (typeof fn === 'function') {
+                fn(text, title);
+                return;
+            }
+            // notification.js not ready yet: retry once shortly, then fall back to a plain alert so nothing is silent
+            setTimeout(() => {
+                const f2 = kind === 'success' ? window.showSuccess : window.showError;
+                if (typeof f2 === 'function') f2(text, title); else window.alert((title ? title + ': ' : '') + text);
+            }, 600);
+        },
+        async readJson(res) {
+            try {
+                return await res.json();
+            } catch (e) {
+                return {
+                    success: false,
+                    message: res.status === 419 ? 'Your session expired. Please refresh the page and try again.'
+                        : (res.status === 403 ? 'You do not have permission to do this.'
+                        : 'The server returned an unexpected response (HTTP ' + res.status + ').')
+                };
+            }
+        },
+        errMsg(data, fallback) {
+            if (data && data.errors && typeof data.errors === 'object') {
+                const first = Object.values(data.errors).flat()[0];
+                if (first) return String(first);
+            }
+            return (data && data.message) ? data.message : fallback;
+        },
+
         async openEditModal(item) {
             this.modalLoading = true;
             this.editForm = {
@@ -1233,7 +1267,7 @@ function advisoryIndexManager(config) {
                 const res = await fetch(`/ops/travel-advisory/${item.id}`, {
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
                 });
-                const d = await res.json();
+                const d = await this.readJson(res);
                 if (d.success && d.advisory) {
                     const adv = d.advisory;
                     this.editForm.title = adv.title;
@@ -1261,7 +1295,7 @@ function advisoryIndexManager(config) {
 
         async submitEditModal() {
             if (!this.editForm.title || !this.editForm.message) {
-                if (window.showError) window.showError('Title and Message are required.', 'Validation Error');
+                this.notify('error', 'Title and Message are required.', 'Validation Error');
                 return;
             }
             this.editForm.category = this.editForm.advisory_type;
@@ -1280,17 +1314,17 @@ function advisoryIndexManager(config) {
                     body: JSON.stringify(this.editForm)
                 });
 
-                const data = await res.json();
+                const data = await this.readJson(res);
                 if (data.success) {
-                    if (window.showSuccess) window.showSuccess(data.message, 'Saved Successfully');
+                    this.notify('success', data.message, 'Saved Successfully');
                     this.isEditModalOpen = false;
                     this.fetchData();
                 } else {
-                    if (window.showError) window.showError(data.message || 'Update failed.', 'Error');
+                    this.notify('error', this.errMsg(data, 'Update failed.'), 'Error');
                 }
             } catch (err) {
                 console.error('Error updating advisory:', err);
-                if (window.showError) window.showError('Server error while saving advisory.', 'Server Error');
+                this.notify('error', 'Server error while saving advisory.', 'Server Error');
             } finally {
                 this.modalLoading = false;
             }
@@ -1322,18 +1356,18 @@ function advisoryIndexManager(config) {
                     }
                 });
 
-                const data = await res.json();
+                const data = await this.readJson(res);
                 if (data.success) {
-                    if (window.showSuccess) window.showSuccess(data.message, 'Broadcast Approved');
+                    this.notify('success', data.message, 'Broadcast Approved');
                     this.isApproveModalOpen = false;
                     this.approveTarget = null;
                     this.fetchData();
                 } else {
-                    if (window.showError) window.showError(data.message || 'Approval failed.', 'Error');
+                    this.notify('error', this.errMsg(data, 'Approval failed.'), 'Error');
                 }
             } catch (err) {
                 console.error('Error approving advisory:', err);
-                if (window.showError) window.showError('Server error while approving advisory.', 'Server Error');
+                this.notify('error', 'Server error while approving advisory.', 'Server Error');
             } finally {
                 this.modalLoading = false;
             }
@@ -1354,7 +1388,7 @@ function advisoryIndexManager(config) {
         async submitRejectModal() {
             if (!this.rejectTarget) return;
             if (!this.rejectionReason.trim()) {
-                if (window.showError) window.showError('Please provide a reason for rejecting this advisory.', 'Validation Required');
+                this.notify('error', 'Please provide a reason for rejecting this advisory.', 'Validation Required');
                 return;
             }
             this.modalLoading = true;
@@ -1372,9 +1406,9 @@ function advisoryIndexManager(config) {
                     body: JSON.stringify({ reason: this.rejectionReason.trim() })
                 });
 
-                const data = await res.json();
+                const data = await this.readJson(res);
                 if (data.success) {
-                    if (window.showSuccess) window.showSuccess(data.message, 'Advisory Rejected');
+                    this.notify('success', data.message, 'Advisory Rejected');
                     const rejectedId = this.rejectTarget.id;
                     const wasPending = !!this.rejectTarget.is_pending;
                     const wasLive = !!this.rejectTarget.is_live;
@@ -1403,11 +1437,11 @@ function advisoryIndexManager(config) {
                     }
                     this.fetchData();
                 } else {
-                    if (window.showError) window.showError(data.message || 'Rejection failed.', 'Error');
+                    this.notify('error', this.errMsg(data, 'Rejection failed.'), 'Error');
                 }
             } catch (err) {
                 console.error('Error rejecting advisory:', err);
-                if (window.showError) window.showError('Server error while rejecting advisory.', 'Server Error');
+                this.notify('error', 'Server error while rejecting advisory.', 'Server Error');
             } finally {
                 this.modalLoading = false;
             }
@@ -1443,9 +1477,9 @@ function advisoryIndexManager(config) {
                     body: JSON.stringify({ remarks: this.resolveRemarks.trim() })
                 });
 
-                const data = await res.json();
+                const data = await this.readJson(res);
                 if (data.success) {
-                    if (window.showSuccess) window.showSuccess(data.message, 'Advisory Cleared');
+                    this.notify('success', data.message, 'Advisory Cleared');
                     const resolvedId = this.resolveTarget.id;
                     this.isResolveModalOpen = false;
                     this.resolveTarget = null;
@@ -1466,11 +1500,11 @@ function advisoryIndexManager(config) {
                     this.metrics.expired_resolved = (this.metrics.expired_resolved || 0) + 1;
                     this.fetchData();
                 } else {
-                    if (window.showError) window.showError(data.message || 'Resolution failed.', 'Resolution Failed');
+                    this.notify('error', this.errMsg(data, 'Resolution failed.'), 'Resolution Failed');
                 }
             } catch (err) {
                 console.error('Error resolving advisory:', err);
-                if (window.showError) window.showError('Server error while resolving advisory.', 'Server Error');
+                this.notify('error', 'Server error while resolving advisory.', 'Server Error');
             } finally {
                 this.modalLoading = false;
             }
@@ -1493,7 +1527,7 @@ function advisoryIndexManager(config) {
             if (!this.extendTarget) return;
             const hours = parseFloat(this.extendHours);
             if (isNaN(hours) || hours <= 0) {
-                if (window.showError) window.showError('Please enter a valid positive duration in hours.', 'Validation Required');
+                this.notify('error', 'Please enter a valid positive duration in hours.', 'Validation Required');
                 return;
             }
             this.modalLoading = true;
@@ -1511,9 +1545,9 @@ function advisoryIndexManager(config) {
                     body: JSON.stringify({ hours: hours })
                 });
 
-                const data = await res.json();
+                const data = await this.readJson(res);
                 if (data.success) {
-                    if (window.showSuccess) window.showSuccess(data.message, 'Validity Extended');
+                    this.notify('success', data.message, 'Validity Extended');
                     const targetId = this.extendTarget.id;
                     this.isExtendModalOpen = false;
                     this.extendTarget = null;
@@ -1528,11 +1562,11 @@ function advisoryIndexManager(config) {
                     }
                     this.fetchData();
                 } else {
-                    if (window.showError) window.showError(data.message || 'Extension failed.', 'Extension Failed');
+                    this.notify('error', this.errMsg(data, 'Extension failed.'), 'Extension Failed');
                 }
             } catch (err) {
                 console.error('Error extending advisory:', err);
-                if (window.showError) window.showError('Server error while extending advisory.', 'Server Error');
+                this.notify('error', 'Server error while extending advisory.', 'Server Error');
             } finally {
                 this.modalLoading = false;
             }
@@ -1581,14 +1615,17 @@ function advisoryIndexManager(config) {
                     }
                 });
 
-                const data = await res.json();
+                const data = await this.readJson(res);
                 if (data.success) {
                     this.items = data.items || [];
                     this.pagination = data.pagination || this.pagination;
                     if (data.metrics) this.metrics = data.metrics;
+                } else {
+                    this.notify('error', this.errMsg(data, 'Could not refresh the advisory list.'), 'Refresh Failed');
                 }
             } catch (err) {
                 console.error('Error fetching travel advisories:', err);
+                this.notify('error', 'Could not refresh the advisory list. Check your connection.', 'Refresh Failed');
             } finally {
                 this.isLoading = false;
             }
