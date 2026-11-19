@@ -121,6 +121,22 @@
             </div>
         </div>
 
+        <!-- DIVERSIONS -->
+        <div @click="setCardFilter('diversion')"
+            :class="activeCard === 'diversion' ? 'card-3d-active purple' : ''"
+            class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
+            <div class="absolute -top-3 sm:-top-4 left-3 sm:left-4 h-8 w-8 sm:h-10 sm:w-10 xl:h-11 xl:w-11 grid place-items-center rounded-xl bg-purple-600 shadow-[0_8px_16px_rgba(147,51,234,0.25)] z-10 text-white">
+                <i class="fa-solid fa-signs-post text-xs sm:text-sm"></i>
+            </div>
+            <div class="p-3 sm:p-3.5 text-right pt-2 relative">
+                <p class="text-[9px] font-black tracking-widest text-purple-600 uppercase truncate">Diversion</p>
+                <div class="flex items-center justify-end gap-1.5 mt-1">
+                    <span class="text-[9px] font-black text-white bg-purple-600 px-1.5 py-0.5 rounded-full shadow-sm shrink-0">ROUTE</span>
+                    <h4 class="text-xl sm:text-2xl font-black text-slate-900 truncate" x-text="metrics.diversions || 0"></h4>
+                </div>
+            </div>
+        </div>
+
         <!-- 6. ROAD WORKS -->
         <div @click="setCardFilter('works')"
             :class="activeCard === 'works' ? 'card-3d-active amber' : ''"
@@ -1177,6 +1193,10 @@ function advisoryIndexManager(config) {
             } else if (type === 'closure') {
                 this.currentStatus = 'active';
                 this.currentType = 'road_closure';
+                this.currentSeverity = 'all';
+            } else if (type === 'diversion') {
+                this.currentStatus = 'active';
+                this.currentType = 'diversion';
                 this.currentSeverity = 'all';
             } else if (type === 'works') {
                 this.currentStatus = 'active';
