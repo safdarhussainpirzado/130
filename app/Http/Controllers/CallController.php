@@ -776,7 +776,7 @@ class CallController extends Controller
             'vehicle_type_id' => 'nullable',
             'vehicle_no' => 'nullable|string|max:30',
             'carriageway_id' => 'nullable',
-            'km_marker_text' => 'nullable|string|max:20',
+            'km_marker_text' => ['nullable', 'string', 'max:20', 'regex:/^\s*\d{1,4}(\.\d{1,2})?\s*[- ]?\s*(NB|SB|N|S)?\s*$/i'],
             'beat_id' => ($isJunkSilent ? 'nullable' : 'required') . '|exists:offices,id',
             'priority' => 'nullable',
             'caller_lat' => 'nullable',
@@ -950,12 +950,15 @@ class CallController extends Controller
             'vehicle_type_id' => 'nullable|exists:vehicle_types,id',
             'vehicle_no' => 'nullable|string|max:30',
             'carriageway_id' => 'nullable|exists:carriageways,id',
-            'km_marker_text' => 'nullable|string|max:20',
+            'km_marker_text' => [$isExempt ? 'nullable' : 'required', 'string', 'max:20', 'regex:/^\s*\d{1,4}(\.\d{1,2})?\s*[- ]?\s*(NB|SB|N|S)?\s*$/i'],
             'beat_id' => ($isExempt ? 'nullable' : 'required') . '|exists:offices,id',
             'priority' => 'nullable|integer|min:1|max:5',
             'caller_lat' => 'nullable|numeric',
             'caller_lng' => 'nullable|numeric',
             'location_details' => 'nullable|string',
+        ], [
+            'km_marker_text.required' => 'KM marker is required so the help can be placed on the road (e.g. 504 or 24 NB).',
+            'km_marker_text.regex'    => 'KM marker must be a number with an optional side, e.g. 504, 24-N or 327 SB.',
         ]);
 
         try {

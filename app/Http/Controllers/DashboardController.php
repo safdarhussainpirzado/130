@@ -487,7 +487,7 @@ class DashboardController extends Controller
             return null;
         }
 
-        if ($kmText !== null && preg_match('/^\s*(\d+(?:\.\d+)?)\s*(NB|SB|N|S)?\s*$/i', $kmText, $m)) {
+        if ($kmText !== null && preg_match('/^\s*(\d+(?:\.\d+)?)\s*[- ]?\s*(NB|SB|N|S)?\s*$/i', $kmText, $m)) {
             $km = (float) $m[1];
             $side = isset($m[2]) && $m[2] !== '' ? (strtoupper($m[2][0]) === 'S' ? 'S' : 'N') : null;
 

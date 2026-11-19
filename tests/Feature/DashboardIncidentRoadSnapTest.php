@@ -38,6 +38,10 @@ class DashboardIncidentRoadSnapTest extends TestCase
         $this->assertEqualsWithDelta(30.02, $nb['lat'], 0.0001);
         $this->assertEqualsWithDelta(30.0205, $sb['lat'], 0.0001);
 
+        // '101-S' style as typed in the form
+        $dash = $this->snap($beat->id, '101-S', 1);
+        $this->assertEqualsWithDelta(30.0205, $dash['lat'], 0.0001);
+
         // KM without side -> a marker at that km
         $any = $this->snap($beat->id, '100.5', 1);
         $this->assertEqualsWithDelta(30.01, floor($any['lat'] * 100) / 100, 0.0001);

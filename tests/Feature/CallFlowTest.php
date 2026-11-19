@@ -46,6 +46,7 @@ class CallFlowTest extends TestCase
             'call_type_id' => $callType->id,
             'call_sub_type_id' => $subType->id,
             'beat_id' => $beat->id,
+            'km_marker_text' => '120 NB',
             'caller_name' => 'John Doe',
             'details' => 'Vehicle broken down on M2',
         ]);

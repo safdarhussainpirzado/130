@@ -71,6 +71,7 @@ class CallReminderTest extends TestCase
             'call_type_id' => $callType->id,
             'call_sub_type_id' => $subType->id,
             'beat_id' => $beat->id,
+            'km_marker_text' => '120 NB',
             'location_details' => 'Near Rehman Masjid',
             'priority' => 3,
         ]);
