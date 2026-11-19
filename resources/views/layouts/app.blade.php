@@ -1341,6 +1341,11 @@
         });
     </script>
 
+    @if (!empty($canAccessTravelAdvisory))
+        <script>window.NHMP_TA_LIVE = { url: "{{ route('ops.travel-advisory.events') }}", interval: 8000 };</script>
+        <script defer src="{{ asset('js/ta-live-alerts.js') }}"></script>
+    @endif
+
     <script>
         // Enforce Zero-Query-String Architecture: sanitize address bar across all application routes
         (function() {

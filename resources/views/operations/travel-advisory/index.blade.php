@@ -682,10 +682,11 @@
                         </div>
 
                         <div>
-                            <label class="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">Valid For (Hours)</label>
+                            <label class="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">Valid For (Hours from now)</label>
                             <input type="number" x-model="editForm.duration_hours" step="0.5" min="0.5" max="72"
                                 class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700"
-                                placeholder="e.g. 4">
+                                placeholder="blank = keep current expiry">
+                            <p class="text-[10px] text-slate-400 font-semibold mt-1" x-text="editForm.expires_hint || 'Leave blank to keep the current expiry time.'"></p>
                         </div>
                     </div>
 
@@ -1118,6 +1119,11 @@ function advisoryIndexManager(config) {
         pagination: config.pagination || { current_page: 1, last_page: 1, per_page: 15, total: 0, from: 0, to: 0 },
 
         canApprove: config.canApprove || false,
+
+        init() {
+            // Live alerts (supervisor/sector actions) refresh the grid without a manual reload
+            window.addEventListener('ta:event', () => this.fetchData());
+        },
         isEditModalOpen: false,
         isApproveModalOpen: false,
         isRejectModalOpen: false,
@@ -1138,7 +1144,8 @@ function advisoryIndexManager(config) {
             end_landmark: '',
             visibility_meters: null,
             speed_limit_kmh: null,
-            duration_hours: 4,
+            duration_hours: '',
+            expires_hint: '',
             is_pending: false,
             approve_now: false,
         },
@@ -1256,9 +1263,10 @@ function advisoryIndexManager(config) {
                 end_landmark: item.end_landmark || '',
                 visibility_meters: item.visibility_meters !== null && item.visibility_meters !== undefined ? item.visibility_meters : '',
                 speed_limit_kmh: item.speed_limit_kmh !== null && item.speed_limit_kmh !== undefined ? item.speed_limit_kmh : '',
-                duration_hours: 4,
+                duration_hours: '',
                 is_pending: !!item.is_pending,
                 approve_now: false,
+                expires_hint: item.expires_at_human ? ('Currently expires ' + item.expires_at_human) : '',
             };
             this.isEditModalOpen = true;
 

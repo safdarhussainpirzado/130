@@ -227,6 +227,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/ops/travel-advisory', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorIndex'])->name('ops.travel-advisory.index');
     Route::get('/ops/travel-advisory/create', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorCreate'])->name('ops.travel-advisory.create');
     Route::post('/ops/travel-advisory', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorStore'])->name('ops.travel-advisory.store');
+    Route::get('/ops/travel-advisory/events', [\App\Http\Controllers\TravelAdvisoryController::class, 'liveEvents'])->name('ops.travel-advisory.events');
     Route::get('/ops/travel-advisory/{id}', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorShow'])->name('ops.travel-advisory.show');
     Route::post('/ops/travel-advisory/{id}/update', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorUpdate'])->name('ops.travel-advisory.update');
     Route::post('/ops/travel-advisory/{id}/approve', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorApprove'])->name('ops.travel-advisory.approve');

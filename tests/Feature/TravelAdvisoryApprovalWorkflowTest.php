@@ -435,4 +435,70 @@ class TravelAdvisoryApprovalWorkflowTest extends TestCase
         $tickerTitles = collect($tickerRes->json('ticker_items') ?? [])->pluck('title')->toArray();
         $this->assertNotContains('M-9 Spurious Congestion Report', $tickerTitles);
     }
+
+    private function sectorPayload(float $hours): array
+    {
+        return [
+            'route_name' => 'M-2', 'advisory_type' => 'fog', 'severity' => 'advisory',
+            'title' => 'Live alert test advisory', 'message' => 'Dense fog between KM 10 and KM 25.',
+            'carriageway' => 'both', 'start_km' => 10.0, 'end_km' => 25.0,
+            'start_landmark' => 'A', 'end_landmark' => 'B', 'duration_hours' => $hours,
+            'sector_office_id' => $this->testSector->id,
+        ];
+    }
+
+    public function test_live_alert_events_flow_between_sector_and_supervisor(): void
+    {
+        $base = $this->actingAs($this->supervisorUser)->getJson(route('ops.travel-advisory.events'))->json('last_seq');
+        $this->assertIsInt($base);
+
+        $this->actingAs($this->sectorAdminUser)->postJson(route('ops.travel-advisory.store'), $this->sectorPayload(2))->assertOk();
+        $advisory = TabletAdvisory::where('title', 'Live alert test advisory')->latest('id')->firstOrFail();
+
+        $sup = $this->actingAs($this->supervisorUser)->getJson(route('ops.travel-advisory.events', ['after' => $base]))->json();
+        $this->assertSame('created', $sup['events'][0]['type'], 'Supervisor must be alerted when a sector inserts an advisory');
+        $own = $this->actingAs($this->sectorAdminUser)->getJson(route('ops.travel-advisory.events', ['after' => $base]))->json();
+        $this->assertSame([], $own['events'], 'Actor must not be alerted about their own action');
+
+        $mid = $sup['last_seq'];
+        $this->actingAs($this->supervisorUser)->postJson(route('ops.travel-advisory.approve', $advisory->id))->assertOk();
+        $sector = $this->actingAs($this->sectorAdminUser)->getJson(route('ops.travel-advisory.events', ['after' => $mid]))->json();
+        $this->assertSame('approved', $sector['events'][0]['type'], 'Sector must be alerted when a supervisor approves');
+        $supAgain = $this->actingAs($this->supervisorUser)->getJson(route('ops.travel-advisory.events', ['after' => $mid]))->json();
+        $this->assertSame([], $supAgain['events']);
+
+        $mid2 = $sector['last_seq'];
+        $this->actingAs($this->supervisorUser)->postJson(route('ops.travel-advisory.extend', $advisory->id), ['hours' => 3])->assertOk();
+        $this->actingAs($this->supervisorUser)->postJson(route('ops.travel-advisory.resolve', $advisory->id))->assertOk();
+        $types = collect($this->actingAs($this->sectorAdminUser)->getJson(route('ops.travel-advisory.events', ['after' => $mid2]))->json('events'))->pluck('type')->all();
+        $this->assertSame(['extended', 'resolved'], $types);
+    }
+
+    public function test_approval_keeps_the_duration_chosen_at_insert_instead_of_fixed_4_hours(): void
+    {
+        $this->actingAs($this->sectorAdminUser)->postJson(route('ops.travel-advisory.store'), $this->sectorPayload(1))->assertOk();
+        $advisory = TabletAdvisory::where('title', 'Live alert test advisory')->latest('id')->firstOrFail();
+        $this->assertEqualsWithDelta(60, now()->diffInMinutes($advisory->expires_at, false), 2, 'Insert must honour the chosen 1h');
+
+        // Supervisor is late: the 1h window already passed while it waited for approval
+        TabletAdvisory::where('id', $advisory->id)->update(['created_at' => now()->subHours(2), 'expires_at' => now()->subHour()]);
+        $this->actingAs($this->supervisorUser)->postJson(route('ops.travel-advisory.approve', $advisory->id))->assertOk();
+
+        $minutes = now()->diffInMinutes($advisory->fresh()->expires_at, false);
+        $this->assertEqualsWithDelta(60, $minutes, 3, 'Approval must give the operator-chosen 1h from approval time, not a fixed 4h');
+    }
+
+    public function test_edit_without_duration_keeps_current_expiry(): void
+    {
+        $this->actingAs($this->sectorAdminUser)->postJson(route('ops.travel-advisory.store'), $this->sectorPayload(6))->assertOk();
+        $advisory = TabletAdvisory::where('title', 'Live alert test advisory')->latest('id')->firstOrFail();
+        $before = $advisory->expires_at->getTimestamp();
+
+        $this->actingAs($this->supervisorUser)->postJson(route('ops.travel-advisory.update', $advisory->id), [
+            'title' => 'Live alert test advisory', 'message' => 'Edited message', 'severity' => 'advisory',
+            'carriageway' => 'both', 'category' => 'fog', 'duration_hours' => '',
+        ])->assertOk();
+
+        $this->assertSame($before, $advisory->fresh()->expires_at->getTimestamp(), 'Blank duration must not reset expiry');
+    }
 }

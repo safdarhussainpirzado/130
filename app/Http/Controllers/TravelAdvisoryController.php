@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\TravelAdvisoryEventFeed;
 use App\Models\Carriageway;
 use App\Models\GeospatialLandmark;
 use App\Models\GeospatialMarker;
@@ -19,6 +20,28 @@ use Illuminate\View\View;
 
 class TravelAdvisoryController extends Controller
 {
+    /**
+     * Expiry for an advisory that is going live now: the validity the operator chose when inserting it
+     * (expires_at - created_at) starts counting from approval time, instead of a fixed 4 hours.
+     */
+    private function expiryFromApproval(TabletAdvisory $advisory): Carbon
+    {
+        $seconds = ($advisory->expires_at && $advisory->created_at)
+            ? $advisory->expires_at->getTimestamp() - $advisory->created_at->getTimestamp()
+            : 0;
+        if ($seconds < 1800) {
+            $seconds = $seconds > 0 ? 1800 : 4 * 3600; // never shorter than 30 min; 4h only if no duration was ever recorded
+        }
+
+        return Carbon::now()->addSeconds($seconds);
+    }
+
+    private function pushEvent(string $type, TabletAdvisory $advisory, array $extra = []): void
+    {
+        $actor = Auth::user();
+        TravelAdvisoryEventFeed::push($type, $advisory, $actor, $this->isSupervisorOrAdmin($actor), $extra);
+    }
+
     /**
      * Authorize that the current authenticated user has sector operator access.
      * Restricted to sector_admin role (and super_admin for system management).
@@ -252,6 +275,8 @@ class TravelAdvisoryController extends Controller
             'created_by'        => $user?->id ?? 1,
             'approved_by'       => $approvedBy,
         ]);
+
+        $this->pushEvent($status === 'published' ? 'approved' : 'created', $advisory);
 
         if ($status === 'published') {
             TabletAdvisory::flushAdvisoryCache();
@@ -521,14 +546,18 @@ class TravelAdvisoryController extends Controller
         $advisory->closure_type      = $validated['closure_type'] ?? null;
         $advisory->is_emergency      = (bool) ($validated['is_emergency'] ?? $advisory->is_emergency) || (($validated['severity'] ?? $advisory->severity) === 'critical');
 
-        if (!empty($validated['duration_hours'])) {
-            $baseTime = $advisory->published_at ?: Carbon::now();
-            $advisory->expires_at = $baseTime->copy()->addMinutes((int)($validated['duration_hours'] * 60));
+        $explicitDuration = !empty($validated['duration_hours']);
+        if ($explicitDuration) {
+            // "Valid for N hours" counts from now. Leaving it blank keeps the current expiry untouched.
+            $advisory->expires_at = Carbon::now()->addMinutes((int) ($validated['duration_hours'] * 60));
         }
 
         $isSupervisor = $this->isSupervisorOrAdmin($user);
         if ($request->boolean('approve_now') && $isSupervisor) {
             $now = Carbon::now();
+            if (!$explicitDuration && $advisory->status !== 'published') {
+                $advisory->expires_at = $this->expiryFromApproval($advisory);
+            }
             $advisory->status = 'published';
             $advisory->approved_by = Auth::id();
             $advisory->approved_at = $now;
@@ -537,8 +566,10 @@ class TravelAdvisoryController extends Controller
             }
         }
 
+        $wasApproveNow = $request->boolean('approve_now') && $isSupervisor;
         $advisory->save();
         TabletAdvisory::flushAdvisoryCache();
+        $this->pushEvent($wasApproveNow ? 'approved' : 'updated', $advisory);
 
         if ($request->wantsJson() || $request->ajax() || $request->boolean('ajax')) {
             return response()->json([
@@ -553,6 +584,45 @@ class TravelAdvisoryController extends Controller
     }
 
     /**
+     * Real-time alert feed. Supervisors receive what sector operators do (insert/update/clear/extend);
+     * sector operators receive what supervisors do (approve/reject/update/clear/extend) on their advisories.
+     */
+    public function liveEvents(Request $request): JsonResponse
+    {
+        $this->authorizeSectorAdmin();
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+        $latest = TravelAdvisoryEventFeed::latestSeq();
+
+        if (! $request->query->has('after')) {
+            return response()->json(['last_seq' => $latest, 'events' => []]);
+        }
+
+        $isSupervisor = $this->isSupervisorOrAdmin($user);
+        $office = $user->office;
+        $chain = array_values(array_filter([$office?->id, $office?->parent_id, $office?->parent?->parent_id]));
+
+        $events = array_values(array_filter(
+            TravelAdvisoryEventFeed::since((int) $request->query('after')),
+            function (array $e) use ($user, $isSupervisor, $chain): bool {
+                if (($e['actor_id'] ?? null) === $user->id) {
+                    return false;
+                }
+                if ($isSupervisor) {
+                    return empty($e['actor_is_supervisor']);
+                }
+
+                return ! empty($e['actor_is_supervisor'])
+                    && (($e['created_by'] ?? null) === $user->id
+                        || in_array($e['sector_id'] ?? null, $chain, true)
+                        || in_array($e['zone_id'] ?? null, $chain, true));
+            }
+        ));
+
+        return response()->json(['last_seq' => $latest, 'events' => $events]);
+    }
+
+    /**
      * Agent Supervisor Approve advisory and broadcast live.
      */
     public function operatorApprove(Request $request, int $id): JsonResponse|RedirectResponse
@@ -563,11 +633,13 @@ class TravelAdvisoryController extends Controller
         $durationHours = (float) ($request->input('duration_hours', 0));
         if ($durationHours > 0) {
             $advisory->expires_at = Carbon::now()->addMinutes((int)($durationHours * 60));
-        } elseif (! $advisory->expires_at || $advisory->expires_at->isPast()) {
-            $advisory->expires_at = Carbon::now()->addHours(4);
+        } else {
+            // Keep the validity the operator chose when inserting; the clock starts at approval.
+            $advisory->expires_at = $this->expiryFromApproval($advisory);
         }
 
         $advisory->approve(Auth::id());
+        $this->pushEvent('approved', $advisory);
 
         if ($request->wantsJson() || $request->ajax() || $request->boolean('ajax')) {
             return response()->json([
@@ -592,6 +664,7 @@ class TravelAdvisoryController extends Controller
 
         $reason = $request->input('reason', 'Rejected by Call Center Agent Supervisor.');
         $advisory->reject(Auth::id(), $reason);
+        $this->pushEvent('rejected', $advisory, ['reason' => \Illuminate\Support\Str::limit((string) $reason, 120)]);
 
         if ($request->wantsJson() || $request->ajax() || $request->boolean('ajax')) {
             return response()->json([
@@ -620,6 +693,7 @@ class TravelAdvisoryController extends Controller
         ]);
 
         TabletAdvisory::flushAdvisoryCache();
+        $this->pushEvent('resolved', $advisory);
 
         if ($request->wantsJson() || $request->ajax() || $request->boolean('ajax')) {
             return response()->json([
@@ -655,6 +729,7 @@ class TravelAdvisoryController extends Controller
         ]);
 
         TabletAdvisory::flushAdvisoryCache();
+        $this->pushEvent('extended', $advisory, ['hours' => $hours]);
 
         if ($request->wantsJson() || $request->ajax() || $request->boolean('ajax')) {
             return response()->json([
