@@ -360,6 +360,7 @@ class DashboardController extends Controller
                 'calls.office_id',
                 'calls.agent_id',
                 'calls.tiger_id',
+                'calls.km_marker_text',
                 'calls.created_at',
                 'call_types.name as call_type_name',
                 'call_types.priority as call_type_priority',
@@ -379,17 +380,23 @@ class DashboardController extends Controller
         $dummyCallModel = new \App\Models\Call();
 
         foreach ($openCalls as $call) {
-            $centroid = $beatCentroids->get($call->office_id);
-            if (!$centroid) {
-                $mapUnmappedCount++;
-                continue;
+            // Prefer a point ON the road: the exact KM marker when the agent entered one, otherwise a point along the
+            // beat's own carriageway (spread by call id). Only if the beat has no markers fall back to its centroid.
+            $roadPoint = $this->snapIncidentToRoad((int) $call->office_id, $call->km_marker_text ?? null, (int) $call->id);
+            if ($roadPoint) {
+                $pointLat = $roadPoint['lat'];
+                $pointLng = $roadPoint['lng'];
+            } else {
+                $centroid = $beatCentroids->get($call->office_id);
+                if (!$centroid) {
+                    $mapUnmappedCount++;
+                    continue;
+                }
+                // Small deterministic jitter (~+-150m) so multiple incidents in the same beat fan out.
+                $seed = crc32($call->id . '-' . $call->office_id);
+                $pointLat = (float) $centroid->lat + ((($seed % 2000) - 1000) / 1000) * 0.0015;
+                $pointLng = (float) $centroid->lng + (((intdiv($seed, 2000) % 2000) - 1000) / 1000) * 0.0015;
             }
-
-            // Small deterministic jitter (~±150m) so multiple incidents in the
-            // same beat fan out instead of stacking as one exact point.
-            $seed = crc32($call->id . '-' . $call->office_id);
-            $jitterLat = ((($seed % 2000) - 1000) / 1000) * 0.0015;
-            $jitterLng = (((intdiv($seed, 2000) % 2000) - 1000) / 1000) * 0.0015;
 
             $hierarchy = $officeMap[$call->office_id] ?? [
                 'beat' => 'Unassigned',
@@ -444,8 +451,8 @@ class DashboardController extends Controller
 
             $mapIncidents->push([
                 'id'            => $call->id,
-                'lat'           => (float) $centroid->lat + $jitterLat,
-                'lng'           => (float) $centroid->lng + $jitterLng,
+                'lat'           => $pointLat,
+                'lng'           => $pointLng,
                 'priority'      => $priority,
                 'type'          => $call->call_type_name ?? 'Call',
                 'beat'          => $hierarchy['beat'],
@@ -465,6 +472,51 @@ class DashboardController extends Controller
             'mapIncidents' => $mapIncidents,
             'mapUnmappedCount' => max(0, $mapUnmappedCount),
         ];
+    }
+
+    /**
+     * Resolve where an open help sits on the road network.
+     * 1) KM marker text ("327", "45 NB", "680 SB") -> nearest physical marker in the call's beat (side N/S when given).
+     * 2) otherwise -> one of ~24 points spread along the beat's carriageway (cached), chosen by call id.
+     *
+     * @return array{lat: float, lng: float}|null
+     */
+    protected function snapIncidentToRoad(int $officeId, ?string $kmText, int $seed): ?array
+    {
+        if ($officeId <= 0) {
+            return null;
+        }
+
+        if ($kmText !== null && preg_match('/^\s*(\d+(?:\.\d+)?)\s*(NB|SB|N|S)?\s*$/i', $kmText, $m)) {
+            $km = (float) $m[1];
+            $side = isset($m[2]) && $m[2] !== '' ? (strtoupper($m[2][0]) === 'S' ? 'S' : 'N') : null;
+
+            $marker = DB::table('geospatial_markers')
+                ->where('office_id', $officeId)
+                ->whereBetween('km', [$km - 0.5, $km + 0.5])
+                ->when($side, fn ($q) => $q->where('side', $side))
+                ->orderByRaw('ABS(km - ?)', [$km])
+                ->first(['lat', 'lng']);
+
+            if ($marker) {
+                return ['lat' => (float) $marker->lat, 'lng' => (float) $marker->lng];
+            }
+        }
+
+        $points = Cache::remember("dashboard_beat_road_points:v1:{$officeId}", 3600, function () use ($officeId): array {
+            $rows = DB::table('geospatial_markers')->where('office_id', $officeId)->orderBy('km')->get(['lat', 'lng']);
+            $count = $rows->count();
+            if ($count === 0) {
+                return [];
+            }
+            $step = max(1, intdiv($count, 24));
+
+            return $rows->filter(fn ($r, $i) => $i % $step === 0)
+                ->map(fn ($r) => ['lat' => (float) $r->lat, 'lng' => (float) $r->lng])
+                ->values()->all();
+        });
+
+        return $points ? $points[$seed % count($points)] : null;
     }
 
     /**

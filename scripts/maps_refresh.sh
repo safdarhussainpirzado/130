@@ -10,7 +10,8 @@ OUT_DIR="${OUT_DIR:-/var/lib/nhmp-geo}"
 OUT="$OUT_DIR/pakistan.pmtiles"
 TMP="$OUT_DIR/.pakistan.pmtiles.part"
 BBOX="${BBOX:-60.8,23.5,77.9,37.2}"     # Pakistan incl. Kashmir/Gilgit-Baltistan margin
-MAXZ="${MAXZ:-14}"                       # deeper zoom is overzoomed in the browser; keeps the file small
+MAXZ="${MAXZ:-13}"                       # deeper zoom is overzoomed in the browser. KEEP THE FILE UNDER 600 MB: the network gateway in front of
+                                         # the site returns HTTP 500 for any range request starting beyond byte 600,000,000.
 MIN_BYTES="${MIN_BYTES:-50000000}"
 
 trap 'rm -f "$TMP"' EXIT
