@@ -87,6 +87,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/notifications/poll', [CallController::class, 'getNotificationsPoll'])->name('api.notifications.poll');
     Route::post('/api/dispatch/ping', [CallController::class, 'sendReminder'])->name('api.calls.reminder');
     Route::post('/api/calls/{call}/reminder', [CallController::class, 'sendReminder'])->name('api.calls.reminder.call');
+
+    // Web Push Notifications (Desk CRM)
+    Route::middleware('throttle:20,1')->prefix('web-push')->name('webpush.')->group(function () {
+        Route::get('/vapid-public-key', [\App\Http\Controllers\WebPushSubscriptionController::class, 'getPublicKey'])->name('publicKey');
+        Route::post('/subscribe', [\App\Http\Controllers\WebPushSubscriptionController::class, 'subscribe'])->name('subscribe');
+        Route::post('/unsubscribe', [\App\Http\Controllers\WebPushSubscriptionController::class, 'unsubscribe'])->name('unsubscribe');
+    });
     
     // Administrative Modules
     Route::prefix('mgmt')->name('admin.')->group(function() {

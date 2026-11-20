@@ -106,6 +106,15 @@ class CallService
             // Fire events
             event(new CallLogged($call->id, $call->call_number, $call->call_type_id, $call->priority));
 
+            // Desk Unified Push Notification for Pending Help
+            if ($call->status === 'pending') {
+                try {
+                    \App\Jobs\SendHelpPendingPush::dispatch($call)->afterCommit();
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning("Push dispatch failed on createCall for {$call->id}: " . $e->getMessage());
+                }
+            }
+
             return $call;
         });
     }

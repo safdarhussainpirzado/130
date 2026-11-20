@@ -36,6 +36,19 @@ class SupportRequestAction extends Model
                 $action->created_at = \Illuminate\Support\Carbon::now();
             }
         });
+
+        static::created(function (SupportRequestAction $action): void {
+            if ($action->support_request_id) {
+                try {
+                    $request = $action->supportRequest ?: SupportRequest::find($action->support_request_id);
+                    if ($request) {
+                        \App\Jobs\SendSupportPush::dispatch($request, $action->action_type ?? 'action_taken')->afterCommit();
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning("Support action push dispatch failed for action {$action->id}: " . $e->getMessage());
+                }
+            }
+        });
     }
 
     /* ------------------------------------------------------------------ */

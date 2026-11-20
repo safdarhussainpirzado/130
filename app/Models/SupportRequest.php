@@ -98,6 +98,14 @@ class SupportRequest extends Model
                 $request->submitted_at = now();
             }
         });
+
+        static::created(function (SupportRequest $request): void {
+            try {
+                \App\Jobs\SendSupportPush::dispatch($request, 'created')->afterCommit();
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning("Support push dispatch failed for {$request->id}: " . $e->getMessage());
+            }
+        });
     }
 
     /**

@@ -386,6 +386,12 @@ class User extends Authenticatable
         return $this->hasMany(UserScope::class)->where('is_active', true);
     }
 
+    /** Push notification device / browser subscriptions */
+    public function pushSubscriptions(): HasMany
+    {
+        return $this->hasMany(PushSubscription::class);
+    }
+
     /** Primary assigned operational office derived from active scopes */
     public function getOfficeAttribute(): ?Office
     {

@@ -15,6 +15,8 @@ services:
       - aws_secret_access_key
       - bidx_salt
       - audit_salt
+      - firebase_credentials
+      - vapid_private_key
     environment:
       - APP_NAME=${APP_NAME:-130 NHMP Helpline}
       - APP_ENV=${APP_ENV:-production}
@@ -40,6 +42,10 @@ services:
       - AWS_SECRET_ACCESS_KEY_FILE=/run/secrets/aws_secret_access_key
       - BIDX_SALT_FILE=/run/secrets/bidx_salt
       - AUDIT_SALT_FILE=/run/secrets/audit_salt
+      - FIREBASE_CREDENTIALS_FILE=/run/secrets/firebase_credentials
+      - VAPID_PRIVATE_KEY_FILE=/run/secrets/vapid_private_key
+      - PUSH_ENABLED=${PUSH_ENABLED:-false}
+      - PUSH_FCM_ENABLED=${PUSH_FCM_ENABLED:-false}
       - AWS_BUCKET=crm-storage
       - AWS_ENDPOINT=http://minio:9000
       - AWS_USE_PATH_STYLE_ENDPOINT=true
@@ -67,6 +73,8 @@ services:
       - aws_secret_access_key
       - bidx_salt
       - audit_salt
+      - firebase_credentials
+      - vapid_private_key
     environment:
       - APP_NAME=${APP_NAME:-130 NHMP Helpline}
       - APP_ENV=${APP_ENV:-production}
@@ -92,6 +100,10 @@ services:
       - AWS_SECRET_ACCESS_KEY_FILE=/run/secrets/aws_secret_access_key
       - BIDX_SALT_FILE=/run/secrets/bidx_salt
       - AUDIT_SALT_FILE=/run/secrets/audit_salt
+      - FIREBASE_CREDENTIALS_FILE=/run/secrets/firebase_credentials
+      - VAPID_PRIVATE_KEY_FILE=/run/secrets/vapid_private_key
+      - PUSH_ENABLED=${PUSH_ENABLED:-false}
+      - PUSH_FCM_ENABLED=${PUSH_FCM_ENABLED:-false}
       - AWS_BUCKET=crm-storage
       - AWS_ENDPOINT=http://minio:9000
       - AWS_USE_PATH_STYLE_ENDPOINT=true
@@ -153,6 +165,8 @@ services:
       - aws_secret_access_key
       - bidx_salt
       - audit_salt
+      - firebase_credentials
+      - vapid_private_key
     environment:
       - APP_NAME=${APP_NAME:-130 NHMP Helpline}
       - APP_ENV=${APP_ENV:-production}
@@ -172,6 +186,57 @@ services:
       - AWS_SECRET_ACCESS_KEY_FILE=/run/secrets/aws_secret_access_key
       - BIDX_SALT_FILE=/run/secrets/bidx_salt
       - AUDIT_SALT_FILE=/run/secrets/audit_salt
+      - FIREBASE_CREDENTIALS_FILE=/run/secrets/firebase_credentials
+      - VAPID_PRIVATE_KEY_FILE=/run/secrets/vapid_private_key
+      - PUSH_ENABLED=${PUSH_ENABLED:-false}
+      - PUSH_FCM_ENABLED=${PUSH_FCM_ENABLED:-false}
+      - AWS_BUCKET=crm-storage
+      - AWS_ENDPOINT=http://minio:9000
+      - AWS_USE_PATH_STYLE_ENDPOINT=true
+    volumes:
+      - /var/lib/nhmp-geo:/var/www/html/storage/app/geo
+    networks:
+      - crm-net
+
+  # Dedicated Push Notification Queue Consumer (Zero-overhead async Redis worker)
+  push-worker:
+    image: 130-app-octane:phase2-rc25
+    restart: unless-stopped
+    command: ["php", "artisan", "queue:work", "redis", "--queue=push", "--tries=3", "--timeout=30", "--max-time=3600"]
+    read_only: false
+    security_opt:
+      - no-new-privileges:true
+    secrets:
+      - app_key
+      - db_password
+      - aws_secret_access_key
+      - bidx_salt
+      - audit_salt
+      - firebase_credentials
+      - vapid_private_key
+    environment:
+      - APP_NAME=${APP_NAME:-130 NHMP Helpline}
+      - APP_ENV=${APP_ENV:-production}
+      - APP_KEY_FILE=/run/secrets/app_key
+      - DB_CONNECTION=mysql
+      - DB_HOST=db-1
+      - DB_PORT=3306
+      - DB_DATABASE=${DB_DATABASE:-130_crm_db}
+      - DB_USERNAME=${DB_USERNAME:-crm_user}
+      - DB_PASSWORD_FILE=/run/secrets/db_password
+      - REDIS_HOST=redis
+      - CACHE_DRIVER=redis
+      - SESSION_DRIVER=redis
+      - QUEUE_CONNECTION=redis
+      - FILESYSTEM_DISK=s3
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-admin}
+      - AWS_SECRET_ACCESS_KEY_FILE=/run/secrets/aws_secret_access_key
+      - BIDX_SALT_FILE=/run/secrets/bidx_salt
+      - AUDIT_SALT_FILE=/run/secrets/audit_salt
+      - FIREBASE_CREDENTIALS_FILE=/run/secrets/firebase_credentials
+      - VAPID_PRIVATE_KEY_FILE=/run/secrets/vapid_private_key
+      - PUSH_ENABLED=${PUSH_ENABLED:-false}
+      - PUSH_FCM_ENABLED=${PUSH_FCM_ENABLED:-false}
       - AWS_BUCKET=crm-storage
       - AWS_ENDPOINT=http://minio:9000
       - AWS_USE_PATH_STYLE_ENDPOINT=true
@@ -217,6 +282,10 @@ secrets:
     file: ./secrets/bidx_salt
   audit_salt:
     file: ./secrets/audit_salt
+  firebase_credentials:
+    file: ./secrets/firebase_credentials.json
+  vapid_private_key:
+    file: ./secrets/vapid_private_key
 
 networks:
   crm-net:

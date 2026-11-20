@@ -40,6 +40,12 @@ class TravelAdvisoryController extends Controller
     {
         $actor = Auth::user();
         TravelAdvisoryEventFeed::push($type, $advisory, $actor, $this->isSupervisorOrAdmin($actor), $extra);
+
+        try {
+            \App\Jobs\SendAdvisoryPush::dispatch($advisory, $type, $extra)->afterCommit();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("Advisory push dispatch failed for {$advisory->id}: " . $e->getMessage());
+        }
     }
 
     /**

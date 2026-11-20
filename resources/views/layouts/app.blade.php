@@ -1071,6 +1071,17 @@
                         </template>
                     </button>
 
+                    {{-- Web Push Desktop Alerts Enrollment --}}
+                    <button id="btn-desktop-alerts-toggle"
+                        type="button"
+                        class="h-10 px-3 rounded-2xl border-2 border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition-all flex items-center gap-2 relative group text-xs font-bold"
+                        title="Desktop Alerts: Inactive (Click to enable)"
+                        data-state="unsubscribed">
+                        <i class="fa-solid fa-bell text-slate-500 group-hover:text-blue-600"></i>
+                        <span id="desktop-alerts-status-dot" class="w-2 h-2 rounded-full bg-slate-400"></span>
+                        <span id="desktop-alerts-status-text" class="hidden sm:inline">Desktop Alerts</span>
+                    </button>
+
                     @php
                         $headerUser = Auth::user();
                         $headerInitials = 'UA';
@@ -1577,6 +1588,7 @@
         })();
     </script>
 
+    <script src="{{ asset('js/webpush-client.js') }}" defer></script>
     @include('partials.notifications')
     @stack('scripts')
 </body>
