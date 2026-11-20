@@ -1,0 +1,146 @@
+================================================================================
+NHMP 130 Unified Push Notification System - Test Execution Evidence
+Date: 2026-11-20 20:26:57 UTC
+Branch: feat/push-notifications-desk
+Git HEAD: b048b94f95262a98aa4e1ac28a61c11b785aa853
+================================================================================
+
+--- 1. Artisan Push Status ---
+==========================================================
+ NHMP 130 Unified Push Notification System Diagnostics
+==========================================================
++------------------------------------+--------------+------------------------+
+| Feature Switch                     | Config Value | Operational Status     |
++------------------------------------+--------------+------------------------+
+| Master Switch (PUSH_ENABLED)       | false        | DARK LAUNCH (DISABLED) |
+| Firebase Switch (PUSH_FCM_ENABLED) | false        | DISABLED               |
+| Worker Queue Name (PUSH_QUEUE)     | push         | Target Redis Queue     |
++------------------------------------+--------------+------------------------+
+
+1. Dependencies & Libraries:
+   - minishlink/web-push: INSTALLED (v11)
+   - google/auth:         INSTALLED (v1)
+
+2. Web Push (RFC 8292 VAPID) Configuration:
+   - Public Key:  NOT SET (Run php artisan push:generate-vapid)
+   - Private Key: SECURE FILE PRESENT [/home/mrpirzado/projects/130-push/secrets/vapid_private_key] (mode 0600)
+   - Subject:     mailto:admin@130.nhmp.gov.pk
+
+3. Firebase Cloud Messaging (HTTP v1) Configuration:
+   - Project ID:       NOT CONFIGURED
+   - Credentials File: NOT FOUND (Optional: drop in secrets/firebase_credentials.json)
+
+4. Queue & Storage Infrastructure:
+   - Redis Connection: FAILED: Connection refused [tcp://127.0.0.1:6379]
+   - Database Subscriptions: Table not yet migrated or DB unavailable
+
+==========================================================
+
+--- 2. PHPUnit Unit & Feature Test Suite (39 Tests, 173 Assertions) ---
+
+   PASS  Tests\Unit\Notifications\DeduplicationAndRateLimitingTest
+  ✓ deduplication suppresses duplicate notifications within ttl          0.22s  
+  ✓ rate limiter caps notifications at 30 per minute                     0.02s  
+
+   PASS  Tests\Unit\Notifications\FcmServiceTest
+  ✓ fails closed when push is disabled                                   0.02s  
+  ✓ fails closed when firebase is disabled                               0.02s  
+  ✓ fails closed when credentials file missing                           0.02s  
+  ✓ successful http v1 request with fake                                 0.05s  
+  ✓ handles unregistered token and deactivates                           0.03s  
+
+   PASS  Tests\Unit\Notifications\PayloadHygieneTest
+  ✓ title is strictly bounded to 80 chars                                0.04s  
+  ✓ body is strictly bounded to 200 chars                                0.02s  
+  ✓ html tags and whitespace are sanitized                               0.02s  
+  ✓ same origin relative url validation                                  0.01s  
+  ✓ help pending payload contains zero pii                               0.02s  
+
+   PASS  Tests\Unit\Notifications\RecipientResolutionTest
+  ✓ p1 help pending includes supervisors and operations admins           0.04s  
+  ✓ advisory created targets supervisors                                 0.02s  
+  ✓ advisory approved targets originating sector and creator             0.02s  
+  ✓ support request resolution for creation and action                   0.02s  
+  ✓ patrol officer profiles are not queried                              0.02s  
+
+   PASS  Tests\Unit\Notifications\SubscriptionValidationTest
+  ✓ token hash is sha256 of endpoint                                     0.04s  
+  ✓ keys are encrypted at rest in database                               0.03s  
+
+   PASS  Tests\Unit\Notifications\WebPushRoundTripTest
+  ✓ real web push payload encryption and vapid signature roundtrip       0.05s  
+
+   PASS  Tests\Unit\Notifications\WebPushServiceTest
+  ✓ fails closed when push is disabled                                   0.02s  
+  ✓ fails closed when vapid keys are missing                             0.01s  
+  ✓ handles empty subscriptions safely                                   0.01s  
+
+   PASS  Tests\Feature\Notifications\PushDispatchFlowTest
+  ✓ pending help call dispatches queued job to push queue                0.05s  
+  ✓ advisory lifecycle dispatches queued job to push queue               0.02s  
+  ✓ support ticket dispatches queued job to push queue                   0.02s  
+  ✓ job handler invokes push notification service                        0.03s  
+
+   PASS  Tests\Feature\Notifications\PushSecurityPenTest
+  ✓ pen sqli payloads in input are harmless in push payloads             0.04s  
+  ✓ pen xss vectors are completely stripped from push payloads           0.02s  
+  ✓ pen open redirect is blocked by relative url enforcement             0.02s  
+  ✓ pen mass assignment protection on push subscription model            0.02s  
+  ✓ pen zero secret or key leakage in public endpoints and responses     0.05s  
+
+   PASS  Tests\Feature\Notifications\WebPushSubscriptionEndpointTest
+  ✓ ssrf host allow list allows legitimate vendor gateways               0.04s  
+  ✓ ssrf host allow list strictly blocks unauthorized and internal host… 0.02s  
+  ✓ unauthenticated request to vapid key is rejected                     0.03s  
+  ✓ unauthenticated request to subscribe is rejected                     0.03s  
+  ✓ authenticated user retrieves public vapid key                        0.02s  
+  ✓ ssrf attempt via endpoint payload is rejected with 422               0.04s  
+  ✓ http scheme endpoint is rejected with 422                            0.02s  
+
+  Tests:    39 passed (173 assertions)
+  Duration: 1.31s
+
+
+--- 3. Browser UI Playwright Tooltip Test (5/5 Assertions) ---
+--- Starting Playwright UI Verification ---
+1. Initial tooltip hidden assertion: PASS
+2. Testing mouse hover on #nav-support...
+   Tooltip Visible on Hover: PASS
+   Tooltip Title: Support Center (MATCH)
+   Tooltip Badge: 5 (MATCH)
+   Screenshot saved to: /home/mrpirzado/projects/130-push/docs/evidence/push-notifications/sidebar_collapsed_premium_tooltip.png
+3. Testing mouseout to main area...
+   Tooltip hides after mouseout: PASS
+4. Testing keyboard focus (Tab key)...
+   Keyboard Tab focus Title: Dashboard Overview (MATCH)
+5. Testing Escape key dismissal...
+   Tooltip hides on Escape key: PASS
+--- ALL 5 BROWSER TOOLTIP TESTS PASSED (100%) ---
+
+--- 4. PHP Syntax Lint (php -l) ---
+No syntax errors detected in app/Http/Controllers/TravelAdvisoryController.php
+No syntax errors detected in app/Models/SupportRequest.php
+No syntax errors detected in app/Models/SupportRequestAction.php
+No syntax errors detected in app/Models/User.php
+No syntax errors detected in app/Services/CallService.php
+No syntax errors detected in config/services.php
+No syntax errors detected in resources/views/layouts/app.blade.php
+No syntax errors detected in routes/web.php
+No syntax errors detected in app/Console/Commands/GenerateVapidKeys.php
+No syntax errors detected in app/Console/Commands/PrunePushSubscriptionsCommand.php
+No syntax errors detected in app/Console/Commands/PushStatusCommand.php
+No syntax errors detected in app/Http/Controllers/WebPushSubscriptionController.php
+No syntax errors detected in app/Jobs/SendAdvisoryPush.php
+No syntax errors detected in app/Jobs/SendHelpPendingPush.php
+No syntax errors detected in app/Jobs/SendSupportPush.php
+No syntax errors detected in app/Models/PushSubscription.php
+No syntax errors detected in database/migrations/2026_11_21_010000_create_push_subscriptions_table.php
+
+--- 5. Real Web Push Roundtrip Test Verification ---
+
+   PASS  Tests\Unit\Notifications\WebPushRoundTripTest
+  ✓ real web push payload encryption and vapid signature roundtrip       0.16s  
+
+  Tests:    1 passed (11 assertions)
+  Duration: 0.21s
+
