@@ -151,6 +151,14 @@ class WebPushService
     }
 
     /**
+     * Alias for send() supporting iterables.
+     */
+    public function sendToSubscriptions(iterable $subscriptions, array $payload): array
+    {
+        return $this->send($subscriptions instanceof Collection ? $subscriptions : collect($subscriptions), $payload);
+    }
+
+    /**
      * Rate-limited logger to prevent log flooding.
      */
     private function logRateLimited(string $level, string $message): void

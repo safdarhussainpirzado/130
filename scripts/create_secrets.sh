@@ -21,10 +21,12 @@ AWS="$(get AWS_SECRET_ACCESS_KEY)"; mk aws_secret_access_key "${AWS:-password}"
 VAPID_KEY="$(get VAPID_PRIVATE_KEY || true)"
 if [ -n "$VAPID_KEY" ]; then
     mk vapid_private_key "$VAPID_KEY"
-elif [ ! -s "secrets/vapid_private_key" ]; then
-    echo "note   secrets/vapid_private_key (generate via: php artisan push:generate-vapid)"
+elif [ ! -e "secrets/vapid_private_key" ]; then
+    touch "secrets/vapid_private_key" && chmod 600 "secrets/vapid_private_key"
+    echo "create secrets/vapid_private_key (EMPTY PLACEHOLDER - generate via: php artisan push:generate-vapid)"
 fi
 
-if [ ! -s "secrets/firebase_credentials.json" ]; then
-    echo "note   secrets/firebase_credentials.json (drop service account JSON here with mode 600)"
+if [ ! -e "secrets/firebase_credentials.json" ]; then
+    touch "secrets/firebase_credentials.json" && chmod 600 "secrets/firebase_credentials.json"
+    echo "create secrets/firebase_credentials.json (EMPTY PLACEHOLDER - drop service account JSON here when configured)"
 fi

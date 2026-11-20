@@ -13,6 +13,7 @@ use App\Models\UserScope;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Route;
 use Throwable;
 
 class PushNotificationService
@@ -36,7 +37,7 @@ class PushNotificationService
      * Recipient Matrix:
      * - Beat & Sector operators whose active UserScope covers the call's beat / sector / zone.
      * - Agent supervisors whose scope or role covers that zone.
-     * - Operation Admins (IT_ADMIN) & Super Admins ONLY if priority is P1 (critical/emergency).
+     * - Operation Admins (IT_ADMIN) & Super Admins ONLY if priority is P1 ((int) priority === 1).
      * - Strictly NO patrol officer or commuter profile queries.
      *
      * @return array{recipients: int, webpush: array, fcm: array}
@@ -52,16 +53,18 @@ class PushNotificationService
             return ['recipients' => 0, 'webpush' => ['sent' => 0, 'failed' => 0], 'fcm' => ['sent' => 0, 'failed' => 0]];
         }
 
-        $isP1 = in_array(strtolower((string) $call->priority), ['critical', 'emergency', 'p1'], true);
+        $priorityNum = (int) ($call->priority ?: 3);
+        $isP1 = $call->isP1();
+        $isP1OrP2 = $call->isP1OrP2();
+        $priorityLabel = $call->getPriorityLabel();
 
         // Payload hygiene: strictly NO caller name, phone number, CNIC, or victim details
         $beatName = $call->office?->name ?? 'Unassigned Beat';
         $typeName = $call->callType?->name ?? 'Help Request';
-        $priorityLabel = strtoupper((string) ($call->priority ?? 'NORMAL'));
 
         $title = $this->sanitizeText("🚨 NHMP 130 [{$priorityLabel}]: Pending Help {$call->call_number}", self::MAX_TITLE_LENGTH);
         $body = $this->sanitizeText("Beat: {$beatName} | Type: {$typeName} | Requires immediate operational dispatch.", self::MAX_BODY_LENGTH);
-        $url = $this->sanitizeRelativeUrl("/calls/{$call->id}");
+        $url = $this->resolveCallUrl($call);
 
         $payload = [
             'title' => $title,
@@ -73,9 +76,9 @@ class PushNotificationService
                 'type' => 'help_pending',
                 'call_id' => $call->id,
                 'call_number' => $call->call_number,
-                'priority' => $call->priority,
+                'priority' => $priorityNum,
                 'url' => $url,
-                'requireInteraction' => $isP1,
+                'requireInteraction' => $isP1OrP2,
             ],
         ];
 
@@ -108,13 +111,13 @@ class PushNotificationService
             default => 'New Advisory Submitted',
         };
 
-        $sectorName = $advisory->sector?->name ?? 'Sector';
+        $sectorName = $advisory->sector?->name ?? $advisory->route_name ?? 'National Highways';
         $routeName = $advisory->route_name ?? 'Highway';
         $category = ucfirst((string) ($advisory->category ?? 'Alert'));
 
         $title = $this->sanitizeText("⚠️ Advisory {$eventLabel}: {$routeName}", self::MAX_TITLE_LENGTH);
         $body = $this->sanitizeText("{$sectorName} | {$category}: ".($advisory->title ?? 'Travel Advisory Update'), self::MAX_BODY_LENGTH);
-        $url = $this->sanitizeRelativeUrl('/travel-advisories');
+        $url = $this->resolveAdvisoryUrl($advisory, $eventType);
 
         $payload = [
             'title' => $title,
@@ -139,7 +142,7 @@ class PushNotificationService
      *
      * Recipient Matrix:
      * - Ticket created -> Operation Admins and assigned office operators.
-     * - Action taken -> Requester and assigned approvers.
+     * - Action taken -> Requester (portal view) and assigned approvers (admin view).
      *
      * @return array{recipients: int, webpush: array, fcm: array}
      */
@@ -155,25 +158,84 @@ class PushNotificationService
 
         $title = $this->sanitizeText("🎫 Support Desk: {$actionLabel}", self::MAX_TITLE_LENGTH);
         $body = $this->sanitizeText("Ticket #{$request->id} ({$statusLabel}) | Subject: {$request->subject}", self::MAX_BODY_LENGTH);
-        $url = $this->sanitizeRelativeUrl("/admin/support-requests/{$request->public_id}");
 
-        $payload = [
-            'title' => $title,
-            'body' => $body,
-            'icon' => '/images/nhmp-logo.png',
-            'badge' => '/images/nhmp-badge.png',
-            'tag' => "support-{$request->id}-{$actionType}",
-            'data' => [
-                'type' => 'support_request',
-                'support_request_id' => $request->id,
-                'public_id' => $request->public_id,
-                'action_type' => $actionType,
-                'url' => $url,
-                'requireInteraction' => false,
-            ],
-        ];
+        if ($actionType === 'created' || $actionType === SupportRequest::STATUS_SUBMITTED) {
+            $adminUrl = $this->resolveSupportAdminUrl($request);
+            $payload = [
+                'title' => $title,
+                'body' => $body,
+                'icon' => '/images/nhmp-logo.png',
+                'badge' => '/images/nhmp-badge.png',
+                'tag' => "support-{$request->id}-{$actionType}",
+                'data' => [
+                    'type' => 'support_request',
+                    'support_request_id' => $request->id,
+                    'public_id' => $request->public_id,
+                    'action_type' => $actionType,
+                    'url' => $adminUrl,
+                    'requireInteraction' => false,
+                ],
+            ];
 
-        return $this->dispatchToSubscriptions($recipientUserIds, $payload, "support_{$actionType}", $request->id);
+            return $this->dispatchToSubscriptions($recipientUserIds, $payload, "support_{$actionType}", $request->id);
+        }
+
+        // Action taken: Requester views via portal route, approver views via admin route
+        $requesterId = (int) $request->requester_id;
+        $approverId = (int) $request->assigned_approver_id;
+
+        $results = ['recipients' => 0, 'webpush' => ['sent' => 0, 'failed' => 0], 'fcm' => ['sent' => 0, 'failed' => 0]];
+
+        if ($requesterId > 0 && in_array($requesterId, $recipientUserIds, true)) {
+            $portalPayload = [
+                'title' => $title,
+                'body' => $body,
+                'icon' => '/images/nhmp-logo.png',
+                'badge' => '/images/nhmp-badge.png',
+                'tag' => "support-{$request->id}-{$actionType}",
+                'data' => [
+                    'type' => 'support_request',
+                    'support_request_id' => $request->id,
+                    'public_id' => $request->public_id,
+                    'action_type' => $actionType,
+                    'url' => $this->resolveSupportRequesterUrl($request),
+                    'requireInteraction' => false,
+                ],
+            ];
+            $r = $this->dispatchToSubscriptions([$requesterId], $portalPayload, "support_{$actionType}_req", $request->id);
+            $results['recipients'] += $r['recipients'];
+            $results['webpush']['sent'] += $r['webpush']['sent'] ?? 0;
+            $results['webpush']['failed'] += $r['webpush']['failed'] ?? 0;
+            $results['fcm']['sent'] += $r['fcm']['sent'] ?? 0;
+            $results['fcm']['failed'] += $r['fcm']['failed'] ?? 0;
+        }
+
+        $adminRecipients = array_diff($recipientUserIds, [$requesterId]);
+        if (! empty($adminRecipients)) {
+            $adminPayload = [
+                'title' => $title,
+                'body' => $body,
+                'icon' => '/images/nhmp-logo.png',
+                'badge' => '/images/nhmp-badge.png',
+                'tag' => "support-{$request->id}-{$actionType}",
+                'data' => [
+                    'type' => 'support_request',
+                    'support_request_id' => $request->id,
+                    'public_id' => $request->public_id,
+                    'action_type' => $actionType,
+                    'url' => $this->resolveSupportAdminUrl($request),
+                    'requireInteraction' => false,
+                ],
+            ];
+            $r = $this->dispatchToSubscriptions($adminRecipients, $adminPayload, "support_{$actionType}_adm", $request->id);
+            $results['recipients'] += $r['recipients'];
+            $results['webpush']['sent'] += $r['webpush']['sent'] ?? 0;
+            $results['webpush']['failed'] += $r['webpush']['failed'] ?? 0;
+            $results['fcm']['sent'] += $r['fcm']['sent'] ?? 0;
+            $results['fcm']['failed'] += $r['fcm']['failed'] ?? 0;
+        }
+
+        return $results;
     }
 
     /**
@@ -291,21 +353,27 @@ class PushNotificationService
 
         $userIds = array_merge($userIds, $supervisors);
 
-        // 3. Operation Admins & Super Admins ONLY for P1/Critical calls
-        $isP1 = in_array(strtolower((string) $call->priority), ['critical', 'emergency', 'p1'], true);
-        if ($isP1) {
+        // 3. Operation Admins & Super Admins ONLY for P1 calls ((int) priority === 1)
+        if ($call->isP1()) {
             $admins = User::whereHas('role', function ($q) {
                 $q->whereIn('name', [Role::IT_ADMIN, Role::SUPER_ADMIN]);
             })
                 ->where('is_active', true)
                 ->where('is_blocked', false)
+                ->limit(500)
                 ->pluck('id')
                 ->toArray();
 
             $userIds = array_merge($userIds, $admins);
         }
 
-        return array_values(array_unique(array_filter($userIds)));
+        $userIds = array_values(array_unique(array_filter($userIds)));
+        if (count($userIds) > 500) {
+            $this->logRateLimited('warning', 'Push recipient count for call exceeded 500 ('.count($userIds).'). Capped to first 500 recipients.');
+            $userIds = array_slice($userIds, 0, 500);
+        }
+
+        return $userIds;
     }
 
     /**
@@ -324,6 +392,7 @@ class PushNotificationService
             })
                 ->where('is_active', true)
                 ->where('is_blocked', false)
+                ->limit(500)
                 ->pluck('id')
                 ->toArray();
 
@@ -338,13 +407,20 @@ class PushNotificationService
             if (! empty($officeIds)) {
                 $sectorOperators = UserScope::whereIn('office_id', $officeIds)
                     ->where('is_active', true)
+                    ->limit(500)
                     ->pluck('user_id')
                     ->toArray();
                 $userIds = array_merge($userIds, $sectorOperators);
             }
         }
 
-        return array_values(array_unique(array_filter($userIds)));
+        $userIds = array_values(array_unique(array_filter($userIds)));
+        if (count($userIds) > 500) {
+            $this->logRateLimited('warning', 'Push recipient count for advisory exceeded 500 ('.count($userIds).'). Capped to first 500 recipients.');
+            $userIds = array_slice($userIds, 0, 500);
+        }
+
+        return $userIds;
     }
 
     /**
@@ -363,6 +439,7 @@ class PushNotificationService
             })
                 ->where('is_active', true)
                 ->where('is_blocked', false)
+                ->limit(500)
                 ->pluck('id')
                 ->toArray();
 
@@ -371,6 +448,7 @@ class PushNotificationService
             if ($request->destination_office_id) {
                 $destUsers = UserScope::where('office_id', $request->destination_office_id)
                     ->where('is_active', true)
+                    ->limit(500)
                     ->pluck('user_id')
                     ->toArray();
                 $userIds = array_merge($userIds, $destUsers);
@@ -385,7 +463,83 @@ class PushNotificationService
             }
         }
 
-        return array_values(array_unique(array_filter($userIds)));
+        $userIds = array_values(array_unique(array_filter($userIds)));
+        if (count($userIds) > 500) {
+            $this->logRateLimited('warning', 'Push recipient count for support exceeded 500 ('.count($userIds).'). Capped to first 500 recipients.');
+            $userIds = array_slice($userIds, 0, 500);
+        }
+
+        return $userIds;
+    }
+
+    /**
+     * Dynamically resolve relative URL for Call record.
+     */
+    public function resolveCallUrl(Call $call): string
+    {
+        try {
+            if (Route::has('calls.show')) {
+                $param = ! empty($call->uuid) ? $call->uuid : $call->id;
+
+                return $this->sanitizeRelativeUrl(route('calls.show', ['call' => $param], false));
+            }
+        } catch (Throwable) {
+        }
+
+        return $this->sanitizeRelativeUrl("/calls/{$call->id}");
+    }
+
+    /**
+     * Dynamically resolve relative URL for Travel Advisory event.
+     */
+    public function resolveAdvisoryUrl(TabletAdvisory $advisory, string $eventType): string
+    {
+        try {
+            if (Route::has('ops.travel-advisory.index')) {
+                $params = in_array($eventType, ['created', 'updated'], true)
+                    ? ['status' => 'pending_approval']
+                    : [];
+
+                return $this->sanitizeRelativeUrl(route('ops.travel-advisory.index', $params, false));
+            }
+        } catch (Throwable) {
+        }
+
+        return $this->sanitizeRelativeUrl(
+            in_array($eventType, ['created', 'updated'], true)
+                ? '/ops/travel-advisory?status=pending_approval'
+                : '/ops/travel-advisory'
+        );
+    }
+
+    /**
+     * Dynamically resolve relative URL for Support Request admin management.
+     */
+    public function resolveSupportAdminUrl(SupportRequest $request): string
+    {
+        try {
+            if (Route::has('admin.support.requests.show')) {
+                return $this->sanitizeRelativeUrl(route('admin.support.requests.show', ['supportRequest' => $request->public_id], false));
+            }
+        } catch (Throwable) {
+        }
+
+        return $this->sanitizeRelativeUrl("/mgmt/support/requests/{$request->public_id}");
+    }
+
+    /**
+     * Dynamically resolve relative URL for Support Request requester portal.
+     */
+    public function resolveSupportRequesterUrl(SupportRequest $request): string
+    {
+        try {
+            if (Route::has('portal.support.show')) {
+                return $this->sanitizeRelativeUrl(route('portal.support.show', ['supportRequest' => $request->public_id], false));
+            }
+        } catch (Throwable) {
+        }
+
+        return $this->sanitizeRelativeUrl("/portal/support/requests/{$request->public_id}");
     }
 
     /**

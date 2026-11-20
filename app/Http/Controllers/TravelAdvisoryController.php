@@ -2,13 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\TravelAdvisoryEventFeed;
 use App\Models\Carriageway;
 use App\Models\GeospatialLandmark;
 use App\Models\GeospatialMarker;
 use App\Models\Office;
 use App\Models\Role;
 use App\Models\TabletAdvisory;
+use App\Models\User;
+use App\Services\Notifications\PushDispatcher;
+use App\Services\TravelAdvisoryEventFeed;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -41,11 +43,7 @@ class TravelAdvisoryController extends Controller
         $actor = Auth::user();
         TravelAdvisoryEventFeed::push($type, $advisory, $actor, $this->isSupervisorOrAdmin($actor), $extra);
 
-        try {
-            \App\Jobs\SendAdvisoryPush::dispatch($advisory, $type, $extra)->afterCommit();
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning("Advisory push dispatch failed for {$advisory->id}: " . $e->getMessage());
-        }
+        PushDispatcher::dispatchAdvisory($advisory, $type, $extra);
     }
 
     /**
@@ -54,7 +52,7 @@ class TravelAdvisoryController extends Controller
      */
     private function authorizeSectorAdmin(): void
     {
-        /** @var \App\Models\User|null $user */
+        /** @var User|null $user */
         $user = Auth::user();
         if (! $user) {
             abort(401, 'Unauthenticated.');
@@ -68,7 +66,7 @@ class TravelAdvisoryController extends Controller
             Role::IT_ADMIN,
         ];
 
-        if (! in_array($roleName, $authorizedRoles, true) && ! ($user instanceof \App\Models\User && $user->hasPermission('travel_advisory.view'))) {
+        if (! in_array($roleName, $authorizedRoles, true) && ! ($user instanceof User && $user->hasPermission('travel_advisory.view'))) {
             abort(403, 'Unauthorized. Access to Travel Advisory operations is restricted to authorized supervisors, operators, and administrators.');
         }
     }
@@ -76,15 +74,16 @@ class TravelAdvisoryController extends Controller
     /**
      * Check if user is a Call Center Agent Supervisor or System Admin.
      */
-    private function isSupervisorOrAdmin(?\App\Models\User $user = null): bool
+    private function isSupervisorOrAdmin(?User $user = null): bool
     {
-        /** @var \App\Models\User|null $user */
+        /** @var User|null $user */
         $user = $user ?: Auth::user();
         if (! $user) {
             return false;
         }
 
         $roleName = $user->role?->name;
+
         return in_array($roleName, [Role::SUPER_ADMIN, Role::IT_ADMIN, Role::AGENT_SUPERVISOR], true)
             || $user->hasPermission('travel_advisory.approve');
     }
@@ -95,7 +94,7 @@ class TravelAdvisoryController extends Controller
      */
     private function authorizeSupervisor(): void
     {
-        /** @var \App\Models\User|null $user */
+        /** @var User|null $user */
         $user = Auth::user();
         if (! $user) {
             abort(401, 'Unauthenticated.');
@@ -105,6 +104,7 @@ class TravelAdvisoryController extends Controller
             abort(403, 'Unauthorized. Advisory review, editing, and approval is restricted to Call Center Agent Supervisors and Super Admins.');
         }
     }
+
     /**
      * Wireless Operator Rapid Incident Data Entry Hub.
      * Role-aware for Beat, Sector, and Zone wireless operators.
@@ -113,9 +113,9 @@ class TravelAdvisoryController extends Controller
     {
         $this->authorizeSectorAdmin();
 
-        /** @var \App\Models\User|null $user */
+        /** @var User|null $user */
         $user = Auth::user();
-        $userOffice = $user?->office ?? ($user instanceof \App\Models\User ? $user->activeScopes()->with('office.parent.parent')->first()?->office : null);
+        $userOffice = $user?->office ?? ($user instanceof User ? $user->activeScopes()->with('office.parent.parent')->first()?->office : null);
 
         $isSupervisor = $this->isSupervisorOrAdmin($user);
 
@@ -126,7 +126,7 @@ class TravelAdvisoryController extends Controller
         } elseif ($user?->role?->name === Role::SECTOR_ADMIN || ($userOffice && $userOffice->type === 'sector')) {
             $tier = 'sector';
         } elseif ($userOffice) {
-            $tier = strtolower((string)$userOffice->type); // 'zone', 'sector', 'beat'
+            $tier = strtolower((string) $userOffice->type); // 'zone', 'sector', 'beat'
         }
 
         $hierarchy = GeospatialMarkerController::getOfficeHierarchy();
@@ -142,15 +142,15 @@ class TravelAdvisoryController extends Controller
         $carriageways = Carriageway::whereIn('type', ['Motorway', 'Highway', 'Strategic Route'])
             ->orderBy('road')
             ->get()
-            ->map(fn($cw) => [
-                'id'         => $cw->id,
-                'road'       => $cw->road,
+            ->map(fn ($cw) => [
+                'id' => $cw->id,
+                'road' => $cw->road,
                 'road_short' => $cw->road_short ?: $cw->road,
-                'road_name'  => $cw->road_name,
-                'road_from'  => $cw->road_from,
-                'road_to'    => $cw->road_to,
-                'total_km'   => (float)$cw->total_km,
-                'type'       => $cw->type,
+                'road_name' => $cw->road_name,
+                'road_from' => $cw->road_from,
+                'road_to' => $cw->road_to,
+                'total_km' => (float) $cw->total_km,
+                'type' => $cw->type,
             ]);
 
         // Recent advisories entered by this operational unit
@@ -159,14 +159,14 @@ class TravelAdvisoryController extends Controller
             ->get();
 
         return view('operations.travel-advisory.create', [
-            'operator'         => $user,
-            'operatorOffice'   => $userOffice,
-            'operatorTier'     => $tier,
-            'isSupervisor'     => $isSupervisor,
-            'hierarchy'        => $hierarchy,
-            'landmarks'        => $landmarks,
-            'zones'            => $zones,
-            'carriageways'     => $carriageways,
+            'operator' => $user,
+            'operatorOffice' => $userOffice,
+            'operatorTier' => $tier,
+            'isSupervisor' => $isSupervisor,
+            'hierarchy' => $hierarchy,
+            'landmarks' => $landmarks,
+            'zones' => $zones,
+            'carriageways' => $carriageways,
             'recentAdvisories' => $recentAdvisories,
         ]);
     }
@@ -180,49 +180,49 @@ class TravelAdvisoryController extends Controller
         $this->authorizeSectorAdmin();
 
         $validated = $request->validate([
-            'category'          => 'sometimes|nullable|in:fog,road_closure,road_works,traffic,weather,diversion',
-            'advisory_type'     => 'sometimes|nullable|in:fog,road_closure,road_works,traffic,weather,diversion',
-            'severity'          => 'required|in:info,advisory,warning,critical',
-            'route_name'        => 'required|string|max:50',
-            'carriageway'       => 'required|in:both,northbound,southbound',
-            'zone_id'           => 'nullable|exists:offices,id',
-            'sector_id'         => 'nullable|exists:offices,id',
-            'office_id'         => 'nullable|exists:offices,id',
-            'beat_ids'          => 'nullable|array',
-            'beat_ids.*'        => 'integer|exists:offices,id',
-            'start_km'          => 'required|numeric|min:0',
-            'end_km'            => 'required|numeric|min:0',
-            'start_landmark'    => 'nullable|string|max:100',
-            'end_landmark'      => 'nullable|string|max:100',
+            'category' => 'sometimes|nullable|in:fog,road_closure,road_works,traffic,weather,diversion',
+            'advisory_type' => 'sometimes|nullable|in:fog,road_closure,road_works,traffic,weather,diversion',
+            'severity' => 'required|in:info,advisory,warning,critical',
+            'route_name' => 'required|string|max:50',
+            'carriageway' => 'required|in:both,northbound,southbound',
+            'zone_id' => 'nullable|exists:offices,id',
+            'sector_id' => 'nullable|exists:offices,id',
+            'office_id' => 'nullable|exists:offices,id',
+            'beat_ids' => 'nullable|array',
+            'beat_ids.*' => 'integer|exists:offices,id',
+            'start_km' => 'required|numeric|min:0',
+            'end_km' => 'required|numeric|min:0',
+            'start_landmark' => 'nullable|string|max:100',
+            'end_landmark' => 'nullable|string|max:100',
             'visibility_meters' => 'nullable|integer|min:0|max:5000',
-            'speed_limit_kmh'   => 'nullable|integer|min:0|max:150',
-            'closure_type'      => 'nullable|in:full,lane_1,lane_2,shoulder,diversion',
-            'title'             => 'required|string|max:150',
-            'message'           => 'required|string|max:1000',
-            'is_emergency'      => 'nullable|boolean',
-            'duration_hours'    => 'nullable|numeric|min:0.5|max:72',
+            'speed_limit_kmh' => 'nullable|integer|min:0|max:150',
+            'closure_type' => 'nullable|in:full,lane_1,lane_2,shoulder,diversion',
+            'title' => 'required|string|max:150',
+            'message' => 'required|string|max:1000',
+            'is_emergency' => 'nullable|boolean',
+            'duration_hours' => 'nullable|numeric|min:0.5|max:72',
             'custom_expires_at' => 'nullable|date',
         ]);
 
         $user = Auth::user();
         $now = Carbon::now();
 
-        if (empty($validated['office_id']) && !empty($validated['beat_ids'])) {
+        if (empty($validated['office_id']) && ! empty($validated['beat_ids'])) {
             $validated['office_id'] = $validated['beat_ids'][0];
         }
-        
-        if (!empty($validated['custom_expires_at'])) {
+
+        if (! empty($validated['custom_expires_at'])) {
             $expiresAt = Carbon::parse($validated['custom_expires_at']);
         } else {
             $durationHours = (float) ($validated['duration_hours'] ?? 4.0);
-            $expiresAt = $now->copy()->addMinutes((int)($durationHours * 60));
+            $expiresAt = $now->copy()->addMinutes((int) ($durationHours * 60));
         }
 
         // Auto-compute coordinates from GeospatialMarker / Carriageway
         $cleanRoute = strtoupper(str_replace(['-', ' '], '', $validated['route_name']));
         $targetOfficeId = $validated['office_id'] ?? $validated['sector_id'] ?? $user?->office_id ?? null;
-        $startCoord = $this->resolveKmCoordinates($targetOfficeId, $validated['route_name'], (float)$validated['start_km']);
-        $endCoord   = $this->resolveKmCoordinates($targetOfficeId, $validated['route_name'], (float)($validated['end_km'] ?? $validated['start_km']));
+        $startCoord = $this->resolveKmCoordinates($targetOfficeId, $validated['route_name'], (float) $validated['start_km']);
+        $endCoord = $this->resolveKmCoordinates($targetOfficeId, $validated['route_name'], (float) ($validated['end_km'] ?? $validated['start_km']));
 
         $category = $request->input('category') ?: $request->input('advisory_type') ?: 'fog';
 
@@ -231,8 +231,8 @@ class TravelAdvisoryController extends Controller
             '%s-%s-KM%03d-KM%03d-%s',
             $cleanRoute,
             strtoupper($validated['carriageway']),
-            (int)$validated['start_km'],
-            (int)$validated['end_km'],
+            (int) $validated['start_km'],
+            (int) $validated['end_km'],
             strtoupper($category)
         );
 
@@ -249,37 +249,37 @@ class TravelAdvisoryController extends Controller
         $approvedAt = ($status === 'published') ? $now : null;
 
         $advisory = TabletAdvisory::create([
-            'uuid'              => (string) Str::uuid(),
-            'title'             => $validated['title'],
-            'category'          => $category,
-            'severity'          => $validated['severity'],
-            'route_name'        => $validated['route_name'],
-            'carriageway'       => $validated['carriageway'],
-            'carriageway_id'    => $carriagewayModel?->id,
-            'zone_id'           => $validated['zone_id'] ?? $user?->office?->parent?->parent_id,
-            'sector_id'         => $validated['sector_id'] ?? $user?->office?->parent_id,
-            'office_id'         => $validated['office_id'] ?? $user?->office_id,
-            'start_km'          => $validated['start_km'],
-            'end_km'            => $validated['end_km'],
-            'start_landmark'    => $validated['start_landmark'],
-            'end_landmark'      => $validated['end_landmark'],
+            'uuid' => (string) Str::uuid(),
+            'title' => $validated['title'],
+            'category' => $category,
+            'severity' => $validated['severity'],
+            'route_name' => $validated['route_name'],
+            'carriageway' => $validated['carriageway'],
+            'carriageway_id' => $carriagewayModel?->id,
+            'zone_id' => $validated['zone_id'] ?? $user?->office?->parent?->parent_id,
+            'sector_id' => $validated['sector_id'] ?? $user?->office?->parent_id,
+            'office_id' => $validated['office_id'] ?? $user?->office_id,
+            'start_km' => $validated['start_km'],
+            'end_km' => $validated['end_km'],
+            'start_landmark' => $validated['start_landmark'],
+            'end_landmark' => $validated['end_landmark'],
             'visibility_meters' => $validated['visibility_meters'] ?? null,
-            'speed_limit_kmh'   => $validated['speed_limit_kmh'] ?? null,
-            'closure_type'      => $validated['closure_type'] ?? null,
-            'message'           => $validated['message'],
-            'status'            => $status,
-            'is_emergency'      => (bool) ($validated['is_emergency'] ?? false) || $validated['severity'] === 'critical',
-            'reported_by_tier'  => $user?->office?->type ?? 'beat',
-            'corridor_key'      => $corridorKey,
-            'start_lat'         => $startCoord['lat'] ?? null,
-            'start_lng'         => $startCoord['lng'] ?? null,
-            'end_lat'           => $endCoord['lat'] ?? null,
-            'end_lng'           => $endCoord['lng'] ?? null,
-            'published_at'      => $publishedAt,
-            'approved_at'       => $approvedAt,
-            'expires_at'        => $expiresAt,
-            'created_by'        => $user?->id ?? 1,
-            'approved_by'       => $approvedBy,
+            'speed_limit_kmh' => $validated['speed_limit_kmh'] ?? null,
+            'closure_type' => $validated['closure_type'] ?? null,
+            'message' => $validated['message'],
+            'status' => $status,
+            'is_emergency' => (bool) ($validated['is_emergency'] ?? false) || $validated['severity'] === 'critical',
+            'reported_by_tier' => $user?->office?->type ?? 'beat',
+            'corridor_key' => $corridorKey,
+            'start_lat' => $startCoord['lat'] ?? null,
+            'start_lng' => $startCoord['lng'] ?? null,
+            'end_lat' => $endCoord['lat'] ?? null,
+            'end_lng' => $endCoord['lng'] ?? null,
+            'published_at' => $publishedAt,
+            'approved_at' => $approvedAt,
+            'expires_at' => $expiresAt,
+            'created_by' => $user?->id ?? 1,
+            'approved_by' => $approvedBy,
         ]);
 
         $this->pushEvent($status === 'published' ? 'approved' : 'created', $advisory);
@@ -293,9 +293,9 @@ class TravelAdvisoryController extends Controller
 
         if ($request->wantsJson() || $request->ajax() || $request->boolean('ajax')) {
             return response()->json([
-                'success'  => true,
-                'message'  => $msg,
-                'status'   => $status,
+                'success' => true,
+                'message' => $msg,
+                'status' => $status,
                 'advisory' => $advisory,
             ]);
         }
@@ -339,7 +339,7 @@ class TravelAdvisoryController extends Controller
             $cleanType = strtolower($type);
             if ($cleanType === 'road_closure') {
                 $query->where('category', 'road_closure')
-                      ->where('category', '!=', 'diversion');
+                    ->where('category', '!=', 'diversion');
             } elseif ($cleanType === 'diversion') {
                 $query->where('category', 'diversion');
             } elseif ($cleanType === 'road_works') {
@@ -358,31 +358,31 @@ class TravelAdvisoryController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', "%{$search}%")
-                  ->orWhere('message', 'like', "%{$search}%")
-                  ->orWhere('start_landmark', 'like', "%{$search}%")
-                  ->orWhere('end_landmark', 'like', "%{$search}%")
-                  ->orWhere('corridor_key', 'like', "%{$search}%")
-                  ->orWhere('route_name', 'like', "%{$search}%");
+                    ->orWhere('message', 'like', "%{$search}%")
+                    ->orWhere('start_landmark', 'like', "%{$search}%")
+                    ->orWhere('end_landmark', 'like', "%{$search}%")
+                    ->orWhere('corridor_key', 'like', "%{$search}%")
+                    ->orWhere('route_name', 'like', "%{$search}%");
             });
         }
 
         $advisories = $query->orderByRaw("CASE WHEN status = 'pending_approval' THEN 0 ELSE 1 END")
-            ->orderByRaw("COALESCE(published_at, created_at) DESC")
+            ->orderByRaw('COALESCE(published_at, created_at) DESC')
             ->paginate(15);
 
         // Metrics for 3D filter stat cards
         $metrics = [
-            'total_active'     => TabletAdvisory::active()->count(),
+            'total_active' => TabletAdvisory::active()->count(),
             'pending_approval' => TabletAdvisory::where('status', 'pending_approval')->count(),
-            'rejected'         => TabletAdvisory::where('status', 'rejected')->count(),
-            'fog_alerts'       => TabletAdvisory::active()->where('category', 'fog')->count(),
-            'road_closures'    => TabletAdvisory::active()->where('category', 'road_closure')->where('category', '!=', 'diversion')->count(),
-            'road_works'       => TabletAdvisory::active()->whereIn('category', ['road_works', 'maintenance'])->count(),
-            'diversions'       => TabletAdvisory::active()->where('category', 'diversion')->count(),
-            'traffic_alerts'   => TabletAdvisory::active()->whereIn('category', ['traffic', 'congestion'])->count(),
+            'rejected' => TabletAdvisory::where('status', 'rejected')->count(),
+            'fog_alerts' => TabletAdvisory::active()->where('category', 'fog')->count(),
+            'road_closures' => TabletAdvisory::active()->where('category', 'road_closure')->where('category', '!=', 'diversion')->count(),
+            'road_works' => TabletAdvisory::active()->whereIn('category', ['road_works', 'maintenance'])->count(),
+            'diversions' => TabletAdvisory::active()->where('category', 'diversion')->count(),
+            'traffic_alerts' => TabletAdvisory::active()->whereIn('category', ['traffic', 'congestion'])->count(),
             'critical_hazards' => TabletAdvisory::active()->where('severity', 'critical')->count(),
             'expired_resolved' => TabletAdvisory::where('status', 'resolved')->count(),
-            'total_all'        => TabletAdvisory::count(),
+            'total_all' => TabletAdvisory::count(),
         ];
 
         $isSupervisor = $this->isSupervisorOrAdmin();
@@ -393,60 +393,60 @@ class TravelAdvisoryController extends Controller
             $isResolved = ($item->status === 'resolved');
             $isRejected = ($item->status === 'rejected');
             $isExpired = ($isPublished && $item->expires_at && $item->expires_at->isPast());
-            $isLive = ($isPublished && !$isExpired);
+            $isLive = ($isPublished && ! $isExpired);
 
             return [
-                'id'                  => $item->id,
-                'uuid'                => $item->uuid,
-                'title'               => $item->title,
-                'message'             => $item->message,
-                'category'            => $item->category,
-                'advisory_type'       => $item->category,
-                'severity'            => $item->severity,
-                'route_name'          => $item->route_name,
-                'carriageway'         => $item->carriageway,
-                'start_km'            => (float) $item->start_km,
-                'end_km'              => (float) ($item->end_km ?: $item->start_km),
-                'start_landmark'      => $item->start_landmark,
-                'end_landmark'        => $item->end_landmark,
-                'visibility_meters'   => $item->visibility_meters,
-                'speed_limit_kmh'     => $item->speed_limit_kmh,
-                'closure_type'        => $item->closure_type,
-                'status'              => $item->status,
-                'is_emergency'        => (bool) $item->is_emergency,
-                'reported_by_tier'    => $item->reported_by_tier ?: 'Operator',
-                'office_name'         => $item->office?->name ?: 'Wireless Station',
-                'sector_name'         => $item->office?->parent?->name ?: 'Sector',
-                'zone_name'           => $item->office?->parent?->parent?->name ?: 'Zone',
-                'is_pending'          => $isPending,
-                'is_live'             => $isLive,
-                'is_expired'          => $isExpired,
-                'is_resolved'         => $isResolved,
-                'is_rejected'         => $isRejected,
-                'creator_name'        => $item->creator?->username ?: ($item->creator?->full_name ?: ($item->creator?->name ?: 'Field Operator')),
-                'approver_name'       => $item->approver?->username ?: ($item->approver?->full_name ?: ($item->approver?->name ?: null)),
-                'rejection_reason'    => $item->rejection_reason,
-                'can_approve'         => $isSupervisor,
-                'can_edit'            => $isSupervisor,
-                'can_reject'          => $isSupervisor,
-                'expires_at_human'    => $item->expires_at ? $item->expires_at->timezone('Asia/Karachi')->diffForHumans() : 'N/A',
-                'published_at_human'  => $item->published_at ? $item->published_at->timezone('Asia/Karachi')->diffForHumans() : ($item->created_at ? $item->created_at->timezone('Asia/Karachi')->diffForHumans() : 'Pending'),
+                'id' => $item->id,
+                'uuid' => $item->uuid,
+                'title' => $item->title,
+                'message' => $item->message,
+                'category' => $item->category,
+                'advisory_type' => $item->category,
+                'severity' => $item->severity,
+                'route_name' => $item->route_name,
+                'carriageway' => $item->carriageway,
+                'start_km' => (float) $item->start_km,
+                'end_km' => (float) ($item->end_km ?: $item->start_km),
+                'start_landmark' => $item->start_landmark,
+                'end_landmark' => $item->end_landmark,
+                'visibility_meters' => $item->visibility_meters,
+                'speed_limit_kmh' => $item->speed_limit_kmh,
+                'closure_type' => $item->closure_type,
+                'status' => $item->status,
+                'is_emergency' => (bool) $item->is_emergency,
+                'reported_by_tier' => $item->reported_by_tier ?: 'Operator',
+                'office_name' => $item->office?->name ?: 'Wireless Station',
+                'sector_name' => $item->office?->parent?->name ?: 'Sector',
+                'zone_name' => $item->office?->parent?->parent?->name ?: 'Zone',
+                'is_pending' => $isPending,
+                'is_live' => $isLive,
+                'is_expired' => $isExpired,
+                'is_resolved' => $isResolved,
+                'is_rejected' => $isRejected,
+                'creator_name' => $item->creator?->username ?: ($item->creator?->full_name ?: ($item->creator?->name ?: 'Field Operator')),
+                'approver_name' => $item->approver?->username ?: ($item->approver?->full_name ?: ($item->approver?->name ?: null)),
+                'rejection_reason' => $item->rejection_reason,
+                'can_approve' => $isSupervisor,
+                'can_edit' => $isSupervisor,
+                'can_reject' => $isSupervisor,
+                'expires_at_human' => $item->expires_at ? $item->expires_at->timezone('Asia/Karachi')->diffForHumans() : 'N/A',
+                'published_at_human' => $item->published_at ? $item->published_at->timezone('Asia/Karachi')->diffForHumans() : ($item->created_at ? $item->created_at->timezone('Asia/Karachi')->diffForHumans() : 'Pending'),
             ];
         })->all();
 
         if ($request->wantsJson() || $request->ajax() || $request->boolean('ajax')) {
             return response()->json([
-                'success'    => true,
-                'items'      => $formattedItems,
+                'success' => true,
+                'items' => $formattedItems,
                 'pagination' => [
                     'current_page' => $advisories->currentPage(),
-                    'last_page'    => $advisories->lastPage(),
-                    'per_page'     => $advisories->perPage(),
-                    'total'        => $advisories->total(),
-                    'from'         => $advisories->firstItem() ?? 0,
-                    'to'           => $advisories->lastItem() ?? 0,
+                    'last_page' => $advisories->lastPage(),
+                    'per_page' => $advisories->perPage(),
+                    'total' => $advisories->total(),
+                    'from' => $advisories->firstItem() ?? 0,
+                    'to' => $advisories->lastItem() ?? 0,
                 ],
-                'metrics'    => $metrics,
+                'metrics' => $metrics,
             ]);
         }
 
@@ -455,15 +455,15 @@ class TravelAdvisoryController extends Controller
             ->get();
 
         return view('operations.travel-advisory.index', [
-            'initialItems'  => $formattedItems,
-            'advisories'    => $advisories,
-            'metrics'       => $metrics,
-            'carriageways'  => $carriageways,
-            'currentRoad'   => $road,
+            'initialItems' => $formattedItems,
+            'advisories' => $advisories,
+            'metrics' => $metrics,
+            'carriageways' => $carriageways,
+            'currentRoad' => $road,
             'currentStatus' => $status,
-            'currentType'   => $type,
-            'search'        => $search,
-            'canApprove'    => $isSupervisor,
+            'currentType' => $type,
+            'search' => $search,
+            'canApprove' => $isSupervisor,
         ]);
     }
 
@@ -477,31 +477,31 @@ class TravelAdvisoryController extends Controller
             ->findOrFail($id);
 
         return response()->json([
-            'success'  => true,
+            'success' => true,
             'advisory' => [
-                'id'                => $item->id,
-                'uuid'              => $item->uuid,
-                'title'             => $item->title,
-                'message'           => $item->message,
-                'category'          => $item->category,
-                'advisory_type'     => $item->category,
-                'severity'          => $item->severity,
-                'route_name'        => $item->route_name,
-                'carriageway'       => $item->carriageway,
-                'start_km'          => (float) $item->start_km,
-                'end_km'            => (float) ($item->end_km ?: $item->start_km),
-                'start_landmark'    => $item->start_landmark,
-                'end_landmark'      => $item->end_landmark,
+                'id' => $item->id,
+                'uuid' => $item->uuid,
+                'title' => $item->title,
+                'message' => $item->message,
+                'category' => $item->category,
+                'advisory_type' => $item->category,
+                'severity' => $item->severity,
+                'route_name' => $item->route_name,
+                'carriageway' => $item->carriageway,
+                'start_km' => (float) $item->start_km,
+                'end_km' => (float) ($item->end_km ?: $item->start_km),
+                'start_landmark' => $item->start_landmark,
+                'end_landmark' => $item->end_landmark,
                 'visibility_meters' => $item->visibility_meters,
-                'speed_limit_kmh'   => $item->speed_limit_kmh,
-                'closure_type'      => $item->closure_type,
-                'status'            => $item->status,
-                'is_emergency'      => (bool) $item->is_emergency,
-                'rejection_reason'  => $item->rejection_reason,
-                'creator_name'      => $item->creator?->username ?: ($item->creator?->name ?: 'Field Operator'),
-                'approver_name'     => $item->approver?->username ?: ($item->approver?->name ?: null),
-                'published_at'      => $item->published_at?->toIso8601String(),
-                'expires_at'        => $item->expires_at?->toIso8601String(),
+                'speed_limit_kmh' => $item->speed_limit_kmh,
+                'closure_type' => $item->closure_type,
+                'status' => $item->status,
+                'is_emergency' => (bool) $item->is_emergency,
+                'rejection_reason' => $item->rejection_reason,
+                'creator_name' => $item->creator?->username ?: ($item->creator?->name ?: 'Field Operator'),
+                'approver_name' => $item->approver?->username ?: ($item->approver?->name ?: null),
+                'published_at' => $item->published_at?->toIso8601String(),
+                'expires_at' => $item->expires_at?->toIso8601String(),
             ],
         ]);
     }
@@ -518,41 +518,41 @@ class TravelAdvisoryController extends Controller
         $advisory = TabletAdvisory::findOrFail($id);
 
         $validated = $request->validate([
-            'title'             => 'required|string|max:150',
-            'message'           => 'required|string|max:1000',
-            'severity'          => 'sometimes|required|in:info,advisory,warning,critical',
-            'category'          => 'sometimes|nullable|in:fog,road_closure,road_works,traffic,weather,diversion',
-            'advisory_type'     => 'sometimes|nullable|in:fog,road_closure,road_works,traffic,weather,diversion',
-            'carriageway'       => 'sometimes|required|in:both,northbound,southbound',
-            'start_km'          => 'nullable|numeric|min:0',
-            'end_km'            => 'nullable|numeric|min:0',
-            'start_landmark'    => 'nullable|string|max:100',
-            'end_landmark'      => 'nullable|string|max:100',
+            'title' => 'required|string|max:150',
+            'message' => 'required|string|max:1000',
+            'severity' => 'sometimes|required|in:info,advisory,warning,critical',
+            'category' => 'sometimes|nullable|in:fog,road_closure,road_works,traffic,weather,diversion',
+            'advisory_type' => 'sometimes|nullable|in:fog,road_closure,road_works,traffic,weather,diversion',
+            'carriageway' => 'sometimes|required|in:both,northbound,southbound',
+            'start_km' => 'nullable|numeric|min:0',
+            'end_km' => 'nullable|numeric|min:0',
+            'start_landmark' => 'nullable|string|max:100',
+            'end_landmark' => 'nullable|string|max:100',
             'visibility_meters' => 'nullable|integer|min:0|max:5000',
-            'speed_limit_kmh'   => 'nullable|integer|min:0|max:150',
-            'closure_type'      => 'nullable|in:full,lane_1,lane_2,shoulder,diversion',
-            'is_emergency'      => 'nullable|boolean',
-            'duration_hours'    => 'nullable|numeric|min:0.5|max:72',
-            'approve_now'       => 'nullable|boolean',
+            'speed_limit_kmh' => 'nullable|integer|min:0|max:150',
+            'closure_type' => 'nullable|in:full,lane_1,lane_2,shoulder,diversion',
+            'is_emergency' => 'nullable|boolean',
+            'duration_hours' => 'nullable|numeric|min:0.5|max:72',
+            'approve_now' => 'nullable|boolean',
         ]);
 
         $category = $request->input('category') ?: $request->input('advisory_type') ?: $advisory->category;
 
-        $advisory->title             = $validated['title'];
-        $advisory->message           = $validated['message'];
-        $advisory->severity          = $validated['severity'] ?? $advisory->severity;
-        $advisory->category          = $category;
-        $advisory->carriageway       = $validated['carriageway'] ?? $advisory->carriageway ?? 'both';
-        $advisory->start_km          = isset($validated['start_km']) ? $validated['start_km'] : $advisory->start_km;
-        $advisory->end_km            = isset($validated['end_km']) ? $validated['end_km'] : ($advisory->end_km ?: $advisory->start_km);
-        $advisory->start_landmark    = $validated['start_landmark'] ?? null;
-        $advisory->end_landmark      = $validated['end_landmark'] ?? null;
+        $advisory->title = $validated['title'];
+        $advisory->message = $validated['message'];
+        $advisory->severity = $validated['severity'] ?? $advisory->severity;
+        $advisory->category = $category;
+        $advisory->carriageway = $validated['carriageway'] ?? $advisory->carriageway ?? 'both';
+        $advisory->start_km = isset($validated['start_km']) ? $validated['start_km'] : $advisory->start_km;
+        $advisory->end_km = isset($validated['end_km']) ? $validated['end_km'] : ($advisory->end_km ?: $advisory->start_km);
+        $advisory->start_landmark = $validated['start_landmark'] ?? null;
+        $advisory->end_landmark = $validated['end_landmark'] ?? null;
         $advisory->visibility_meters = $validated['visibility_meters'] ?? null;
-        $advisory->speed_limit_kmh   = $validated['speed_limit_kmh'] ?? null;
-        $advisory->closure_type      = $validated['closure_type'] ?? null;
-        $advisory->is_emergency      = (bool) ($validated['is_emergency'] ?? $advisory->is_emergency) || (($validated['severity'] ?? $advisory->severity) === 'critical');
+        $advisory->speed_limit_kmh = $validated['speed_limit_kmh'] ?? null;
+        $advisory->closure_type = $validated['closure_type'] ?? null;
+        $advisory->is_emergency = (bool) ($validated['is_emergency'] ?? $advisory->is_emergency) || (($validated['severity'] ?? $advisory->severity) === 'critical');
 
-        $explicitDuration = !empty($validated['duration_hours']);
+        $explicitDuration = ! empty($validated['duration_hours']);
         if ($explicitDuration) {
             // "Valid for N hours" counts from now. Leaving it blank keeps the current expiry untouched.
             $advisory->expires_at = Carbon::now()->addMinutes((int) ($validated['duration_hours'] * 60));
@@ -561,7 +561,7 @@ class TravelAdvisoryController extends Controller
         $isSupervisor = $this->isSupervisorOrAdmin($user);
         if ($request->boolean('approve_now') && $isSupervisor) {
             $now = Carbon::now();
-            if (!$explicitDuration && $advisory->status !== 'published') {
+            if (! $explicitDuration && $advisory->status !== 'published') {
                 $advisory->expires_at = $this->expiryFromApproval($advisory);
             }
             $advisory->status = 'published';
@@ -579,14 +579,14 @@ class TravelAdvisoryController extends Controller
 
         if ($request->wantsJson() || $request->ajax() || $request->boolean('ajax')) {
             return response()->json([
-                'success'  => true,
-                'message'  => "Advisory '{$advisory->title}' updated successfully" . ($advisory->status === 'published' ? ' and published live.' : '.'),
+                'success' => true,
+                'message' => "Advisory '{$advisory->title}' updated successfully".($advisory->status === 'published' ? ' and published live.' : '.'),
                 'advisory' => $advisory,
             ]);
         }
 
         return redirect()->route('ops.travel-advisory.index')
-            ->with('success', "Advisory updated successfully.");
+            ->with('success', 'Advisory updated successfully.');
     }
 
     /**
@@ -596,7 +596,7 @@ class TravelAdvisoryController extends Controller
     public function liveEvents(Request $request): JsonResponse
     {
         $this->authorizeSectorAdmin();
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = Auth::user();
         $latest = TravelAdvisoryEventFeed::latestSeq();
 
@@ -638,7 +638,7 @@ class TravelAdvisoryController extends Controller
 
         $durationHours = (float) ($request->input('duration_hours', 0));
         if ($durationHours > 0) {
-            $advisory->expires_at = Carbon::now()->addMinutes((int)($durationHours * 60));
+            $advisory->expires_at = Carbon::now()->addMinutes((int) ($durationHours * 60));
         } else {
             // Keep the validity the operator chose when inserting; the clock starts at approval.
             $advisory->expires_at = $this->expiryFromApproval($advisory);
@@ -649,9 +649,9 @@ class TravelAdvisoryController extends Controller
 
         if ($request->wantsJson() || $request->ajax() || $request->boolean('ajax')) {
             return response()->json([
-                'success'  => true,
-                'message'  => "Travel advisory #{$advisory->id} ('{$advisory->title}') approved and broadcasted live to Humsafar and public APIs.",
-                'status'   => 'published',
+                'success' => true,
+                'message' => "Travel advisory #{$advisory->id} ('{$advisory->title}') approved and broadcasted live to Humsafar and public APIs.",
+                'status' => 'published',
                 'advisory' => $advisory,
             ]);
         }
@@ -670,13 +670,13 @@ class TravelAdvisoryController extends Controller
 
         $reason = $request->input('reason', 'Rejected by Call Center Agent Supervisor.');
         $advisory->reject(Auth::id(), $reason);
-        $this->pushEvent('rejected', $advisory, ['reason' => \Illuminate\Support\Str::limit((string) $reason, 120)]);
+        $this->pushEvent('rejected', $advisory, ['reason' => Str::limit((string) $reason, 120)]);
 
         if ($request->wantsJson() || $request->ajax() || $request->boolean('ajax')) {
             return response()->json([
-                'success'  => true,
-                'message'  => "Travel advisory #{$advisory->id} rejected.",
-                'status'   => 'rejected',
+                'success' => true,
+                'message' => "Travel advisory #{$advisory->id} rejected.",
+                'status' => 'rejected',
                 'advisory' => $advisory,
             ]);
         }
@@ -694,7 +694,7 @@ class TravelAdvisoryController extends Controller
 
         $advisory = TabletAdvisory::findOrFail($id);
         $advisory->update([
-            'status'     => 'resolved',
+            'status' => 'resolved',
             'expires_at' => Carbon::now(),
         ]);
 
@@ -724,14 +724,14 @@ class TravelAdvisoryController extends Controller
             $hours = 2.0;
         }
 
-        $baseTime = ($advisory->expires_at && $advisory->expires_at->isFuture()) 
-            ? $advisory->expires_at 
+        $baseTime = ($advisory->expires_at && $advisory->expires_at->isFuture())
+            ? $advisory->expires_at
             : Carbon::now();
-        $newExpiry = $baseTime->copy()->addMinutes((int)($hours * 60));
+        $newExpiry = $baseTime->copy()->addMinutes((int) ($hours * 60));
 
         $advisory->update([
             'expires_at' => $newExpiry,
-            'status'     => 'published',
+            'status' => 'published',
         ]);
 
         TabletAdvisory::flushAdvisoryCache();
@@ -739,14 +739,14 @@ class TravelAdvisoryController extends Controller
 
         if ($request->wantsJson() || $request->ajax() || $request->boolean('ajax')) {
             return response()->json([
-                'success'          => true,
-                'message'          => "Advisory validity extended by {$hours}h until " . $newExpiry->timezone('Asia/Karachi')->format('H:i \P\K\T'),
-                'expires_at'       => $newExpiry->toIso8601String(),
+                'success' => true,
+                'message' => "Advisory validity extended by {$hours}h until ".$newExpiry->timezone('Asia/Karachi')->format('H:i \P\K\T'),
+                'expires_at' => $newExpiry->toIso8601String(),
                 'expires_at_human' => $newExpiry->timezone('Asia/Karachi')->diffForHumans(),
             ]);
         }
 
-        return back()->with('success', "Advisory validity extended until " . $newExpiry->timezone('Asia/Karachi')->format('H:i \P\K\T'));
+        return back()->with('success', 'Advisory validity extended until '.$newExpiry->timezone('Asia/Karachi')->format('H:i \P\K\T'));
     }
 
     /**
@@ -762,10 +762,10 @@ class TravelAdvisoryController extends Controller
                 $marker = $cw->markers()
                     ->whereNotNull('lat')
                     ->whereNotNull('lng')
-                    ->orderByRaw("ABS(km - ?)", [$km])
+                    ->orderByRaw('ABS(km - ?)', [$km])
                     ->first();
                 if ($marker) {
-                    return ['lat' => (float)$marker->lat, 'lng' => (float)$marker->lng];
+                    return ['lat' => (float) $marker->lat, 'lng' => (float) $marker->lng];
                 }
             }
         }
@@ -782,14 +782,14 @@ class TravelAdvisoryController extends Controller
                 }
             }
 
-            if (!empty($beatIds)) {
+            if (! empty($beatIds)) {
                 $marker = GeospatialMarker::whereIn('office_id', $beatIds)
                     ->whereNotNull('lat')
                     ->whereNotNull('lng')
-                    ->orderByRaw("ABS(km - ?)", [$km])
+                    ->orderByRaw('ABS(km - ?)', [$km])
                     ->first();
                 if ($marker) {
-                    return ['lat' => (float)$marker->lat, 'lng' => (float)$marker->lng];
+                    return ['lat' => (float) $marker->lat, 'lng' => (float) $marker->lng];
                 }
             }
         }
@@ -798,7 +798,7 @@ class TravelAdvisoryController extends Controller
         if ($routeName) {
             $defaults = TabletAdvisory::getRouteDefaultCoordinates($routeName);
             if ($defaults && isset($defaults[0])) {
-                return ['lat' => (float)$defaults[0][0], 'lng' => (float)$defaults[0][1]];
+                return ['lat' => (float) $defaults[0][0], 'lng' => (float) $defaults[0][1]];
             }
         }
 

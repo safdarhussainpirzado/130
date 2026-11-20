@@ -33,7 +33,7 @@ class FcmService
         }
 
         $credsFile = (string) config('services.firebase.credentials_file');
-        if (empty($credsFile) || ! file_exists($credsFile) || ! is_readable($credsFile)) {
+        if (empty($credsFile) || ! file_exists($credsFile) || ! is_readable($credsFile) || filesize($credsFile) === 0) {
             return null;
         }
 
@@ -86,7 +86,7 @@ class FcmService
         $credsFile = (string) config('services.firebase.credentials_file');
         $projectId = config('services.firebase.project_id');
 
-        if (empty($projectId) && ! empty($credsFile) && file_exists($credsFile) && is_readable($credsFile)) {
+        if (empty($projectId) && ! empty($credsFile) && file_exists($credsFile) && is_readable($credsFile) && filesize($credsFile) > 0) {
             $parsed = json_decode((string) file_get_contents($credsFile), true);
             $projectId = $parsed['project_id'] ?? null;
         }

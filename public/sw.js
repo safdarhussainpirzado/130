@@ -1,10 +1,10 @@
 /**
  * NHMP 130 Unified CRM Service Worker (Desk Scope)
  *
- * Implements Web Push API event handling, same-origin relative path navigation,
- * and P1/P2 interaction pinning.
+ * Implements W3C Web Push event handling, strict same-origin navigation,
+ * and high-priority OS desktop alert banner display.
  *
- * Header delivery: Cache-Control: no-cache
+ * Zero third-party scripts. Fail-closed same-origin routing.
  */
 
 self.addEventListener('install', (event) => {
@@ -34,22 +34,21 @@ self.addEventListener('push', (event) => {
     const title = (payload.title || 'NHMP 130 Operations Alert').substring(0, 80);
     const body = (payload.body || 'New operational activity requires your attention.').substring(0, 200);
 
-    // Strict same-origin relative URL validation
-    let targetUrl = '/';
+    // Strict same-origin relative URL validation (fallback to /dashboard)
+    let targetUrl = '/dashboard';
     if (payload.data && typeof payload.data.url === 'string') {
         const candidate = payload.data.url.trim();
-        if (candidate.startsWith('/') && !candidate.startsWith('//') && !candidate.includes('://')) {
+        if (candidate.startsWith('/') && !candidate.startsWith('//') && !candidate.includes(':') && !candidate.includes('\\')) {
             targetUrl = candidate;
         }
     }
 
-    // requireInteraction is strictly limited to P1 / Critical / Emergency help calls
-    const isP1 = !!(
+    // requireInteraction is strictly pinned to P1 / P2 help calls
+    const isP1OrP2 = Boolean(
         payload.data && (
             payload.data.requireInteraction === true ||
-            payload.data.priority === 'critical' ||
-            payload.data.priority === 'emergency' ||
-            payload.data.priority === 'p1'
+            Number(payload.data.priority) === 1 ||
+            Number(payload.data.priority) === 2
         )
     );
 
@@ -59,8 +58,8 @@ self.addEventListener('push', (event) => {
         badge: payload.badge || '/favicon-32x32.png',
         tag: payload.tag || 'nhmp-130-alert',
         data: Object.assign({}, payload.data || {}, { url: targetUrl }),
-        requireInteraction: isP1,
-        vibrate: isP1 ? [300, 100, 300, 100, 300] : [200, 100, 200],
+        requireInteraction: isP1OrP2,
+        vibrate: isP1OrP2 ? [300, 100, 300, 100, 300] : [200, 100, 200],
     };
 
     event.waitUntil(
@@ -71,10 +70,11 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
 
-    let targetPath = '/';
+    // Strict same-origin relative URL validation (fallback to /dashboard)
+    let targetPath = '/dashboard';
     if (event.notification.data && typeof event.notification.data.url === 'string') {
         const candidate = event.notification.data.url.trim();
-        if (candidate.startsWith('/') && !candidate.startsWith('//') && !candidate.includes('://')) {
+        if (candidate.startsWith('/') && !candidate.startsWith('//') && !candidate.includes(':') && !candidate.includes('\\')) {
             targetPath = candidate;
         }
     }

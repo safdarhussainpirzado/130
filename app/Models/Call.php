@@ -2,14 +2,26 @@
 
 namespace App\Models;
 
+use App\Casts\GracefulEncrypted;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Str;
 
 class Call extends Model
 {
     use HasFactory;
+
+    public const PRIORITY_P1 = 1;
+
+    public const PRIORITY_P2 = 2;
+
+    public const PRIORITY_P3 = 3;
+
+    public const PRIORITY_P4 = 4;
+
+    public const PRIORITY_P5 = 5;
 
     protected $fillable = [
         'uuid',
@@ -77,20 +89,20 @@ class Call extends Model
     ];
 
     protected $casts = [
-        'caller_number'     => \App\Casts\GracefulEncrypted::class,
-        'caller_name'       => \App\Casts\GracefulEncrypted::class,
-        'is_reminder_call'  => 'boolean',
+        'caller_number' => GracefulEncrypted::class,
+        'caller_name' => GracefulEncrypted::class,
+        'is_reminder_call' => 'boolean',
         'is_phone_activity' => 'boolean',
-        'followup_needed'   => 'boolean',
-        'call_start_time'   => 'datetime',
-        'call_pickup_time'  => 'datetime',
-        'call_end_time'     => 'datetime',
-        'assigned_at'       => 'datetime',
-        'acknowledged_at'   => 'datetime',
-        'inprogress_at'     => 'datetime',
-        'tiger_reached_at'  => 'datetime',
-        'completed_at'      => 'datetime',
-        'last_reminder_at'  => 'datetime',
+        'followup_needed' => 'boolean',
+        'call_start_time' => 'datetime',
+        'call_pickup_time' => 'datetime',
+        'call_end_time' => 'datetime',
+        'assigned_at' => 'datetime',
+        'acknowledged_at' => 'datetime',
+        'inprogress_at' => 'datetime',
+        'tiger_reached_at' => 'datetime',
+        'completed_at' => 'datetime',
+        'last_reminder_at' => 'datetime',
     ];
 
     /**
@@ -100,12 +112,12 @@ class Call extends Model
     {
         static::creating(function (Call $call): void {
             if (empty($call->uuid)) {
-                $call->uuid = (string) \Illuminate\Support\Str::uuid7();
+                $call->uuid = (string) Str::uuid7();
             }
         });
 
         static::saving(function (Call $call): void {
-            if (!empty($call->caller_number)) {
+            if (! empty($call->caller_number)) {
                 $call->caller_number_bidx = phone_blind_index((string) $call->caller_number);
             }
         });
@@ -124,7 +136,7 @@ class Call extends Model
      */
     public function resolveRouteBinding($value, $field = null): ?Model
     {
-        if (\Illuminate\Support\Str::isUuid($value)) {
+        if (Str::isUuid($value)) {
             return $this->where('uuid', $value)->firstOrFail();
         }
 
@@ -133,6 +145,32 @@ class Call extends Model
         }
 
         abort(404, 'Call record not found.');
+    }
+
+    public function isP1(): bool
+    {
+        return (int) $this->priority === self::PRIORITY_P1;
+    }
+
+    public function isP1OrP2(): bool
+    {
+        $p = (int) $this->priority;
+
+        return $p === self::PRIORITY_P1 || $p === self::PRIORITY_P2;
+    }
+
+    public function getPriorityLabel(): string
+    {
+        $p = (int) $this->priority;
+
+        return match ($p) {
+            1 => 'P1',
+            2 => 'P2',
+            3 => 'P3',
+            4 => 'P4',
+            5 => 'P5',
+            default => 'P'.($p ?: 3),
+        };
     }
 
     public function agent(): BelongsTo
@@ -184,7 +222,6 @@ class Call extends Model
     {
         return $this->belongsTo(VehicleType::class);
     }
-
 
     public function statusHistory(): HasMany
     {
@@ -271,22 +308,24 @@ class Call extends Model
     public function getDisplayTigerAttribute(): ?string
     {
         $rawCode = $this->tiger_id;
-        if (!$rawCode && $this->inprogress_remarks && preg_match('/\[Allocated (?:Static )?Asset: (.*?)\]/i', $this->inprogress_remarks, $matches)) {
+        if (! $rawCode && $this->inprogress_remarks && preg_match('/\[Allocated (?:Static )?Asset: (.*?)\]/i', $this->inprogress_remarks, $matches)) {
             $rawCode = trim($matches[1]);
         }
 
-        if (!$rawCode) {
+        if (! $rawCode) {
             return null;
         }
 
         if (str_starts_with(strtoupper($rawCode), 'ST')) {
             $num = ltrim(substr($rawCode, 2), '- ');
-            return 'Special Tiger-' . $num;
+
+            return 'Special Tiger-'.$num;
         }
 
         if (str_starts_with(strtoupper($rawCode), 'T')) {
             $num = ltrim(substr($rawCode, 1), '- ');
-            return 'Tiger-' . $num;
+
+            return 'Tiger-'.$num;
         }
 
         return $rawCode;

@@ -171,7 +171,7 @@ input:focus, textarea:focus, button:focus-visible {
                                    class="w-full px-2.5 py-1.5 bg-white/60 border border-slate-200/80 rounded-xl text-[11px] text-slate-700 placeholder:text-slate-400 outline-none transition-all focus:border-blue-400/80 focus:bg-white/80 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.08)] hover:border-slate-300/80 uppercase font-bold">
                         </div>
                         <div class="relative">
-                            <label class="block text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500 mb-1">KM Marker <span class="text-rose-500">*</span></label>
+                            <label class="block text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500 mb-1">KM Marker</label>
                             <input type="text" x-model="spatial.km" @input.debounce.500ms="lookupKM()" placeholder="e.g. 504, 24-N"
                                    class="w-full px-2.5 py-1.5 bg-white/60 border border-slate-200/80 rounded-xl text-[11px] text-slate-700 placeholder:text-slate-400 outline-none transition-all focus:border-blue-400/80 focus:bg-white/80 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.08)] hover:border-slate-300/80 font-bold text-center">
                             
@@ -1004,9 +1004,7 @@ function intakeComponent() {
                 if (!this.spatial.sector_id) this.errors.push('Sector selection is mandatory.');
                 if (!this.spatial.zone_id) this.errors.push('Zone selection is mandatory.');
                 const kmText = String(this.spatial.km || '').trim();
-                if (!kmText) {
-                    this.errors.push('KM marker is required so the help is placed on the road (e.g. 504 or 24 NB).');
-                } else if (!/^\d{1,4}(\.\d{1,2})?\s*[- ]?\s*(NB|SB|N|S)?$/i.test(kmText)) {
+                if (kmText && !/^\d{1,4}(\.\d{1,2})?\s*[- ]?\s*(NB|SB|N|S)?$/i.test(kmText)) {
                     this.errors.push('KM marker must be a number with an optional side, e.g. 504, 24-N or 327 SB.');
                 }
             }

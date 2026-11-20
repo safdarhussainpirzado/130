@@ -5,6 +5,8 @@ namespace Tests\Unit\Notifications;
 use App\Models\Call;
 use App\Models\CallType;
 use App\Models\Office;
+use App\Models\SupportRequest;
+use App\Models\TabletAdvisory;
 use App\Services\Notifications\FcmService;
 use App\Services\Notifications\PushNotificationService;
 use App\Services\Notifications\WebPushService;
@@ -70,42 +72,128 @@ class PayloadHygieneTest extends TestCase
         $this->assertEquals('/', $this->service->sanitizeRelativeUrl('calls/123'));
     }
 
-    public function test_help_pending_payload_contains_zero_pii(): void
+    public function test_help_pending_payload_behaviourally_contains_zero_pii(): void
     {
-        // Mock a call with sensitive citizen details
+        $sensitivePhone = '03001234567';
+        $sensitiveCnic = '42101-9876543-1';
+        $sensitiveName = 'Safdar Hussain Motorist';
+        $sensitiveRemarks = 'Critical trauma victim bleeding at seat 2';
+
         $call = new Call([
             'id' => 9999,
             'call_number' => 'CRM-2026-09999',
             'status' => 'pending',
-            'priority' => 'critical',
-            'caller_name' => 'Safdar Hussain Citizen',
-            'caller_phone' => '03001234567',
-            'caller_cnic' => '42101-1234567-1',
-            'remarks' => 'Sensitive victim medical state: traumatic injury',
+            'priority' => 1,
+            'caller_name' => $sensitiveName,
+            'caller_phone' => $sensitivePhone,
+            'caller_cnic' => $sensitiveCnic,
+            'remarks' => $sensitiveRemarks,
+            'details' => 'Passenger in distress with phone: '.$sensitivePhone,
         ]);
 
         $call->setRelation('office', new Office(['name' => 'Beat 10 (M-2)']));
         $call->setRelation('callType', new CallType(['name' => 'Road Accident']));
 
-        $reflection = new \ReflectionClass($this->service);
-        $method = $reflection->getMethod('resolveDeskRecipientsForHelp');
-        $method->setAccessible(true);
+        $beatName = $call->office?->name ?? 'Unassigned Beat';
+        $typeName = $call->callType?->name ?? 'Help Request';
+        $priorityLabel = $call->getPriorityLabel();
 
-        // Verify that the title and body formulated do not contain PII
-        $priorityLabel = strtoupper((string) ($call->priority ?? 'NORMAL'));
-        $title = $this->service->sanitizeText("🚨 NHMP 130 [{$priorityLabel}]: Pending Help {$call->call_number}", 80);
-        $body = $this->service->sanitizeText('Beat: Beat 10 (M-2) | Type: Road Accident | Requires immediate operational dispatch.', 200);
+        $title = $this->service->sanitizeText("🚨 NHMP 130 [{$priorityLabel}]: Pending Help {$call->call_number}", PushNotificationService::MAX_TITLE_LENGTH);
+        $body = $this->service->sanitizeText("Beat: {$beatName} | Type: {$typeName} | Requires immediate operational dispatch.", PushNotificationService::MAX_BODY_LENGTH);
+        $url = $this->service->resolveCallUrl($call);
 
-        $this->assertStringNotContainsString('Safdar', $title);
-        $this->assertStringNotContainsString('Safdar', $body);
-        $this->assertStringNotContainsString('03001234567', $title);
-        $this->assertStringNotContainsString('03001234567', $body);
-        $this->assertStringNotContainsString('42101', $title);
-        $this->assertStringNotContainsString('42101', $body);
-        $this->assertStringNotContainsString('traumatic', $title);
-        $this->assertStringNotContainsString('traumatic', $body);
+        $payload = [
+            'title' => $title,
+            'body' => $body,
+            'data' => [
+                'type' => 'help_pending',
+                'call_id' => $call->id,
+                'call_number' => $call->call_number,
+                'priority' => 1,
+                'url' => $url,
+                'requireInteraction' => true,
+            ],
+        ];
 
-        $this->assertStringContainsString('CRM-2026-09999', $title);
-        $this->assertStringContainsString('Beat 10 (M-2)', $body);
+        $payloadJson = json_encode($payload);
+
+        // Strict behavioral assertions: PII must never leak into title, body, or data
+        $this->assertStringNotContainsString($sensitivePhone, $payloadJson);
+        $this->assertStringNotContainsString($sensitiveCnic, $payloadJson);
+        $this->assertStringNotContainsString('Safdar', $payloadJson);
+        $this->assertStringNotContainsString('trauma', $payloadJson);
+        $this->assertStringNotContainsString('bleeding', $payloadJson);
+
+        // Allowed non-PII operational identifiers must be present
+        $this->assertStringContainsString('CRM-2026-09999', $payloadJson);
+        $this->assertStringContainsString('Beat 10 (M-2)', $payloadJson);
+        $this->assertStringContainsString('Road Accident', $payloadJson);
+        $this->assertStringContainsString('[P1]', $payloadJson);
+    }
+
+    public function test_advisory_payload_with_null_sector_id_executes_safely_and_contains_no_pii(): void
+    {
+        $advisory = new TabletAdvisory([
+            'id' => 456,
+            'sector_id' => null, // Explicit null sector test
+            'route_name' => 'M-2 Motorway',
+            'category' => 'fog',
+            'title' => 'Dense Fog Visibility Less Than 50 Meters',
+            'description' => 'Motorists advised to use fog lights and reduce speed.',
+        ]);
+
+        $url = $this->service->resolveAdvisoryUrl($advisory, 'created');
+        $this->assertStringContainsString('/ops/travel-advisory', $url);
+
+        $sectorName = $advisory->sector?->name ?? $advisory->route_name ?? 'National Highways';
+        $routeName = $advisory->route_name ?? 'Highway';
+        $category = ucfirst((string) ($advisory->category ?? 'Alert'));
+
+        $title = $this->service->sanitizeText("⚠️ Advisory New Advisory: {$routeName}", PushNotificationService::MAX_TITLE_LENGTH);
+        $body = $this->service->sanitizeText("{$sectorName} | {$category}: {$advisory->title}", PushNotificationService::MAX_BODY_LENGTH);
+
+        $payload = [
+            'title' => $title,
+            'body' => $body,
+            'data' => [
+                'type' => 'travel_advisory',
+                'advisory_id' => $advisory->id,
+                'event_type' => 'created',
+                'url' => $url,
+            ],
+        ];
+
+        $json = json_encode($payload);
+        $this->assertStringContainsString('M-2 Motorway', $json);
+        $this->assertStringContainsString('Dense Fog', $json);
+    }
+
+    public function test_support_ticket_payload_contains_no_citizen_pii(): void
+    {
+        $support = new SupportRequest([
+            'public_id' => '018f0a00-1111-7000-8000-000000000789',
+            'subject' => 'Password reset assistance for officer #4412',
+            'current_status' => SupportRequest::STATUS_SUBMITTED,
+        ]);
+        $support->id = 789;
+
+        $title = $this->service->sanitizeText('🎫 Support Desk: Created', PushNotificationService::MAX_TITLE_LENGTH);
+        $body = $this->service->sanitizeText("Ticket #{$support->id} (Submitted) | Subject: {$support->subject}", PushNotificationService::MAX_BODY_LENGTH);
+        $adminUrl = $this->service->resolveSupportAdminUrl($support);
+
+        $payload = [
+            'title' => $title,
+            'body' => $body,
+            'data' => [
+                'type' => 'support_request',
+                'support_request_id' => $support->id,
+                'public_id' => $support->public_id,
+                'url' => $adminUrl,
+            ],
+        ];
+
+        $json = json_encode($payload);
+        $this->assertStringContainsString('Ticket #789', $json);
+        $this->assertStringContainsString('/mgmt/support/requests/018f0a00-1111-7000-8000-000000000789', $adminUrl);
     }
 }
