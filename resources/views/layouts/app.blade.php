@@ -537,9 +537,31 @@
             border-right-color: #0f172a;
         }
 
-        .collapsed .nav-item:hover .nav-tooltip {
-            opacity: 1;
-            transform: translateY(-50%) translateX(0);
+        /* Suppress in-DOM clipped tooltip when collapsed; handled by zero-clip floating singleton */
+        .sidebar-wrap.collapsed .nav-tooltip {
+            display: none !important;
+        }
+
+        .sidebar-wrap.collapsed .nav-item {
+            justify-content: center;
+            padding: 0.625rem 0.5rem;
+            position: relative;
+        }
+
+        .sidebar-wrap.collapsed .nav-item:hover,
+        .sidebar-wrap.collapsed .nav-item:focus-visible {
+            background: #f1f5f9;
+        }
+
+        .sidebar-wrap.collapsed .nav-item.active {
+            background: #eff6ff;
+            color: #2563eb;
+        }
+
+        .sidebar-wrap.collapsed .nav-item:hover .nav-icon,
+        .sidebar-wrap.collapsed .nav-item:focus-visible .nav-icon {
+            transform: scale(1.15);
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
 
         /* Search box */
@@ -1413,6 +1435,147 @@
         });
     </script>
     @endcanany
+
+    <!-- ========================================================
+         PREMIUM FLOATING TOOLTIP FOR COLLAPSED SIDEBAR (ZERO-CLIP)
+    ======================================================== -->
+    <div id="sidebar-floating-tooltip" 
+         class="fixed pointer-events-none transition-all duration-150 z-[99999] hidden opacity-0 scale-95 origin-left"
+         role="tooltip"
+         aria-hidden="true"
+         style="will-change: transform, opacity; top: 0; left: 0;">
+        <div class="relative flex items-center gap-2.5 px-3 py-1.5 rounded-lg shadow-2xl backdrop-blur-md bg-slate-900/95 border border-slate-700/60 text-white">
+            <!-- Caret Pointer Arrow -->
+            <div class="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-slate-900/95 border-l border-b border-slate-700/60 rotate-45 pointer-events-none"></div>
+            <span id="floating-tooltip-title" class="font-bold text-xs tracking-wide text-slate-100 whitespace-nowrap"></span>
+            <span id="floating-tooltip-badge" class="hidden px-1.5 py-0.5 rounded text-[10px] font-black bg-rose-500 text-white shadow-sm leading-none"></span>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const tooltip = document.getElementById('sidebar-floating-tooltip');
+            const titleEl = document.getElementById('floating-tooltip-title');
+            const badgeEl = document.getElementById('floating-tooltip-badge');
+            if (!tooltip || !titleEl) return;
+
+            let activeTarget = null;
+            let hideTimeout = null;
+
+            const isCoarsePointer = () => window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+
+            function hideTooltip() {
+                activeTarget = null;
+                tooltip.classList.remove('opacity-100', 'scale-100');
+                tooltip.classList.add('opacity-0', 'scale-95');
+                clearTimeout(hideTimeout);
+                hideTimeout = setTimeout(() => {
+                    if (!activeTarget) {
+                        tooltip.classList.add('hidden');
+                        tooltip.setAttribute('aria-hidden', 'true');
+                    }
+                }, 150);
+            }
+
+            function showTooltip(el) {
+                if (isCoarsePointer()) return;
+
+                const sidebar = document.querySelector('.sidebar-wrap');
+                if (!sidebar || !sidebar.classList.contains('collapsed')) {
+                    hideTooltip();
+                    return;
+                }
+
+                // Retrieve label from nav-tooltip or nav-label
+                const tooltipTextEl = el.querySelector('.nav-tooltip');
+                const labelEl = el.querySelector('.nav-label');
+                let text = tooltipTextEl ? tooltipTextEl.textContent.trim() : (labelEl ? labelEl.textContent.trim() : '');
+                if (!text) return;
+
+                // Inspect any active badge
+                let badgeText = '';
+                const badgeSpan = el.querySelector('.nav-badge, #support-pending-badge, span[class*="bg-rose"]');
+                if (badgeSpan && !badgeSpan.classList.contains('hidden') && badgeSpan.offsetParent !== null) {
+                    badgeText = badgeSpan.textContent.trim();
+                }
+
+                // Strip embedded parenthesized counts from title (e.g., "(5 Pending)")
+                text = text.replace(/\s*\(\d+\s*Pending\)/i, '');
+
+                titleEl.textContent = text;
+                if (badgeText && badgeText !== '!') {
+                    badgeEl.textContent = badgeText;
+                    badgeEl.classList.remove('hidden');
+                } else {
+                    badgeEl.classList.add('hidden');
+                }
+
+                activeTarget = el;
+                clearTimeout(hideTimeout);
+                tooltip.classList.remove('hidden');
+                tooltip.setAttribute('aria-hidden', 'false');
+
+                // Compute exact floating position outside sidebar bounds
+                const rect = el.getBoundingClientRect();
+                const left = rect.right + 12;
+                const top = rect.top + (rect.height / 2);
+
+                tooltip.style.left = `${left}px`;
+                tooltip.style.top = `${top}px`;
+                tooltip.style.transform = 'translateY(-50%)';
+
+                requestAnimationFrame(() => {
+                    tooltip.classList.remove('opacity-0', 'scale-95');
+                    tooltip.classList.add('opacity-100', 'scale-100');
+                });
+            }
+
+            // Mouse hover handlers
+            document.addEventListener('mouseover', function(e) {
+                const navItem = e.target.closest('.sidebar-wrap.collapsed .nav-item');
+                if (navItem) {
+                    showTooltip(navItem);
+                } else if (!e.target.closest('#sidebar-floating-tooltip')) {
+                    if (activeTarget) hideTooltip();
+                }
+            });
+
+            document.addEventListener('mouseout', function(e) {
+                const navItem = e.target.closest('.sidebar-wrap.collapsed .nav-item');
+                if (navItem && !navItem.contains(e.relatedTarget)) {
+                    hideTooltip();
+                }
+            });
+
+            // Keyboard navigation focus handlers
+            document.addEventListener('focusin', function(e) {
+                const navItem = e.target.closest('.sidebar-wrap.collapsed .nav-item');
+                if (navItem) {
+                    showTooltip(navItem);
+                } else {
+                    if (activeTarget) hideTooltip();
+                }
+            });
+
+            document.addEventListener('focusout', function(e) {
+                const navItem = e.target.closest('.sidebar-wrap.collapsed .nav-item');
+                if (navItem && !navItem.contains(e.relatedTarget)) {
+                    hideTooltip();
+                }
+            });
+
+            // Dismissal on Escape key
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    hideTooltip();
+                }
+            });
+
+            // Cleanup on scroll and resize
+            window.addEventListener('scroll', hideTooltip, { passive: true, capture: true });
+            window.addEventListener('resize', hideTooltip, { passive: true });
+        })();
+    </script>
 
     @include('partials.notifications')
     @stack('scripts')
