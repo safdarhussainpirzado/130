@@ -1347,7 +1347,9 @@
                 },
 
                 dispatchAlert(call) {
-                    const category = call.call_type ? call.call_type.name : 'Unknown';
+                    const typeName = call.call_type ? (call.call_type.name || '') : '';
+                    const subTypeName = call.call_sub_type ? (call.call_sub_type.name || '') : '';
+                    const category = call.category || ((typeName && subTypeName) ? `${typeName} / ${subTypeName}` : (typeName || subTypeName || 'Help Request'));
                     const isReminder = call.last_reminder_at && (!call.created_at || new Date(call.last_reminder_at) > new Date(call.created_at));
                     
                     const title = isReminder 

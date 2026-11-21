@@ -1932,12 +1932,60 @@
                     }
                 },
 
+                copyModalDetails(text) {
+                    if (!text) return;
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(text).then(() => {
+                            if (window.showSuccess) window.showSuccess('Call details copied to clipboard.', 'Copied');
+                        }).catch(() => {
+                            this.fallbackCopyModalDetails(text);
+                        });
+                    } else {
+                        this.fallbackCopyModalDetails(text);
+                    }
+                },
+
+                fallbackCopyModalDetails(text) {
+                    const textArea = document.createElement("textarea");
+                    textArea.value = text;
+                    textArea.style.position = "fixed";
+                    textArea.style.left = "-999999px";
+                    textArea.style.top = "-999999px";
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        if (window.showSuccess) window.showSuccess('Call details copied to clipboard.', 'Copied');
+                    } catch (err) {
+                        console.error('Fallback copy failed', err);
+                    }
+                    document.body.removeChild(textArea);
+                },
+
                 openReminderModal(item) {
+                    const typeName = (item.call_type && item.call_type.name) ? item.call_type.name : '';
+                    const subTypeName = (item.call_sub_type && item.call_sub_type.name) ? item.call_sub_type.name : '';
+                    const category = (typeName && subTypeName) ? `${typeName} / ${subTypeName}` : (typeName || subTypeName || 'General Help');
+                    const location = item.location || 'N/A';
+                    const locDetails = item.location_details || '';
+                    const caller = (item.caller_name || 'Anonymous') + (item.caller_number ? ` (${item.caller_number})` : '');
+                    const timeStr = item.created_at ? new Date(item.created_at).toLocaleString() : 'N/A';
+
+                    const copyBlock = `Call #: ${item.call_number}\nCategory: ${category}\nJurisdiction: ${location}${locDetails ? '\nLocation: ' + locDetails : ''}\nCaller: ${caller}\nTime: ${timeStr}`;
+
                     this.confirmConfig = {
                         title: 'Dispatch Reminder',
-                        message: `Initialize a reminder protocol for Trace <strong class="text-amber-500">${item.call_number}</strong>? <br><br>This will alert assigned beat operator for immediate action.`,
+                        message: `Initialize a reminder protocol for Trace <strong class="text-amber-500 font-mono">${item.call_number}</strong>?
+                            <div class="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-left text-xs space-y-1.5 select-text cursor-text text-slate-700">
+                                <div><span class="font-bold text-slate-500 uppercase text-[9px] tracking-wider block">Category</span> <span class="font-bold text-blue-800">${category}</span></div>
+                                <div><span class="font-bold text-slate-500 uppercase text-[9px] tracking-wider block">Jurisdiction / Location</span> <span class="font-semibold text-slate-800">${location}${locDetails ? ' • ' + locDetails : ''}</span></div>
+                                <div><span class="font-bold text-slate-500 uppercase text-[9px] tracking-wider block">Caller</span> <span class="font-semibold text-slate-800">${caller}</span></div>
+                            </div>
+                            <div class="mt-3 text-[10px] text-slate-500">This will alert the assigned beat operator and command grid for immediate action.</div>`,
                         icon: 'fa-bell',
                         isDanger: false,
+                        copyDetails: copyBlock,
                         action: async () => {
                             await this.sendReminder(item);
                         }

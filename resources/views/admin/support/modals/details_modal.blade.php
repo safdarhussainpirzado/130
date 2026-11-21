@@ -40,12 +40,15 @@
             <div class="space-y-5 overflow-y-auto pr-1 flex-1 text-xs" x-show="selectedRequest">
                 {{-- Applicant & Routing Cards --}}
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {{-- Applicant Card --}}
+                    {{-- Requester Card --}}
                     <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
-                        <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Applicant Officer</span>
+                        <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Requester Profile</span>
                         <div class="font-black text-navy-900 text-xs" x-text="selectedRequest?.applicant_name"></div>
                         <div class="text-[10px] text-slate-500 font-mono" x-text="selectedRequest?.applicant_username"></div>
                         <div class="text-[10px] text-blue-600 font-bold" x-text="selectedRequest?.applicant_role"></div>
+                        <template x-if="selectedRequest?.applicant_office">
+                            <div class="text-[9px] text-slate-600 font-medium" x-text="'Unit: ' + selectedRequest.applicant_office"></div>
+                        </template>
                         <div class="text-[9px] text-slate-400 truncate" x-text="selectedRequest?.applicant_email"></div>
                     </div>
 

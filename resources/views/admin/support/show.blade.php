@@ -85,13 +85,21 @@
 
         {{-- Applicant & Assignment Profile Cards --}}
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {{-- Applicant Details --}}
+            {{-- Requester Details --}}
             <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Applicant Profile</span>
-                <div class="font-black text-navy-900 text-sm">{{ $request->requester?->full_name }}</div>
-                <div class="text-xs text-slate-500 font-mono">{{ $request->requester?->username }}</div>
-                <div class="text-[11px] text-blue-600 font-bold mt-1">{{ $request->requester?->getRoleTitle() }}</div>
-                <div class="text-[10px] text-slate-400">Email: {{ $request->requester?->email }}</div>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Requester Profile</span>
+                @if($request->requester)
+                    <div class="font-black text-navy-900 text-sm">{{ $request->requester->full_name ?: ($request->requester->name ?: 'System / Unknown Requester') }}</div>
+                    <div class="text-xs text-slate-500 font-mono">{{ $request->requester->username ?: ($request->requester->employee_id ?: 'N/A') }}</div>
+                    <div class="text-[11px] text-blue-600 font-bold mt-1">{{ $request->requester->getRoleTitle() ?: ($request->requester->role?->display_name ?: 'Officer') }}</div>
+                    @if($request->requester->office)
+                        <div class="text-[10px] text-slate-600 font-medium">Unit: {{ $request->requester->office->name }}</div>
+                    @endif
+                    <div class="text-[10px] text-slate-400">Email: {{ $request->requester->email ?: 'N/A' }}</div>
+                @else
+                    <div class="font-black text-slate-600 text-sm italic">System / Unknown Requester</div>
+                    <div class="text-xs text-slate-400 font-mono">Legacy / System Record</div>
+                @endif
             </div>
 
             {{-- Source Office --}}
