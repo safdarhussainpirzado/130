@@ -34,6 +34,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         \App\Models\Call::observe(\App\Observers\CallObserver::class);
+        \App\Models\User::observe(\App\Observers\UserObserver::class);
         
         \Illuminate\Support\Facades\Event::listen(
             \Illuminate\Auth\Events\Login::class,

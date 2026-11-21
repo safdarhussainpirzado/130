@@ -1,8 +1,8 @@
 ================================================================================
 NHMP 130 Unified CI Gate
-Date: 2026-11-21 15:34:27 PKT
+Date: 2026-11-21 18:10:18 PKT
 Worktree: /home/mrpirzado/projects/130-push
-Branch: fix/gate-no-secrets
+Branch: feat/drop2-encrypted-search
 ================================================================================
 
 --- 1. Scope Verification (Profile: prod) ---
@@ -30,7 +30,7 @@ Configuration: /var/www/html/phpunit.xml
 ................................................................. 65 / 82 ( 79%)
 .................                                                 82 / 82 (100%)
 
-Time: 00:06.499, Memory: 66.50 MB
+Time: 00:10.950, Memory: 66.50 MB
 
 OK (82 tests, 345 assertions)
   [PASS] Docker test suite: Notification, Advisory workflow, Call reminder, and Geospatial tests passed.

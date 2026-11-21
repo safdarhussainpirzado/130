@@ -33,9 +33,11 @@ class User extends Authenticatable
         'cnic_bidx',
         'full_name',
         'email',
+        'email_bidx',
         'mobile_no',
         'mobile_no_bidx',
         'username',
+        'username_bidx',
         'password',
         'password_changed_at',
         'role_id',
@@ -67,6 +69,12 @@ class User extends Authenticatable
             }
             if (!empty($user->mobile_no)) {
                 $user->mobile_no_bidx = phone_blind_index((string) $user->mobile_no);
+            }
+            if (!empty($user->email)) {
+                $user->email_bidx = function_exists('email_blind_index') ? email_blind_index((string) $user->email) : null;
+            }
+            if (!empty($user->username)) {
+                $user->username_bidx = function_exists('username_blind_index') ? username_blind_index((string) $user->username) : null;
             }
         });
     }
@@ -680,6 +688,14 @@ class User extends Authenticatable
         }
 
         return !empty($parts) ? implode(' · ', $parts) : 'National Operations';
+    }
+
+    /**
+     * Blind index search tokens for full name lookups.
+     */
+    public function searchTokens(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\UserSearchToken::class);
     }
 }
 

@@ -92,11 +92,33 @@ class MfaSettingController extends Controller
             ->where('is_active', true);
 
         if ($search !== '') {
-            $usersQuery->where(function ($q) use ($search) {
-                $q->where('username', 'like', "%{$search}%")
+            $cnicBidx = function_exists('cnic_blind_index') ? cnic_blind_index($search) : null;
+            $mobileBidx = function_exists('phone_blind_index') ? phone_blind_index($search) : null;
+            $emailBidx = function_exists('email_blind_index') ? email_blind_index($search) : null;
+            $usernameBidx = function_exists('username_blind_index') ? username_blind_index($search) : null;
+            $nameTokens = function_exists('name_search_tokens') ? name_search_tokens($search) : [];
+
+            $usersQuery->where(function ($q) use ($search, $cnicBidx, $mobileBidx, $emailBidx, $usernameBidx, $nameTokens) {
+                if ($cnicBidx) {
+                    $q->orWhere('cnic_bidx', $cnicBidx);
+                }
+                if ($mobileBidx) {
+                    $q->orWhere('mobile_no_bidx', $mobileBidx);
+                }
+                if ($emailBidx) {
+                    $q->orWhere('email_bidx', $emailBidx);
+                }
+                if ($usernameBidx) {
+                    $q->orWhere('username_bidx', $usernameBidx);
+                }
+                if (! empty($nameTokens)) {
+                    $q->orWhereHas('searchTokens', function ($sq) use ($nameTokens) {
+                        $sq->whereIn('token_bidx', $nameTokens);
+                    });
+                }
+                $q->orWhere('username', 'like', "%{$search}%")
                   ->orWhere('full_name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('cnic', 'like', "%{$search}%");
+                  ->orWhere('email', 'like', "%{$search}%");
             });
         }
 

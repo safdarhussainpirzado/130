@@ -53,7 +53,7 @@ if (!function_exists('priority_badge')) {
 
 if (!function_exists('docker_secret')) {
     /**
-     * Resolves a secret from Docker Secrets (/run/secrets/{name}) with local file and env() fallback.
+     * Resolves a secret from Docker Secrets (/run/secrets/{name}) with local file and config() fallback.
      */
     function docker_secret(string $name, mixed $default = null): mixed
     {
@@ -74,7 +74,8 @@ if (!function_exists('docker_secret')) {
             }
         }
 
-        return env(strtoupper($name), $default);
+        $configKey = 'services.secrets.' . strtolower($name);
+        return function_exists('config') ? config($configKey, $default) : $default;
     }
 }
 
@@ -117,5 +118,89 @@ if (! function_exists('cnic_blind_index')) {
         $salt = (function_exists('app') && app()->has('config')) ? config('app.bidx_salt') : null;
         $salt = $salt ?: docker_secret('bidx_salt', 'nhmp_130_sec_bidx_default_salt_2026');
         return hash_hmac('sha256', $digits, $salt);
+    }
+}
+
+if (! function_exists('email_blind_index')) {
+    /** Blind index of an email address (normalized lowercase trim, HMAC-SHA256 with bidx_salt). */
+    function email_blind_index(?string $email): ?string
+    {
+        if ($email === null) {
+            return null;
+        }
+        $normalized = strtolower(trim((string) $email));
+        if ($normalized === '') {
+            return null;
+        }
+        $salt = (function_exists('app') && app()->has('config')) ? config('app.bidx_salt') : null;
+        $salt = $salt ?: docker_secret('bidx_salt', 'nhmp_130_sec_bidx_default_salt_2026');
+        return hash_hmac('sha256', $normalized, $salt);
+    }
+}
+
+if (! function_exists('username_blind_index')) {
+    /** Blind index of a username (normalized lowercase trim, HMAC-SHA256 with bidx_salt). */
+    function username_blind_index(?string $username): ?string
+    {
+        if ($username === null) {
+            return null;
+        }
+        $normalized = strtolower(trim((string) $username));
+        if ($normalized === '') {
+            return null;
+        }
+        $salt = (function_exists('app') && app()->has('config')) ? config('app.bidx_salt') : null;
+        $salt = $salt ?: docker_secret('bidx_salt', 'nhmp_130_sec_bidx_default_salt_2026');
+        return hash_hmac('sha256', $normalized, $salt);
+    }
+}
+
+if (! function_exists('name_search_tokens')) {
+    /**
+     * Generates HMAC blind index tokens for full name search.
+     * Extracts word tokens and 3-4 char prefixes for sub-token matching.
+     *
+     * @return array<string> List of HMAC-SHA256 token hashes
+     */
+    function name_search_tokens(?string $name): array
+    {
+        if ($name === null) {
+            return [];
+        }
+        $normalized = strtolower(trim((string) $name));
+        if ($normalized === '') {
+            return [];
+        }
+
+        // Split on whitespace or punctuation
+        $rawWords = preg_split('/[\s\-_.,]+/', $normalized, -1, PREG_SPLIT_NO_EMPTY);
+        if (empty($rawWords)) {
+            return [];
+        }
+
+        $terms = [];
+        foreach ($rawWords as $word) {
+            $len = strlen($word);
+            if ($len < 2) {
+                continue;
+            }
+            $terms[$word] = true;
+            if ($len >= 3) {
+                $terms[substr($word, 0, 3)] = true;
+            }
+            if ($len >= 4) {
+                $terms[substr($word, 0, 4)] = true;
+            }
+        }
+
+        $salt = (function_exists('app') && app()->has('config')) ? config('app.bidx_salt') : null;
+        $salt = $salt ?: docker_secret('bidx_salt', 'nhmp_130_sec_bidx_default_salt_2026');
+
+        $bidxTokens = [];
+        foreach (array_keys($terms) as $term) {
+            $bidxTokens[] = hash_hmac('sha256', $term, $salt);
+        }
+
+        return array_values(array_unique($bidxTokens));
     }
 }
