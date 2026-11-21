@@ -1072,6 +1072,12 @@
                         </template>
                     </button>
 
+                    <button type="button" onclick="window.NHMPVoiceAlert && window.NHMPVoiceAlert.openSettings()"
+                        class="w-10 h-10 rounded-2xl border-2 border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100 transition-all flex items-center justify-center"
+                        title="Alert sound settings (voice, alarm, priority)" aria-label="Alert sound settings">
+                        <i class="fa-solid fa-sliders"></i>
+                    </button>
+
                     {{-- Web Push Desktop Alerts Enrollment --}}
                     <button id="btn-desktop-alerts-toggle"
                         type="button"
@@ -1274,7 +1280,7 @@
                 allowedRoles: ['beat_operator', 'sector_admin', 'zone_admin', 'agent_supervisor', 'super_admin'],
                 userRole: '{{ auth()->user()->role?->name }}',
                 pendingCount: 0,
-                voiceEnabled: localStorage.getItem('nhmp_voice_enabled') === 'true',
+                voiceEnabled: localStorage.getItem('nhmp_voice_enabled') !== 'false',
 
                 poller: null,
 
@@ -1312,10 +1318,12 @@
                         unlock.rate = 1.0;
                         window.speechSynthesis.cancel(); // Clear any stalled speech
                         window.speechSynthesis.speak(unlock);
+                        if (window.NHMPVoiceAlert) { window.NHMPVoiceAlert.setPreferences(true, true); window.NHMPVoiceAlert.unlockAudio(); }
                         
                         if (window.showSuccess) window.showSuccess('Voice alerts activated.', 'Voice Protocol Enabled');
                     } else {
                         window.speechSynthesis.cancel();
+                        if (window.NHMPVoiceAlert) { window.NHMPVoiceAlert.setPreferences(false, false); window.NHMPVoiceAlert.stopAlarm(); }
                         if (window.showInfo) window.showInfo('Voice alerts disabled.', 'Voice Protocol Disabled');
                     }
                 },
@@ -1377,26 +1385,12 @@
                         window.Notification.warning(message, title);
                     }
 
-                    // Voice Alarm (Advanced Protocol)
-                    if ('speechSynthesis' in window && this.voiceEnabled) {
-                        try {
-                            const voiceText = isReminder
-                                ? `Attention. Urgent reminder. ${category} help acquisition is still pending in the command grid.`
-                                : `Attention. New ${category} help acquisition recorded in the command grid.`;
-                            
-                            const utterance = new SpeechSynthesisUtterance(voiceText);
-                            this.activeUtterance = utterance; // Store reference
-                            utterance.rate = 1.0; // Standard rate for less delay
-                            utterance.pitch = 1.0;
-                            
-                            // Essential: Clear queue and speak immediately
-                            window.speechSynthesis.cancel(); 
-                            setTimeout(() => {
-                                window.speechSynthesis.speak(utterance);
-                            }, 50); // Microsurgical delay for engine reset
-                        } catch (err) {
-                            console.warn('Voice alarm suppressed by browser security policy.');
-                        }
+                    // Loud alarm + spoken voice (24x7, shared with push; de-duplicated per call)
+                    if (window.NHMPVoiceAlert && this.voiceEnabled) {
+                        const spoken = isReminder
+                            ? `Attention. Urgent reminder. ${category} help is still pending in the command grid.`
+                            : `Attention. New ${category} help recorded in the command grid.`;
+                        window.NHMPVoiceAlert.triggerAlert({ id: 'call-' + (call.id || call.call_number), title: title, speak_text: spoken, priority: call.priority || 3 });
                     }
                 }
             }));
@@ -1629,6 +1623,7 @@
         })();
     </script>
 
+    <script src="{{ asset('js/voice-alert.js') }}" defer></script>
     <script src="{{ asset('js/webpush-client.js') }}" defer></script>
     @include('partials.notifications')
     @stack('scripts')

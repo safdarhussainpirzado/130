@@ -78,7 +78,9 @@ class PushNotificationService
                 'call_number' => $call->call_number,
                 'priority' => $priorityNum,
                 'url' => $url,
-                'requireInteraction' => $isP1OrP2,
+                'requireInteraction' => true,
+                'alarm' => true,
+                'speak_text' => "Priority {$priorityNum} help pending in {$beatName}, {$typeName}. Operational dispatch required.",
             ],
         ];
 
@@ -273,6 +275,14 @@ class PushNotificationService
      */
     protected function dispatchToSubscriptions(array $userIds, array $payload, string $channel, string|int $eventId): array
     {
+        // Every push carries spoken text + alarm flag so open tabs/phones can speak it (24x7, all recipients).
+        $payload['data'] = $payload['data'] ?? [];
+        if (empty($payload['data']['speak_text'])) {
+            $plain = trim((string) preg_replace('/[^\p{L}\p{N}\s\.,:;\-\/\(\)]/u', '', ($payload['title'] ?? '').'. '.($payload['body'] ?? '')));
+            $payload['data']['speak_text'] = $plain;
+        }
+        $payload['data']['alarm'] = $payload['data']['alarm'] ?? true;
+
         $filteredUserIds = [];
 
         foreach ($userIds as $userId) {

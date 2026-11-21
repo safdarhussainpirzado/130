@@ -58,12 +58,33 @@ self.addEventListener('push', (event) => {
         badge: payload.badge || '/favicon-32x32.png',
         tag: payload.tag || 'nhmp-130-alert',
         data: Object.assign({}, payload.data || {}, { url: targetUrl }),
-        requireInteraction: isP1OrP2,
-        vibrate: isP1OrP2 ? [300, 100, 300, 100, 300] : [200, 100, 200],
+        requireInteraction: isP1OrP2 || payload.data?.requireInteraction === true,
+        renotify: true,
+        vibrate: isP1OrP2 ? [300, 100, 300, 100, 300, 100, 400] : [200, 100, 200],
     };
 
+    // Ask all open browser tabs to play acoustic alarm and spoken voice alert (VOICE-1)
+    const broadcastVoiceAlarm = self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+        for (const client of clientList) {
+            client.postMessage({
+                type: 'TRIGGER_VOICE_ALARM',
+                payload: {
+                    id: payload.data?.call_id ? ('call-' + payload.data.call_id) : (payload.tag || null),
+                    title: title,
+                    message: body,
+                    priority: payload.data?.priority || 3,
+                    speak_text: payload.data?.speak_text || body,
+                    alarm: Boolean(payload.data?.alarm !== false),
+                }
+            });
+        }
+    });
+
     event.waitUntil(
-        self.registration.showNotification(title, options)
+        Promise.all([
+            self.registration.showNotification(title, options),
+            broadcastVoiceAlarm
+        ])
     );
 });
 
