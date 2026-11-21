@@ -1,11 +1,11 @@
 ================================================================================
 NHMP 130 Unified CI Gate
-Date: 2026-11-21 10:54:33 PKT
+Date: 2026-11-21 14:01:43 PKT
 Worktree: /home/mrpirzado/projects/130-push
-Branch: feat/push-notifications-desk
+Branch: temp/main-landing
 ================================================================================
 
---- 1. Scope Verification ---
+--- 1. Scope Verification (Profile: prod) ---
   [PASS] Scope check: No forbidden commuter/patrol/API files touched.
 
 --- 2. Secret & Credential Scan ---
@@ -30,7 +30,7 @@ Configuration: /var/www/html/phpunit.xml
 ................................................................. 65 / 80 ( 81%)
 ...............                                                   80 / 80 (100%)
 
-Time: 00:26.659, Memory: 66.50 MB
+Time: 00:05.357, Memory: 66.50 MB
 
 OK (80 tests, 328 assertions)
   [PASS] Docker test suite: Notification, Advisory workflow, Call reminder, and Geospatial tests passed.
@@ -43,6 +43,9 @@ OK (80 tests, 328 assertions)
 
 --- 9. Direct env() Call Check ---
   [PASS] Direct env() check: Zero direct env() calls detected in changed PHP files outside config/.
+
+--- 10. Native UI Dialog & Alert Prohibition ---
+  [PASS] Native dialog check: Zero native alert(), confirm(), or prompt() calls added.
 
 ================================================================================
 GATE: PASS

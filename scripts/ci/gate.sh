@@ -287,6 +287,40 @@ else
 fi
 
 # ------------------------------------------------------------------------------
+# 10. Native UI Dialog Check (alert, confirm, prompt)
+# ------------------------------------------------------------------------------
+echo ""
+echo "--- 10. Native UI Dialog & Alert Prohibition ---"
+UI_ALLOW_FILE="scripts/ci/ui-allow.txt"
+UI_VIOLATIONS=0
+CHANGED_UI_FILES=$(git diff --name-only "$BASE_REF" | grep -E '\.(js|blade\.php)$' || true)
+
+while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    if [ -f "$f" ]; then
+        if [ -f "$UI_ALLOW_FILE" ] && grep -vE '^\s*(#|$)' "$UI_ALLOW_FILE" | grep -Fxq "$f" 2>/dev/null; then
+            continue
+        fi
+
+        ADDED_LINES=$(git diff -U0 "$BASE_REF" -- "$f" | grep '^\+[^+]' | sed 's/^\+//')
+        NON_COMMENT_LINES=$(echo "$ADDED_LINES" | grep -vE '^\s*(\*|//|/\*|<!--|{{--)' || true)
+        MATCHES=$(echo "$NON_COMMENT_LINES" | grep -En '\b(alert|confirm|prompt)\s*\(' || true)
+
+        if [ -n "$MATCHES" ]; then
+            echo "  Native dialog violation in $f:"
+            echo "$MATCHES" | sed 's/^/    /'
+            UI_VIOLATIONS=$((UI_VIOLATIONS + 1))
+        fi
+    fi
+done <<< "$CHANGED_UI_FILES"
+
+if [ $UI_VIOLATIONS -eq 0 ]; then
+    pass_gate "Native dialog check: Zero native alert(), confirm(), or prompt() calls added."
+else
+    fail_gate "Native dialog check: $UI_VIOLATIONS files introduce forbidden native dialogs (use CRM toasts or styled modals)."
+fi
+
+# ------------------------------------------------------------------------------
 # Final Gate Summary
 # ------------------------------------------------------------------------------
 echo ""

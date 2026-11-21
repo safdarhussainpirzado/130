@@ -1,0 +1,2 @@
+# Allowlist for files permitted to call native alert(), confirm(), or prompt().
+# Explicit operational justification required for any entry.
