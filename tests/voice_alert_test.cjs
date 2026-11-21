@@ -32,12 +32,13 @@ let pass = 0, fail = 0; const ok = (c, m) => { c ? pass++ : fail++; console.log(
   await page.waitForTimeout(300);
   ok((await page.evaluate(() => window.__spoken)).includes('from push'), 'service-worker push message triggers voice');
   await page.evaluate(() => window.NHMPVoiceAlert.setPreferences(true, true, 1));
-  await page.evaluate(() => window.NHMPVoiceAlert.triggerAlert({ id: 'call-3', speak_text: 'LOWPRIO', priority: 4 }));
-  ok(!(await page.evaluate(() => window.__spoken)).includes('LOWPRIO'), 'priority below the user threshold is muted');
+  await page.evaluate(() => window.NHMPVoiceAlert.triggerAlert({ id: 'call-3', speak_text: 'ANYPRIO', priority: 5 }));
+  await page.waitForTimeout(200); ok((await page.evaluate(() => window.__spoken)).includes('ANYPRIO'), 'every priority alerts (no priority filter)');
   await page.evaluate(() => window.NHMPVoiceAlert.setPreferences(true, true, 5));
   await page.evaluate(() => window.NHMPVoiceAlert.openSettings()); await page.waitForTimeout(200);
   ok(await page.locator('#nhmp-va-settings').isVisible(), 'settings modal opens (styled, no native dialog)');
   await page.screenshot({ path: path.resolve(__dirname, '../docs/evidence/push-notifications/voice-settings.png') });
+  ok(!(await page.locator('#va-min').count()), 'no priority selector in settings');
   await page.locator('#va-save').click();
   ok(!(await page.locator('#nhmp-va-settings').count()), 'settings modal saves/closes');
   ok(errs.length === 0, 'no page errors ' + JSON.stringify(errs));

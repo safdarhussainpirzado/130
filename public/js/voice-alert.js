@@ -44,8 +44,7 @@
     }
 
     function getMinPriorityThreshold() {
-        var val = localStorage.getItem(PREF_KEY_MIN_PRIORITY);
-        return val ? parseInt(val, 10) : 5; // Default: P1-P5
+        return 5; // Priority filtering removed (owner decision): every alert sounds
     }
 
     function playTone(freq1, freq2, durationSec) {
@@ -244,7 +243,6 @@
         setPreferences: function (voice, alarm, minPriority) {
             if (typeof voice === 'boolean') localStorage.setItem(PREF_KEY_VOICE, voice ? 'true' : 'false');
             if (typeof alarm === 'boolean') localStorage.setItem(PREF_KEY_ALARM, alarm ? 'true' : 'false');
-            if (minPriority) localStorage.setItem(PREF_KEY_MIN_PRIORITY, minPriority.toString());
         },
 
         getPreferences: function () {
@@ -269,13 +267,11 @@
           + '<div style="font-size:12px;color:#64748b;margin-bottom:14px">Applies to this browser. Alerts run 24 hours; nothing here depends on duty hours.</div>'
           + '<label style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;font-weight:700;font-size:13px;color:#334155">Spoken voice<input id="va-voice" type="checkbox" style="width:20px;height:20px"></label>'
           + '<label style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;font-weight:700;font-size:13px;color:#334155">Alarm siren<input id="va-alarm" type="checkbox" style="width:20px;height:20px"></label>'
-          + '<label style="display:block;padding:10px 0;font-weight:700;font-size:13px;color:#334155">Alert for priority<select id="va-min" style="width:100%;margin-top:6px;height:40px;border:1px solid #e2e8f0;border-radius:12px;padding:0 10px;font-weight:700"><option value="5">All priorities (P1 to P5)</option><option value="3">P1 to P3 only</option><option value="2">P1 and P2 only</option><option value="1">P1 only</option></select></label>'
           + '<div style="display:flex;gap:10px;margin-top:14px"><button id="va-test" type="button" style="flex:1;height:42px;border-radius:12px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:800;font-size:12px;cursor:pointer">Test alert</button><button id="va-save" type="button" style="flex:1;height:42px;border-radius:12px;border:0;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;font-weight:800;font-size:12px;cursor:pointer">Save</button></div></div>';
         document.body.appendChild(wrap);
         wrap.querySelector('#va-voice').checked = p.voice;
         wrap.querySelector('#va-alarm').checked = p.alarm;
-        wrap.querySelector('#va-min').value = String(p.minPriority);
-        function save() { window.NHMPVoiceAlert.setPreferences(wrap.querySelector('#va-voice').checked, wrap.querySelector('#va-alarm').checked, parseInt(wrap.querySelector('#va-min').value, 10)); }
+        function save() { window.NHMPVoiceAlert.setPreferences(wrap.querySelector('#va-voice').checked, wrap.querySelector('#va-alarm').checked); }
         wrap.querySelector('#va-test').onclick = function () { save(); window.NHMPVoiceAlert.unlockAudio(); window.NHMPVoiceAlert.triggerAlert({ title: 'Test alert', speak_text: 'This is a test of the N H M P one thirty alert system.', priority: 1 }); };
         wrap.querySelector('#va-save').onclick = function () { save(); window.NHMPVoiceAlert.stopAlarm(); wrap.remove(); if (window.showSuccess) window.showSuccess('Alert settings saved.', 'Alert Settings'); };
         wrap.addEventListener('click', function (e) { if (e.target === wrap) { wrap.remove(); } });
