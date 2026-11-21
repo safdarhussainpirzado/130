@@ -250,11 +250,22 @@
     window.showWarning = (msg, title, duration) => window.showNotification(msg, 'warning', title, duration);
     window.showInfo = (msg, title, duration) => window.showNotification(msg, 'info', title, duration);
 
-    // Global Notification Object (Legacy & Component Support)
-    window.Notification = {
+    // Global Notification Object (Legacy & Component Support).
+    // IMPORTANT: do not replace the browser's native Notification class (it provides
+    // Notification.permission / requestPermission). Attach the toast helpers to it instead,
+    // so existing Notification.success(...) call sites keep working.
+    var toastApi = {
         success: window.showSuccess,
         error: window.showError,
         warning: window.showWarning,
         info: window.showInfo
     };
+    if (typeof window.Notification === 'function') {
+        window.NHMPNativeNotification = window.Notification;
+        Object.keys(toastApi).forEach(function (k) {
+            try { window.Notification[k] = toastApi[k]; } catch (e) { /* ignore */ }
+        });
+    } else {
+        window.Notification = toastApi;
+    }
 })();
