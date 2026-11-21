@@ -109,15 +109,15 @@
         </div>
 
         <div @click="setCardFilter('resolved')"
-            :class="activeCard === 'resolved' ? 'card-3d-active slate' : ''"
+            :class="activeCard === 'resolved' ? 'card-3d-active emerald' : ''"
             class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
-            <div class="absolute -top-3 sm:-top-4 left-3 sm:left-4 h-8 w-8 sm:h-10 sm:w-10 xl:h-11 xl:w-11 grid place-items-center rounded-xl bg-slate-600 shadow-[0_8px_16px_rgba(71,85,105,0.25)] z-10 text-white">
+            <div class="absolute -top-3 sm:-top-4 left-3 sm:left-4 h-8 w-8 sm:h-10 sm:w-10 xl:h-11 xl:w-11 grid place-items-center rounded-xl shadow-[0_8px_16px_rgba(5,150,105,0.3)] z-10 text-white" style="background:#059669">
                 <i class="fa-solid fa-clock-rotate-left text-xs sm:text-sm"></i>
             </div>
             <div class="p-3 sm:p-3.5 text-right pt-2 relative">
-                <p class="text-[9px] font-black tracking-widest text-slate-500 uppercase truncate">Resolved</p>
+                <p class="text-[9px] font-black tracking-widest uppercase truncate" style="color:#059669">Resolved</p>
                 <div class="flex items-center justify-end gap-1.5 mt-1">
-                    <span class="text-[9px] font-black text-white bg-slate-600 px-1.5 py-0.5 rounded-full shadow-sm shrink-0">ARCHIVE</span>
+                    <span class="text-[9px] font-black text-white px-1.5 py-0.5 rounded-full shadow-sm shrink-0" style="background:#059669">ARCHIVE</span>
                     <h4 class="text-xl sm:text-2xl font-black text-slate-900 truncate" x-text="metrics.expired_resolved || 0"></h4>
                 </div>
             </div>
