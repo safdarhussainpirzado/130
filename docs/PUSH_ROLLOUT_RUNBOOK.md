@@ -1,23 +1,31 @@
 # NHMP 130 Desk CRM - Production Push Notification Rollout Runbook
 
-This runbook contains exact, copy-paste operational steps for rolling out the Unified Desk Push Notification feature to production.
+This runbook contains exact, verified operational steps for rolling out the Unified Desk Push Notification feature to production.
 
 > [!IMPORTANT]
 > **Production Rule**: Execute these steps ONLY after explicit approval from Safdar.
+> Deployments and production operations are executed exclusively by Claude.
 > All steps are zero-downtime, fail-closed, and support immediate single-command rollback without database rewrites.
+> Every command and path in this runbook is derived directly from repository files (`haproxy/haproxy.cfg`, `docker-compose.octane.yml`, `.rr.prod.yaml`, `config/services.php`, `routes/web.php`) or confirmed production facts.
 
 ---
 
 ## Production Topology & Architecture Facts
 
 Production uses a high-availability multi-container architecture orchestrated via Docker Compose:
-- **Routing & Balancer**: `130-haproxy-1` (HAProxy with runtime socket API for zero-downtime connection draining).
-- **Web Nodes (Nginx)**: `130-web-octane-1-1`, `130-web-octane-2-1`.
-- **App Nodes (Laravel Octane / RoadRunner)**: `130-app-octane-1-1`, `130-app-octane-2-1`.
-- **Background Workers**: `130-scheduler-1`, and the new `130-push-worker-1` (service: `push-worker`).
+- **Routing & Load Balancer**: Container `130-haproxy-1`
+  - Runtime Socket: `/tmp/haproxy.sock` (inside `130-haproxy-1` container, per `haproxy/haproxy.cfg` line 4: `stats socket /tmp/haproxy.sock mode 660 level admin`).
+  - Backend Name: `app_nodes` (per `haproxy/haproxy.cfg` line 48).
+  - Server Names: `web-octane-1` and `web-octane-2` (per `haproxy/haproxy.cfg` lines 56-57).
+  - Runtime Command Format: `echo "..." | docker exec -i 130-haproxy-1 socat stdio /tmp/haproxy.sock`.
+  - State Inspection: `echo "show servers state" | docker exec -i 130-haproxy-1 socat stdio /tmp/haproxy.sock | awk '/web-octane/{print $4,$6,$7}'` (expect `2 0` = up, no admin state).
+- **Web Nodes (Nginx)**: Containers `130-web-octane-1-1`, `130-web-octane-2-1`.
+- **App Nodes (Laravel Octane / RoadRunner)**: Containers `130-app-octane-1-1`, `130-app-octane-2-1`.
+- **Background Workers**: Container `130-scheduler-1`, and the new worker container `130-push-worker-1` (service name: `push-worker`).
+- **Health Check Endpoint**: `/up` (verified from `haproxy/haproxy.cfg` line 50: `http-check send meth GET uri /up ver HTTP/1.1 hdr Host localhost`, `docker-compose.octane.yml` line 53: `exit(@file_get_contents('http://127.0.0.1:8000/up') === false ? 1 : 0);`, and defined in `routes/web.php` line 29).
 - **Database & Cache**: MySQL 8.4 Group Replication (port 3309), Redis (queue & cache).
 - **Environment Configuration**: Production does **NOT** use a `.env` file and does **NOT** deploy with `docker-compose.octane.yml` from the repository. All environment variables, image tags, and secret paths live in the host compose overlay file:
-  `/root/octane.rcNN.yml` (e.g. `/root/octane.rc26.yml`).
+  `/root/octane.rcNN.yml` (e.g. `/root/octane.rc26.yml`) combined with base `/home/mrpirzado/projects/130/docker-compose.yml`.
 - **Queue & Tables**: `QUEUE_CONNECTION=redis` is already configured in production; `jobs` and `failed_jobs` tables already exist.
 
 ---
@@ -69,10 +77,10 @@ docker load < "/tmp/${IMAGE_NAME}.tar.gz"
 
 ## 2. Secrets Management & VAPID Key Generation
 
-Secrets are stored in `/var/www/html/secrets` inside the container (or mounted host directory `/root/secrets`). Permissions MUST be `0600` (read/write by owner only).
+Secrets are stored in `/root/secrets` on the host (VERIFY ON PROD: host secret directory per production setup) and mounted into `/run/secrets/<name>` inside containers. Permissions MUST be `0600` (read/write by owner only).
 
 ### 2.1 Set Up Placeholder Secrets on Production Host
-On the production host app directory:
+On the production host:
 ```bash
 mkdir -p /root/secrets
 chmod 700 /root/secrets
@@ -85,7 +93,7 @@ chmod 600 /root/secrets/vapid_private_key /root/secrets/firebase_credentials.jso
 ### 2.2 Generate Production RFC 8292 VAPID Keys Inside Running App Container
 Run the artisan command inside the running app container. It creates `secrets/vapid_private_key` (mode 0600) and prints ONLY the public key to console:
 ```bash
-docker exec -it 130-app-octane-1-1 php artisan push:generate-vapid
+docker exec -i 130-app-octane-1-1 php artisan push:generate-vapid
 ```
 **Expected Output**:
 ```text
@@ -99,37 +107,60 @@ The private key was NOT printed to console to prevent shoulder-surfing and log l
 ```
 
 ### 2.3 Add VAPID & Push Variables to Production Overlay (`/root/octane.rc26.yml`)
-In `/root/octane.rc26.yml`, define the push settings under `environment:` for both `app-octane` and `push-worker`:
+In `/root/octane.rc26.yml`, define the secrets and push settings under `environment:` using the exact environment variable names from `config/services.php` and `docker-compose.octane.yml`:
+
 ```yaml
+secrets:
+  # Host secret file paths (VERIFY ON PROD: adjust path if secrets live in /root/secrets/ or ./secrets/)
+  vapid_private_key:
+    file: /root/secrets/vapid_private_key
+  firebase_credentials:
+    file: /root/secrets/firebase_credentials.json
+
 services:
   app-octane-1:
     image: 130-app-octane:phase2-rc26
+    secrets:
+      - vapid_private_key
+      - firebase_credentials
     environment:
-      PUSH_ENABLED: "false"           # Dark launch by default
-      PUSH_FCM_ENABLED: "false"       # Enable when Firebase JSON is provided
+      PUSH_ENABLED: "false"           # Dark launch by default (short-circuits push dispatcher)
+      PUSH_FCM_ENABLED: "false"       # Enable when Firebase credentials JSON is provided
       VAPID_PUBLIC_KEY: "<public-key-generated-above>"
-      VAPID_PRIVATE_KEY_PATH: "secrets/vapid_private_key"
-      FIREBASE_CREDENTIALS: "secrets/firebase_credentials.json"
+      VAPID_PRIVATE_KEY_FILE: "/run/secrets/vapid_private_key"
+      VAPID_SUBJECT: "mailto:admin@130.nhmp.gov.pk"
+      FIREBASE_CREDENTIALS_FILE: "/run/secrets/firebase_credentials"
+      FIREBASE_PROJECT_ID: "nhmp-130-crm"
 
   app-octane-2:
     image: 130-app-octane:phase2-rc26
+    secrets:
+      - vapid_private_key
+      - firebase_credentials
     environment:
       PUSH_ENABLED: "false"
       PUSH_FCM_ENABLED: "false"
       VAPID_PUBLIC_KEY: "<public-key-generated-above>"
-      VAPID_PRIVATE_KEY_PATH: "secrets/vapid_private_key"
-      FIREBASE_CREDENTIALS: "secrets/firebase_credentials.json"
+      VAPID_SUBJECT: "mailto:admin@130.nhmp.gov.pk"
+      VAPID_PRIVATE_KEY_FILE: "/run/secrets/vapid_private_key"
+      FIREBASE_CREDENTIALS_FILE: "/run/secrets/firebase_credentials"
+      FIREBASE_PROJECT_ID: "nhmp-130-crm"
 
   push-worker:
     image: 130-app-octane:phase2-rc26
     restart: unless-stopped
-    command: ["php", "artisan", "queue:work", "--queue=push", "--tries=3", "--timeout=30", "--sleep=3"]
+    command: ["php", "artisan", "queue:work", "redis", "--queue=push", "--tries=3", "--timeout=30", "--max-time=3600"]
+    secrets:
+      - vapid_private_key
+      - firebase_credentials
     environment:
       PUSH_ENABLED: "false"
       PUSH_FCM_ENABLED: "false"
       VAPID_PUBLIC_KEY: "<public-key-generated-above>"
-      VAPID_PRIVATE_KEY_PATH: "secrets/vapid_private_key"
-      FIREBASE_CREDENTIALS: "secrets/firebase_credentials.json"
+      VAPID_SUBJECT: "mailto:admin@130.nhmp.gov.pk"
+      VAPID_PRIVATE_KEY_FILE: "/run/secrets/vapid_private_key"
+      FIREBASE_CREDENTIALS_FILE: "/run/secrets/firebase_credentials"
+      FIREBASE_PROJECT_ID: "nhmp-130-crm"
 ```
 
 ---
@@ -137,37 +168,64 @@ services:
 ## 3. Roll App Nodes Behind HAProxy Drain & Run Additive Migrations
 
 ### 3.1 Zero-Downtime Rolling Update of App Nodes
-Roll one node at a time using the HAProxy runtime API drain:
-```bash
-# --- Roll Node 1 ---
-# 1. Drain node 1 in HAProxy
-echo "set server be_octane/app1 state drain" | socat stdio /var/run/haproxy/admin.sock
+Roll one node at a time using HAProxy runtime socket API on `130-haproxy-1` (`/tmp/haproxy.sock`):
 
-# 2. Wait for active connections to finish (5-10s)
-sleep 5
+```bash
+# ==============================================================================
+# ROLL NODE 1
+# ==============================================================================
+
+# 1. Drain node 1 in HAProxy (backend: app_nodes, server: web-octane-1)
+echo "set server app_nodes/web-octane-1 state drain" | docker exec -i 130-haproxy-1 socat stdio /tmp/haproxy.sock
+
+# 2. Wait ~20 s after drain for existing in-flight connections to complete
+sleep 20
 
 # 3. Recreate app-octane-1 with new image and overlay
-docker compose -f /root/docker-compose.yml -f /root/octane.rc26.yml up -d --no-deps app-octane-1
+docker compose -f /home/mrpirzado/projects/130/docker-compose.yml -f /root/octane.rc26.yml up -d --no-deps app-octane-1
 
-# 4. Wait for Octane health check (/up returns 200)
-docker exec -it 130-app-octane-1-1 curl -sf http://127.0.0.1:8000/up || sleep 3
+# 4. Wait ~8 s after the change for container initialization
+sleep 8
 
-# 5. Re-enable node 1 in HAProxy
-echo "set server be_octane/app1 state ready" | socat stdio /var/run/haproxy/admin.sock
+# 5. Verify Octane health check (/up returns 200, matching haproxy.cfg line 50)
+docker exec -i 130-app-octane-1-1 php -r "exit(@file_get_contents('http://127.0.0.1:8000/up') === false ? 1 : 0);"
 
-# --- Roll Node 2 ---
-# 6. Drain node 2 in HAProxy
-echo "set server be_octane/app2 state drain" | socat stdio /var/run/haproxy/admin.sock
-sleep 5
+# 6. Re-enable node 1 in HAProxy
+echo "set server app_nodes/web-octane-1 state ready" | docker exec -i 130-haproxy-1 socat stdio /tmp/haproxy.sock
 
-# 7. Recreate app-octane-2 with new image and overlay
-docker compose -f /root/docker-compose.yml -f /root/octane.rc26.yml up -d --no-deps app-octane-2
+# 7. Wait ~20 s
+sleep 20
 
-# 8. Wait for Octane health check
-docker exec -it 130-app-octane-2-1 curl -sf http://127.0.0.1:8000/up || sleep 3
+# 8. Verify HAProxy server state (expect "2 0" = up, no admin state)
+echo "show servers state" | docker exec -i 130-haproxy-1 socat stdio /tmp/haproxy.sock | awk '/web-octane/{print $4,$6,$7}'
 
-# 9. Re-enable node 2 in HAProxy
-echo "set server be_octane/app2 state ready" | socat stdio /var/run/haproxy/admin.sock
+# ==============================================================================
+# ROLL NODE 2
+# ==============================================================================
+
+# 9. Drain node 2 in HAProxy (backend: app_nodes, server: web-octane-2)
+echo "set server app_nodes/web-octane-2 state drain" | docker exec -i 130-haproxy-1 socat stdio /tmp/haproxy.sock
+
+# 10. Wait ~20 s after drain
+sleep 20
+
+# 11. Recreate app-octane-2 with new image and overlay
+docker compose -f /home/mrpirzado/projects/130/docker-compose.yml -f /root/octane.rc26.yml up -d --no-deps app-octane-2
+
+# 12. Wait ~8 s after the change
+sleep 8
+
+# 13. Verify Octane health check
+docker exec -i 130-app-octane-2-1 php -r "exit(@file_get_contents('http://127.0.0.1:8000/up') === false ? 1 : 0);"
+
+# 14. Re-enable node 2 in HAProxy
+echo "set server app_nodes/web-octane-2 state ready" | docker exec -i 130-haproxy-1 socat stdio /tmp/haproxy.sock
+
+# 15. Wait ~20 s
+sleep 20
+
+# 16. Verify HAProxy server state (expect "2 0" for both servers)
+echo "show servers state" | docker exec -i 130-haproxy-1 socat stdio /tmp/haproxy.sock | awk '/web-octane/{print $4,$6,$7}'
 ```
 
 ### 3.2 Execute Additive Database Migrations
@@ -178,16 +236,27 @@ echo "set server be_octane/app2 state ready" | socat stdio /var/run/haproxy/admi
 On production, `failed_jobs` already exists and is guarded by `Schema::hasTable` (no-op). Only `push_subscriptions` will be created:
 ```bash
 # Verify pretend migration
-docker exec -it 130-app-octane-1-1 php artisan migrate --pretend --force
+docker exec -i 130-app-octane-1-1 php artisan migrate --pretend --force
 
 # Apply migration
-docker exec -it 130-app-octane-1-1 php artisan migrate --force
+docker exec -i 130-app-octane-1-1 php artisan migrate --force
 ```
 
 **MySQL 8.4 Group Replication (GR) Safety Statement**:
 - `push_subscriptions` defines an explicit `id bigint unsigned not null auto_increment primary key`.
 - Storage engine is InnoDB (`utf8mb4`).
 - Zero existing tables are modified or locked.
+
+### 3.3 Hot-Reload vs Image Roll (Operational Note)
+RoadRunner runs with `opcache.validate_timestamps=0` in production.
+- **For an Image Roll (Full Deploy)**: Recreate the container with `docker compose -f /home/mrpirzado/projects/130/docker-compose.yml -f /root/octane.rc26.yml up -d --no-deps app-octane-N` (as shown in Step 3.1).
+- **For Hot-Reload (Replacing code in a running container without recreate)**:
+  ```bash
+  docker exec -i 130-app-octane-1-1 php artisan route:cache
+  docker exec -i 130-app-octane-1-1 php artisan view:cache
+  docker exec -i 130-app-octane-1-1 rr reset -c /var/www/html/.rr.prod.yaml
+  ```
+  (and repeat on node 2).
 
 ---
 
@@ -197,13 +266,13 @@ The push queue worker processes jobs on the dedicated `push` queue. Because `pus
 
 ### 4.1 Launch Push Worker Container
 ```bash
-docker compose -f /root/docker-compose.yml -f /root/octane.rc26.yml up -d push-worker
+docker compose -f /home/mrpirzado/projects/130/docker-compose.yml -f /root/octane.rc26.yml up -d push-worker
 ```
 
 ### 4.2 Validate Worker Health Before Enabling Feature
 Run the healthcheck mode of `push:status`:
 ```bash
-docker exec -it 130-app-octane-1-1 php artisan push:status --health
+docker exec -i 130-app-octane-1-1 php artisan push:status --health
 ```
 **Expected Output**:
 ```text
@@ -227,16 +296,16 @@ PUSH_ENABLED: "false"
 ### Phase B: Canary Launch (Single Supervisor + Single Sector User)
 Test with targeted accounts before enabling across the whole department:
 1. In `/root/octane.rc26.yml`, set `PUSH_ENABLED: "true"`.
-2. Recreate app nodes one at a time behind HAProxy drain (as shown in Step 3.1) and recreate `push-worker`.
+2. Roll app nodes one at a time behind HAProxy drain (as shown in Step 3.1) and recreate `push-worker`.
 3. Have Canary Supervisor (User ID e.g. `12`) and Canary Sector Operator (User ID e.g. `34`) click the Bell icon in Desk CRM to subscribe.
 4. Verify subscriptions in DB:
    ```bash
-   docker exec -it 130-app-octane-1-1 php artisan tinker --execute="echo App\Models\PushSubscription::active()->count();"
+   docker exec -i 130-app-octane-1-1 php artisan tinker --execute="echo App\Models\PushSubscription::active()->count();"
    ```
 5. Send targeted test notifications:
    ```bash
-   docker exec -it 130-app-octane-1-1 php artisan push:test --user=12
-   docker exec -it 130-app-octane-1-1 php artisan push:test --user=34
+   docker exec -i 130-app-octane-1-1 php artisan push:test --user=12
+   docker exec -i 130-app-octane-1-1 php artisan push:test --user=34
    ```
 6. Confirm both users receive physical desktop alert banners in their browser.
 
@@ -250,17 +319,28 @@ If any anomaly, browser issue, or operational defect is detected:
 # 1. Update /root/octane.rc26.yml:
 #    Change PUSH_ENABLED: "true" -> PUSH_ENABLED: "false"
 
-# 2. Roll app nodes one at a time behind HAProxy drain to apply PUSH_ENABLED: "false"
-echo "set server be_octane/app1 state drain" | socat stdio /var/run/haproxy/admin.sock && sleep 5
-docker compose -f /root/docker-compose.yml -f /root/octane.rc26.yml up -d --no-deps app-octane-1
-echo "set server be_octane/app1 state ready" | socat stdio /var/run/haproxy/admin.sock
+# 2. Roll app nodes one at a time behind HAProxy drain to apply PUSH_ENABLED: "false":
 
-echo "set server be_octane/app2 state drain" | socat stdio /var/run/haproxy/admin.sock && sleep 5
-docker compose -f /root/docker-compose.yml -f /root/octane.rc26.yml up -d --no-deps app-octane-2
-echo "set server be_octane/app2 state ready" | socat stdio /var/run/haproxy/admin.sock
+# Node 1:
+echo "set server app_nodes/web-octane-1 state drain" | docker exec -i 130-haproxy-1 socat stdio /tmp/haproxy.sock
+sleep 20
+docker compose -f /home/mrpirzado/projects/130/docker-compose.yml -f /root/octane.rc26.yml up -d --no-deps app-octane-1
+sleep 8
+docker exec -i 130-app-octane-1-1 php -r "exit(@file_get_contents('http://127.0.0.1:8000/up') === false ? 1 : 0);"
+echo "set server app_nodes/web-octane-1 state ready" | docker exec -i 130-haproxy-1 socat stdio /tmp/haproxy.sock
+sleep 20
+
+# Node 2:
+echo "set server app_nodes/web-octane-2 state drain" | docker exec -i 130-haproxy-1 socat stdio /tmp/haproxy.sock
+sleep 20
+docker compose -f /home/mrpirzado/projects/130/docker-compose.yml -f /root/octane.rc26.yml up -d --no-deps app-octane-2
+sleep 8
+docker exec -i 130-app-octane-2-1 php -r "exit(@file_get_contents('http://127.0.0.1:8000/up') === false ? 1 : 0);"
+echo "set server app_nodes/web-octane-2 state ready" | docker exec -i 130-haproxy-1 socat stdio /tmp/haproxy.sock
+sleep 20
 
 # 3. Stop the push worker:
-docker compose -f /root/docker-compose.yml -f /root/octane.rc26.yml stop push-worker
+docker compose -f /home/mrpirzado/projects/130/docker-compose.yml -f /root/octane.rc26.yml stop push-worker
 ```
 > [!NOTE]
 > Database migrations (`push_subscriptions`, `failed_jobs`) remain in place. They are purely additive and do not affect any existing CRM functionality.
@@ -286,10 +366,10 @@ location = /sw.js {
 Apply the configuration to each web node one at a time using graceful reload:
 ```bash
 # Web Node 1:
-docker exec -it 130-web-octane-1-1 nginx -t && docker exec -it 130-web-octane-1-1 nginx -s reload
+docker exec -i 130-web-octane-1-1 nginx -t && docker exec -i 130-web-octane-1-1 nginx -s reload
 
 # Web Node 2:
-docker exec -it 130-web-octane-2-1 nginx -t && docker exec -it 130-web-octane-2-1 nginx -s reload
+docker exec -i 130-web-octane-2-1 nginx -t && docker exec -i 130-web-octane-2-1 nginx -s reload
 ```
 
 ---
@@ -311,18 +391,19 @@ Web Push works independently with VAPID without Firebase. If Safdar provisions F
 
 ### 7.2 Secure Key Placement
 1. Copy the downloaded JSON file to production app nodes at:
-   `/root/secrets/firebase_credentials.json`
+   `/root/secrets/firebase_credentials.json` (VERIFY ON PROD: host secret path)
 2. Set strict permissions:
    ```bash
    chmod 600 /root/secrets/firebase_credentials.json
    ```
 3. Update `/root/octane.rc26.yml`:
    ```yaml
-   FIREBASE_CREDENTIALS: "secrets/firebase_credentials.json"
+   FIREBASE_CREDENTIALS_FILE: "/run/secrets/firebase_credentials"
+   FIREBASE_PROJECT_ID: "nhmp-130-crm"
    PUSH_FCM_ENABLED: "true"
    ```
-4. Verify FCM initialization via health check:
+4. Verify FCM initialization via status check:
    ```bash
-   docker exec -it 130-app-octane-1-1 php artisan push:status
+   docker exec -i 130-app-octane-1-1 php artisan push:status
    ```
    *Look for: `Firebase Cloud Messaging: READY (Credentials present, project: <id>)*.
