@@ -37,7 +37,7 @@ class PushNotificationService
      * Recipient Matrix:
      * - Beat & Sector operators whose active UserScope covers the call's beat / sector / zone.
      * - Agent supervisors whose scope or role covers that zone.
-     * - Operation Admins (IT_ADMIN) & Super Admins ONLY if priority is P1 ((int) priority === 1).
+     * - Operation Admins (IT_ADMIN) & Super Admins for every pending help (all priorities).
      * - Strictly NO patrol officer or commuter profile queries.
      *
      * @return array{recipients: int, webpush: array, fcm: array}
@@ -379,19 +379,17 @@ class PushNotificationService
 
         $userIds = array_merge($userIds, $supervisors);
 
-        // 3. Operation Admins & Super Admins ONLY for P1 calls ((int) priority === 1)
-        if ($call->isP1()) {
-            $admins = User::whereHas('role', function ($q) {
-                $q->whereIn('name', [Role::IT_ADMIN, Role::SUPER_ADMIN]);
-            })
-                ->where('is_active', true)
-                ->where('is_blocked', false)
-                ->limit(500)
-                ->pluck('id')
-                ->toArray();
+        // 3. Operation Admins & Super Admins receive EVERY pending help (owner decision 2026-11-21).
+        $admins = User::whereHas('role', function ($q) {
+            $q->whereIn('name', [Role::IT_ADMIN, Role::SUPER_ADMIN]);
+        })
+            ->where('is_active', true)
+            ->where('is_blocked', false)
+            ->limit(500)
+            ->pluck('id')
+            ->toArray();
 
-            $userIds = array_merge($userIds, $admins);
-        }
+        $userIds = array_merge($userIds, $admins);
 
         $userIds = array_values(array_unique(array_filter($userIds)));
         if (count($userIds) > 500) {
