@@ -169,3 +169,31 @@ Then refresh config cache:
 ```bash
 php artisan config:cache
 ```
+
+---
+
+## 7. Round 3 Review Remediation & CI Gate Verification
+
+### 7.1 Separation of KM-Optional Feature
+- **Branch:** `fix/km-optional` in worktree `/home/mrpirzado/projects/130-km` (commit `70eb169`).
+- **Scope:** Surgical diff for helpline call intake (`CallController::store()`, `resources/views/calls/create.blade.php`, `CallFlowTest.php`).
+- **Tests:** 6 tests, 30 assertions passing in Docker test harness (`docs/evidence/km-optional/test-run-20261121.txt`).
+- **Zero Push Dependency:** Independent branch ready for immediate review and hot-patch by Claude.
+
+### 7.2 Cleanup of `feat/push-notifications-desk` (Commit: `a3cda5a`)
+- **Noise Elimination:** Restored existing files (`CallController.php`, `TravelAdvisoryController.php`, `SupportRequest.php`, `SupportRequestAction.php`, `Call.php`, `CallService.php`, `AppServiceProvider.php`) to exact `main` baseline, re-applying only the functional push hunks.
+- **Diff Stat Agreement:** `git diff main...HEAD -w --stat` and `git diff main...HEAD --stat` are in ~100% agreement (zero Pint formatting churn on existing files).
+- **Zero Patrol Reference:** Removed `PatrolRecipientResolverInterface.php`.
+- **Diagnostic Fixes:** Used string `class_exists('Minishlink\WebPush\WebPush')` and `Redis::setex(...)` to eliminate Intelephense warnings.
+
+### 7.3 Automated CI Gate (`scripts/ci/gate.sh`)
+- Executed `bash scripts/ci/gate.sh` with full logging to `docs/evidence/gate-last-run.txt`:
+  1. Scope Verification: `[PASS]`
+  2. Secret & Credential Scan: `[PASS]`
+  3. Minimal-Diff Check: `[PASS]`
+  4. PHP Syntax & Pint Style Check (New files only): `[PASS]`
+  5. Service Worker Fallback Security Test: `[PASS]` (12/12)
+  6. Docker Test Harness (71 tests, 303 assertions): `[PASS]`
+  7. Docker Compose Validation: `[PASS]`
+  - **Verdict:** `GATE: PASS`
+
