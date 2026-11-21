@@ -113,6 +113,12 @@ if git diff "$BASE_REF" | grep -E -e 'AIza[0-9A-Za-z_-]{35}' >/dev/null 2>&1; th
     SECRET_VIOLATIONS=$((SECRET_VIOLATIONS + 1))
 fi
 
+# Check diff for hardcoded passwords in scripts
+if git diff "$BASE_REF" -- '*.sh' '*.bash' | grep -E '^\+[^+]' | grep -E '\b(DB_PASSWORD|PASSWORD)=[A-Za-z0-9_./@#%^-]{4,}' | grep -vE '(=(\$|\"|\x27))' >/dev/null 2>&1; then
+    echo "  Secret violation: Hardcoded password literal found in script diff"
+    SECRET_VIOLATIONS=$((SECRET_VIOLATIONS + 1))
+fi
+
 if [ $SECRET_VIOLATIONS -eq 0 ]; then
     pass_gate "Secret scan: Zero tracked secrets or real credential blocks detected."
 else
@@ -222,10 +228,34 @@ DB_CONTAINER_RUNNING=$(docker ps --filter "name=130-db-1-1" --filter "status=run
 if [ -z "$DB_CONTAINER_RUNNING" ]; then
     fail_gate "Docker test harness: Database container 130-db-1-1 is not running."
 else
+    # Load test database credentials from environment or gitignored secrets/.env.testing
+    TEST_DB_USER="${TEST_DB_USERNAME:-${DB_USERNAME:-}}"
+    TEST_DB_PASS="${TEST_DB_PASSWORD:-${DB_PASSWORD:-}}"
+
+    if [ -z "$TEST_DB_PASS" ] && [ -f ".env.testing" ]; then
+        TEST_DB_USER=$(grep -E '^DB_USERNAME=' .env.testing | cut -d '=' -f2- | tr -d '"'\'' ' || true)
+        TEST_DB_PASS=$(grep -E '^DB_PASSWORD=' .env.testing | cut -d '=' -f2- | tr -d '"'\'' ' || true)
+    fi
+
+    if [ -z "$TEST_DB_PASS" ] && [ -f "secrets/test_db_password" ]; then
+        TEST_DB_PASS=$(cat "secrets/test_db_password" | tr -d '\r\n')
+    fi
+
+    if [ -z "$TEST_DB_PASS" ] && [ -f ".env" ]; then
+        TEST_DB_USER="${TEST_DB_USER:-$(grep -E '^DB_USERNAME=' .env | cut -d '=' -f2- | tr -d '"'\'' ' || true)}"
+        TEST_DB_PASS=$(grep -E '^(DB_ROOT_PASSWORD|DB_PASSWORD)=' .env | head -n 1 | cut -d '=' -f2- | tr -d '"'\'' ' || true)
+    fi
+
+    TEST_DB_USER="${TEST_DB_USER:-root}"
+
+    if [ -z "$TEST_DB_PASS" ]; then
+        fail_gate "Docker test harness: Missing test DB password. Set TEST_DB_PASSWORD, or provide secrets/test_db_password or .env.testing"
+    fi
+
     TEST_CMD="docker run --rm --entrypoint=\"\" -u $(id -u):$(id -g) -e HOME=/tmp --network host \
         -v $(pwd):/var/www/html -w /var/www/html \
         -e HASH_DRIVER=bcrypt -e DB_HOST=127.0.0.1 -e DB_PORT=3309 \
-        -e DB_DATABASE=130_crm_test_disposable -e DB_USERNAME=root -e DB_PASSWORD=MomxjpGVoxlLtsllGX7PgU6Tti67OgV4 \
+        -e DB_DATABASE=130_crm_test_disposable -e DB_USERNAME=$TEST_DB_USER -e DB_PASSWORD=$TEST_DB_PASS \
         $HARNESS_IMAGE php ./vendor/bin/phpunit \
         tests/Unit/Notifications/ tests/Feature/Notifications/ \
         tests/Feature/TravelAdvisoryApprovalWorkflowTest.php tests/Feature/CallReminderTest.php \
