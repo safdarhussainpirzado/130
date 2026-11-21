@@ -242,10 +242,20 @@
         .taf-chip.sector.on{background:linear-gradient(135deg,#7c3aed,#a855f7);box-shadow:0 10px 20px -10px rgba(124,58,237,.7)}
         .taf-chip.beat.on{background:linear-gradient(135deg,#ea580c,#f59e0b);box-shadow:0 10px 20px -10px rgba(234,88,12,.7)}
         .taf-hint{font-size:11px;color:#94a3b8;font-weight:600;padding-top:9px}
-        .taf-tools{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.8fr) minmax(0,1.2fr);gap:12px;padding-top:12px;border-top:1px dashed #e2e8f0;align-items:start}
+        .taf-split{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(330px,1fr);gap:18px;align-items:start}
+        .taf-scope{display:grid;gap:0;min-width:0}
+        .taf-scope .taf-row:first-child{border-top:0;padding-top:2px}
+        .taf-side{background:linear-gradient(180deg,#f8fafc,#f1f5f9);border:1px solid #e2e8f0;border-radius:20px;padding:14px;min-width:0}
+        .taf-tools{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:start}
+        .taf-tools .taf-field.dates,.taf-tools .taf-field.wide{grid-column:span 2}
+        .taf-side .taf-input{background:#fff;height:38px}
+        .taf-side .taf-tools{gap:8px}
+        .taf-crumb{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;padding:9px 12px;border-radius:14px;background:linear-gradient(135deg,#eff6ff,#eef2ff);border:1px solid #dbeafe;font-size:11.5px;font-weight:600;color:#475569}
+        .taf-crumb i{color:#2563eb}
+        .taf-crumb strong{color:#1e293b;font-weight:800}
         .taf-dates .taf-input{min-width:0;padding:0 8px}
-        @media (max-width:1100px){.taf-tools{grid-template-columns:repeat(2,minmax(0,1fr))}.taf-field.dates{grid-column:span 2}}
-        @media (max-width:640px){.taf-tools{grid-template-columns:minmax(0,1fr)}.taf-field.dates{grid-column:span 1}}
+        @media (max-width:1100px){.taf-split{grid-template-columns:minmax(0,1fr)}}
+        @media (max-width:640px){.taf-tools{grid-template-columns:minmax(0,1fr)}.taf-tools .taf-field.dates,.taf-tools .taf-field.wide{grid-column:span 1}}
         .taf-field{display:grid;gap:5px;min-width:0}
         .taf-field>span{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#94a3b8;display:flex;align-items:center;gap:6px}
         .taf-input{width:100%;height:40px;border-radius:14px;border:1px solid #e2e8f0;background:#f8fafc;padding:0 12px;font-size:12.5px;font-weight:700;color:#1e293b;outline:none;transition:all .15s ease;font-family:inherit}
@@ -288,6 +298,9 @@
             </div>
         </div>
 
+        <!-- Two-column body: jurisdiction chips (left) | status, category, dates, search (right) -->
+        <div class="taf-split">
+        <div class="taf-scope">
         <!-- Zone -->
         <div class="taf-row" x-show="hierarchy.zones.length > 0">
             <div class="taf-label"><i class="fa-solid fa-earth-asia"></i> Zone</div>
@@ -335,7 +348,13 @@
             </div>
         </div>
 
-        <!-- Status / Category / Dates / Search -->
+            <div class="taf-crumb" x-show="zoneId || sectorId || beatId" x-transition.opacity.duration.150ms>
+                <i class="fa-solid fa-location-crosshairs"></i>
+                <span>Showing advisories for</span>
+                <strong x-text="scopeLabel()"></strong>
+            </div>
+        </div>
+        <div class="taf-side">
         <div class="taf-tools">
             <label class="taf-field">
                 <span><i class="fa-solid fa-clock-rotate-left"></i> Status</span>
@@ -373,13 +392,15 @@
                     <button type="button" class="taf-mini danger" x-show="dateFrom || dateTo" @click="clearDates()">Clear</button>
                 </div>
             </div>
-            <label class="taf-field">
+            <label class="taf-field wide">
                 <span><i class="fa-solid fa-keyboard"></i> Search</span>
                 <div class="taf-search">
                     <i class="fa-solid fa-magnifying-glass"></i>
                     <input type="text" x-model="search" @input.debounce.300ms="fetchData(1)" placeholder="Landmarks, KM, title..." class="taf-input">
                 </div>
             </label>
+        </div>
+        </div>
         </div>
     </div>
 
@@ -1322,6 +1343,12 @@ function advisoryIndexManager(config) {
         corridorList: ['M-1', 'M-2', 'M-3', 'M-4', 'M-5', 'M-9', 'M-11', 'M-14', 'N-5', 'E-35', 'N-55'],
         isLoading: false,
 
+        scopeLabel() {
+            const z = (this.hierarchy.zones || []).find(x => x.id === this.zoneId);
+            const sx = (this.hierarchy.sectors || []).find(x => x.id === this.sectorId);
+            const b = (this.hierarchy.beats || []).find(x => x.id === this.beatId);
+            return [z && z.name, sx && sx.name, b && b.name].filter(Boolean).join('  \u203a  ');
+        },
         visibleZones() {
             const z = this.hierarchy.zones || [];
             return this.lock.zone ? z.filter(x => x.id === this.lock.zone) : z;
