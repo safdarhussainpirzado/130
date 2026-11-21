@@ -42,7 +42,7 @@ class PushNotificationService
      *
      * @return array{recipients: int, webpush: array, fcm: array}
      */
-    public function notifyHelpPending(Call $call): array
+    public function notifyHelpPending(Call $call, int $repeat = 0): array
     {
         if ($call->status !== 'pending') {
             return ['recipients' => 0, 'webpush' => ['sent' => 0, 'failed' => 0], 'fcm' => ['sent' => 0, 'failed' => 0]];
@@ -62,7 +62,8 @@ class PushNotificationService
         $beatName = $call->office?->name ?? 'Unassigned Beat';
         $typeName = $call->callType?->name ?? 'Help Request';
 
-        $title = $this->sanitizeText("🚨 NHMP 130 [{$priorityLabel}]: Pending Help {$call->call_number}", self::MAX_TITLE_LENGTH);
+        $prefix = $repeat > 0 ? "🔁 REMINDER #{$repeat} - " : '🚨 ';
+        $title = $this->sanitizeText("{$prefix}NHMP 130 [{$priorityLabel}]: Pending Help {$call->call_number}", self::MAX_TITLE_LENGTH);
         $body = $this->sanitizeText("Beat: {$beatName} | Type: {$typeName} | Requires immediate operational dispatch.", self::MAX_BODY_LENGTH);
         $url = $this->resolveCallUrl($call);
 
@@ -79,12 +80,13 @@ class PushNotificationService
                 'priority' => $priorityNum,
                 'url' => $url,
                 'requireInteraction' => true,
+                'repeat' => $repeat,
                 'alarm' => true,
                 'speak_text' => "Priority {$priorityNum} help pending in {$beatName}, {$typeName}. Operational dispatch required.",
             ],
         ];
 
-        return $this->dispatchToSubscriptions($recipientUserIds, $payload, 'help_pending', $call->id);
+        return $this->dispatchToSubscriptions($recipientUserIds, $payload, 'help_pending', $repeat > 0 ? "{$call->id}:r{$repeat}" : $call->id);
     }
 
     /**
@@ -283,6 +285,13 @@ class PushNotificationService
         }
         $payload['data']['alarm'] = $payload['data']['alarm'] ?? true;
 
+        // Call-centre agents never receive push alerts, whatever the event (owner decision 2026-11-21).
+        $agentIds = User::whereIn('id', array_map('intval', $userIds))
+            ->whereHas('role', fn ($q) => $q->whereIn('name', Role::NO_ALERT_ROLES))
+            ->pluck('id')
+            ->all();
+        $userIds = array_values(array_diff(array_map('intval', $userIds), $agentIds));
+
         $filteredUserIds = [];
 
         foreach ($userIds as $userId) {
@@ -401,34 +410,33 @@ class PushNotificationService
      */
     protected function resolveDeskRecipientsForAdvisory(TabletAdvisory $advisory, string $eventType): array
     {
+        // Owner decision (2026-11-21): advisory alerts go to exactly two parties and nobody else:
+        //  - supervisors (agent_supervisor), when an advisory is logged or edited and needs review;
+        //  - the originating SECTOR (its creator and sector admins of that sector) when a supervisor
+        //    approves, rejects, extends or clears it. Other sectors never see it.
         $userIds = [];
 
         if (in_array($eventType, ['created', 'updated'], true)) {
-            // Operator submitted or modified -> Alert Supervisors & Zone Admins
-            $supervisors = User::whereHas('role', function ($q) {
-                $q->whereIn('name', [Role::AGENT_SUPERVISOR, Role::ZONE_ADMIN, Role::SUPER_ADMIN]);
-            })
+            $userIds = User::whereHas('role', fn ($q) => $q->where('name', Role::AGENT_SUPERVISOR))
                 ->where('is_active', true)
                 ->where('is_blocked', false)
                 ->limit(500)
                 ->pluck('id')
                 ->toArray();
-
-            $userIds = array_merge($userIds, $supervisors);
         } else {
-            // Supervisor approved, rejected, extended, or cleared -> Alert Originating Sector & Beat operators
             if ($advisory->created_by) {
                 $userIds[] = (int) $advisory->created_by;
             }
-
-            $officeIds = array_filter([(int) $advisory->office_id, (int) $advisory->sector_id]);
+            $officeIds = array_values(array_filter([(int) $advisory->sector_id, (int) $advisory->office_id]));
             if (! empty($officeIds)) {
-                $sectorOperators = UserScope::whereIn('office_id', $officeIds)
+                $sectorStaff = UserScope::whereIn('office_id', $officeIds)
                     ->where('is_active', true)
+                    ->whereHas('user', fn ($q) => $q->where('is_active', true)->where('is_blocked', false)
+                        ->whereHas('role', fn ($r) => $r->where('name', Role::SECTOR_ADMIN)))
                     ->limit(500)
                     ->pluck('user_id')
                     ->toArray();
-                $userIds = array_merge($userIds, $sectorOperators);
+                $userIds = array_merge($userIds, $sectorStaff);
             }
         }
 
@@ -448,31 +456,38 @@ class PushNotificationService
      */
     protected function resolveDeskRecipientsForSupport(SupportRequest $request, string $actionType): array
     {
-        $userIds = [];
+        // Owner decision (2026-11-21): operation admins (and anyone else) are alerted about a support request
+        // ONLY when they can actually act on its current step (SupportRequestPolicy / transfer pipeline).
+        // They never receive help or advisory alerts. The requester/assigned approver still hear about actions
+        // on their own ticket.
+        $candidates = User::whereHas('role', fn ($q) => $q->whereIn('name', [Role::IT_ADMIN, Role::SUPER_ADMIN]))
+            ->where('is_active', true)->where('is_blocked', false)->limit(500)->pluck('id')->toArray();
 
-        if ($actionType === 'created' || $actionType === SupportRequest::STATUS_SUBMITTED) {
-            // Alert Operation Admins and destination office
-            $admins = User::whereHas('role', function ($q) {
-                $q->whereIn('name', [Role::IT_ADMIN, Role::SUPER_ADMIN]);
-            })
-                ->where('is_active', true)
-                ->where('is_blocked', false)
-                ->limit(500)
-                ->pluck('id')
-                ->toArray();
-
-            $userIds = array_merge($userIds, $admins);
-
-            if ($request->destination_office_id) {
-                $destUsers = UserScope::where('office_id', $request->destination_office_id)
-                    ->where('is_active', true)
-                    ->limit(500)
-                    ->pluck('user_id')
-                    ->toArray();
-                $userIds = array_merge($userIds, $destUsers);
+        $officeIds = array_filter([(int) $request->destination_office_id, (int) $request->source_office_id]);
+        if ($request->requester_id) {
+            $reqOffice = $request->requester?->activeScopes()->first()?->office_id;
+            if ($reqOffice) {
+                $officeIds[] = (int) $reqOffice;
             }
-        } else {
-            // Action taken: alert the ticket requester and assigned approver
+        }
+        if (! empty($officeIds)) {
+            $candidates = array_merge($candidates, UserScope::whereIn('office_id', $officeIds)
+                ->where('is_active', true)->limit(500)->pluck('user_id')->toArray());
+        }
+
+        $transfer = app(\App\Services\Support\OrganizationalTransferService::class);
+        $userIds = [];
+        foreach (User::whereIn('id', array_unique($candidates))->where('is_active', true)->where('is_blocked', false)->get() as $candidate) {
+            try {
+                if ($transfer->canUserActOnCurrentStep($candidate, $request)) {
+                    $userIds[] = (int) $candidate->id;
+                }
+            } catch (Throwable $e) {
+                // fail closed: never alert someone we cannot prove can act
+            }
+        }
+
+        if ($actionType !== 'created' && $actionType !== SupportRequest::STATUS_SUBMITTED) {
             if ($request->requester_id) {
                 $userIds[] = (int) $request->requester_id;
             }

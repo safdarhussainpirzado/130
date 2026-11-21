@@ -193,6 +193,7 @@
         },
 
         init: async function () {
+            if (window.NHMP_ALERTS_NONE) { return; } // call-centre agents receive no alerts
             if (!this.isSupported()) { this.updateUiState('unsupported'); this.bindEvents(); return; }
             try {
                 this.swRegistration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
@@ -219,6 +220,7 @@
                 if (!self.isSupported()) return self.showUnsupported();
                 if (!self.swRegistration) return self.showError('Desktop alerts are still starting up. Please try again in a moment.');
                 self.permissionState().then(function (perm) {
+                    if (self.isSubscribed && window.NHMP_ALERTS_LOCKED) { toast('info', 'Alerts are mandatory for your role and cannot be turned off.', 'Alerts always on'); return; }
                     if (self.isSubscribed) return self.confirmDisable();
                     if (perm === 'denied') return self.showBlocked();
                     return self.confirmEnable();
@@ -353,6 +355,7 @@
         },
 
         disable: async function (btn) {
+            if (window.NHMP_ALERTS_LOCKED) { toast('info', 'Alerts are mandatory for your role and cannot be turned off.', 'Alerts always on'); return; }
             this.setBusy(btn, true, 'Turning off…');
             this.updateUiState('loading');
             try {

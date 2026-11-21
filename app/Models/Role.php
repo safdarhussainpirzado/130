@@ -14,6 +14,11 @@ class Role extends Model
     const BEAT_OPERATOR    = 'beat_operator';
     const AGENT_SUPERVISOR = 'agent_supervisor';
     const AGENT            = 'agent';
+
+    /** Roles that can NEVER switch their alerts off (zone / sector / beat staff). */
+    public const ALERT_LOCKED_ROLES = ['zone_admin', 'sector_admin', 'beat_operator'];
+    /** Call-centre agents receive no push alerts at all. */
+    public const NO_ALERT_ROLES = ['agent'];
     const OPERATOR         = 'agent';
 
     public $timestamps = true;

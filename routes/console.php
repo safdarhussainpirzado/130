@@ -15,6 +15,9 @@ Schedule::command('audit:add-partition')->monthlyOn(25, '02:00');
 // Process analytics outbox continuously every minute to update call_hourly_rollups
 Schedule::command('analytics:process-outbox --limit=1000')->everyMinute()->withoutOverlapping();
 
+// Pending-help reminders: every minute until the help leaves 'pending' (push stack)
+Schedule::command('push:repeat-pending-help')->everyMinute()->withoutOverlapping();
+
 // Reconcile and guarantee zero drift between operational DB and rollup analytics nightly at 03:00
 Schedule::command('analytics:reconcile --days=7 --heal')->dailyAt('03:00');
 

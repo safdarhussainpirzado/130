@@ -34,6 +34,9 @@ class WebPushSubscriptionController extends Controller
         if (! $user) {
             return response()->json(['error' => 'Unauthenticated.'], 401);
         }
+        if (in_array($user->role?->name, \App\Models\Role::NO_ALERT_ROLES, true)) {
+            return response()->json(['error' => 'Call-centre agents do not receive alerts.'], 403);
+        }
 
         $validator = Validator::make($request->all(), [
             'endpoint' => ['required', 'string', 'url', 'max:1000'],
@@ -107,6 +110,10 @@ class WebPushSubscriptionController extends Controller
         $user = Auth::user();
         if (! $user) {
             return response()->json(['error' => 'Unauthenticated.'], 401);
+        }
+
+        if (in_array($user->role?->name, \App\Models\Role::ALERT_LOCKED_ROLES, true)) {
+            return response()->json(['error' => 'Alerts are mandatory for your role and cannot be turned off.'], 403);
         }
 
         $request->validate([

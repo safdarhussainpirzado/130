@@ -22,7 +22,7 @@ class SendHelpPendingPush implements ShouldQueue
 
     public int $timeout = 30;
 
-    public function __construct(public Call $call)
+    public function __construct(public Call $call, public int $repeat = 0)
     {
         $this->onQueue(config('services.push.queue', 'push'));
     }
@@ -30,7 +30,12 @@ class SendHelpPendingPush implements ShouldQueue
     public function handle(PushNotificationService $pushService): void
     {
         try {
-            $pushService->notifyHelpPending($this->call);
+            // Re-read the status: once the help leaves 'pending' the reminders stop immediately.
+            $fresh = $this->call->exists ? Call::query()->find($this->call->id) : $this->call;
+            if (! $fresh || $fresh->status !== 'pending') {
+                return;
+            }
+            $pushService->notifyHelpPending($fresh, $this->repeat);
         } catch (Throwable $e) {
             Log::error("SendHelpPendingPush job failed for call {$this->call->id}: ".$e->getMessage(), [
                 'exception' => $e,

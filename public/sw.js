@@ -69,7 +69,7 @@ self.addEventListener('push', (event) => {
             client.postMessage({
                 type: 'TRIGGER_VOICE_ALARM',
                 payload: {
-                    id: payload.data?.call_id ? ('call-' + payload.data.call_id) : (payload.tag || null),
+                    id: payload.data?.call_id ? ('call-' + payload.data.call_id + '-r' + (payload.data.repeat || 0)) : (payload.tag || null),
                     title: title,
                     message: body,
                     priority: payload.data?.priority || 3,

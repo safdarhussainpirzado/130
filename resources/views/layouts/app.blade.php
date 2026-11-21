@@ -1061,6 +1061,13 @@
                         <span class="hidden sm:inline">Support Center</span>
                     </a>
 
+                    @php
+                        $__alertRole = auth()->user()?->role?->name;
+                        $__alertsLocked = in_array($__alertRole, \App\Models\Role::ALERT_LOCKED_ROLES, true);
+                        $__noAlerts = in_array($__alertRole, \App\Models\Role::NO_ALERT_ROLES, true);
+                    @endphp
+                    <script>window.NHMP_ALERTS_LOCKED = {{ $__alertsLocked ? 'true' : 'false' }}; window.NHMP_ALERTS_NONE = {{ $__noAlerts ? 'true' : 'false' }};</script>
+                    @unless($__alertsLocked || $__noAlerts)
                     {{-- Voice Activation Protocol --}}
                     <button @click="toggleVoice()" 
                         class="w-10 h-10 rounded-2xl border-2 transition-all flex items-center justify-center relative group"
@@ -1077,7 +1084,9 @@
                         title="Alert sound settings (voice, alarm, priority)" aria-label="Alert sound settings">
                         <i class="fa-solid fa-sliders"></i>
                     </button>
+                    @endunless
 
+                    @unless($__noAlerts)
                     {{-- Web Push Desktop Alerts Enrollment --}}
                     <button id="btn-desktop-alerts-toggle"
                         type="button"
@@ -1088,6 +1097,7 @@
                         <span id="desktop-alerts-status-dot" class="w-2 h-2 rounded-full bg-slate-400"></span>
                         <span id="desktop-alerts-status-text" class="hidden sm:inline">Desktop Alerts</span>
                     </button>
+                    @endunless
 
                     @php
                         $headerUser = Auth::user();
@@ -1280,7 +1290,7 @@
                 allowedRoles: ['beat_operator', 'sector_admin', 'zone_admin', 'agent_supervisor', 'super_admin'],
                 userRole: '{{ auth()->user()->role?->name }}',
                 pendingCount: 0,
-                voiceEnabled: localStorage.getItem('nhmp_voice_enabled') !== 'false',
+                voiceEnabled: window.NHMP_ALERTS_NONE ? false : (window.NHMP_ALERTS_LOCKED ? true : localStorage.getItem('nhmp_voice_enabled') !== 'false'),
 
                 poller: null,
 

@@ -33,12 +33,19 @@
         return audioCtx;
     }
 
+    function locked() { return !!window.NHMP_ALERTS_LOCKED; }
+    function noAlerts() { return !!window.NHMP_ALERTS_NONE; }
+
     function isVoiceEnabled() {
+        if (noAlerts()) return false;
+        if (locked()) return true;
         var val = localStorage.getItem(PREF_KEY_VOICE);
         return val === null ? true : val === 'true';
     }
 
     function isAlarmEnabled() {
+        if (noAlerts()) return false;
+        if (locked()) return true;
         var val = localStorage.getItem(PREF_KEY_ALARM);
         return val === null ? true : val === 'true';
     }
@@ -162,6 +169,7 @@
 
         triggerAlert: function (opts) {
             opts = opts || {};
+            if (noAlerts()) { return; }
             // De-duplicate: the same alert (id) must sound once per browser even with many tabs / poll + push.
             var id = opts.id || opts.call_id || null;
             if (id) {
@@ -241,6 +249,7 @@
         },
 
         setPreferences: function (voice, alarm, minPriority) {
+            if (locked() || noAlerts()) { return; } // mandatory / not applicable for this role
             if (typeof voice === 'boolean') localStorage.setItem(PREF_KEY_VOICE, voice ? 'true' : 'false');
             if (typeof alarm === 'boolean') localStorage.setItem(PREF_KEY_ALARM, alarm ? 'true' : 'false');
         },
@@ -257,6 +266,7 @@
 
     // ---- Settings modal (styled, no native dialogs) ----
     function openSettings() {
+        if (locked() || noAlerts()) return;
         if (document.getElementById('nhmp-va-settings')) return;
         var p = window.NHMPVoiceAlert.getPreferences();
         var wrap = document.createElement('div');
