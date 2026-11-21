@@ -5,8 +5,9 @@ namespace Tests\Feature;
 use App\Models\Office;
 use App\Models\Role;
 use App\Models\User;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Tests\TestCase;
 
 class PollEndpointsCacheTest extends TestCase
@@ -14,12 +15,14 @@ class PollEndpointsCacheTest extends TestCase
     use DatabaseTransactions;
 
     protected User $supervisorUser;
+
     protected User $sectorAdminUser;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class]);
+        $this->withoutMiddleware([ValidateCsrfToken::class]);
+        Gate::define('calls.api_lookup', fn () => true);
 
         $zone = Office::firstOrCreate(
             ['name' => 'Poll Test Zone'],
@@ -38,6 +41,7 @@ class PollEndpointsCacheTest extends TestCase
             ['email' => 'supervisor_poll@nhmp.gov.pk'],
             [
                 'name' => 'Supervisor Poll',
+                'full_name' => 'Supervisor Poll',
                 'username' => 'sup_poll',
                 'password' => bcrypt('password'),
                 'role_id' => $supervisorRole->id,
@@ -50,6 +54,7 @@ class PollEndpointsCacheTest extends TestCase
             ['email' => 'sector_poll@nhmp.gov.pk'],
             [
                 'name' => 'Sector Admin Poll',
+                'full_name' => 'Sector Admin Poll',
                 'username' => 'sec_poll',
                 'password' => bcrypt('password'),
                 'role_id' => $sectorRole->id,

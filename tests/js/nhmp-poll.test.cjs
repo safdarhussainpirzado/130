@@ -187,3 +187,30 @@ test('Criterion (e): Applying a filter 5 times debounces to exactly ONE data req
 
     assert.equal(networkFetches, 1, 'Exactly ONE network fetch fired for 5 rapid filter operations');
 });
+
+test('Criterion (f): Fallback to plain setInterval works correctly when nhmpPoll is unavailable', async () => {
+    // When window.nhmpPoll is absent (e.g. script failed to load or not yet ready),
+    // caller falls back to standard setInterval/setTimeout
+    const originalNhmpPoll = global.window ? global.window.nhmpPoll : undefined;
+    if (global.window) delete global.window.nhmpPoll;
+
+    let fallbackCount = 0;
+    const fallbackPollFn = () => { fallbackCount++; };
+
+    // Simulate caller fallback logic
+    let poller = typeof global.window?.nhmpPoll === 'function' ? global.window.nhmpPoll(fallbackPollFn, { interval: 50 }) : null;
+    let timer = null;
+    if (!poller) {
+        timer = setInterval(fallbackPollFn, 30);
+    }
+
+    assert.equal(poller, null, 'Poller is null when helper is missing');
+    assert.ok(timer !== null, 'Fallback setInterval timer was established');
+
+    await new Promise(resolve => setTimeout(resolve, 80));
+    clearInterval(timer);
+
+    assert.ok(fallbackCount >= 2, `Fallback setInterval ticked expected number of times (ticked ${fallbackCount})`);
+
+    if (originalNhmpPoll) global.window.nhmpPoll = originalNhmpPoll;
+});

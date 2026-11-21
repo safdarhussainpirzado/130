@@ -79,6 +79,7 @@
             if (res.status === 401 || res.status === 403) {
                 stopped = true;
                 if (window.__taPoller) window.__taPoller.stop();
+                if (window.__taInterval) clearInterval(window.__taInterval);
                 return res;
             }
             if (!res.ok) return res;
@@ -100,6 +101,11 @@
             initialDelay: 3000
         });
     } else {
-        setTimeout(function () { poll(); setInterval(poll, INTERVAL); }, 3000);
+        setTimeout(function () {
+            if (!stopped) poll();
+            window.__taInterval = setInterval(function () {
+                if (!stopped) poll();
+            }, 10000);
+        }, 3000);
     }
 })();
