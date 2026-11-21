@@ -1288,6 +1288,7 @@ class CallController extends Controller
                     'last_reminder_at' => $call->last_reminder_at ? $call->last_reminder_at->toIso8601String() : null,
                     'call_type' => $call->callType ? ['name' => $call->callType->name] : null,
                     'call_sub_type' => $call->callSubType ? ['name' => $call->callSubType->name] : null,
+                    'category' => trim(($call->callType?->name ?? '') . ($call->callSubType?->name ? ' / ' . $call->callSubType->name : '')) ?: 'Help Request',
                 ];
             });
 

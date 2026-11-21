@@ -97,6 +97,9 @@ class SupportRequest extends Model
             if (empty($request->submitted_at)) {
                 $request->submitted_at = now();
             }
+            if (empty($request->requester_id) && \Illuminate\Support\Facades\Auth::check()) {
+                $request->requester_id = (int) \Illuminate\Support\Facades\Auth::id();
+            }
         });
 
         static::created(function (SupportRequest $request): void {

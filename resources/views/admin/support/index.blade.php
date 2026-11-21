@@ -303,10 +303,10 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
                     {{-- Search Input --}}
                     <div class="lg:col-span-2">
-                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Search Identifier / Applicant</label>
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Search Identifier / Requester</label>
                         <div class="relative">
                             <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
-                            <input type="text" name="search" value="{{ $search }}" placeholder="UUID, username, name, subject..."
+                            <input type="text" name="search" value="{{ $search }}" placeholder="UUID, requester name, username, subject..."
                                 class="w-full pl-9 text-xs rounded-xl border-slate-200 bg-white focus:border-blue-500 focus:ring-blue-500 shadow-sm">
                         </div>
                     </div>
@@ -368,7 +368,7 @@
                 <thead class="bg-slate-50/80 border-b border-slate-200/80 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                     <tr>
                         <th class="py-3.5 px-4 font-black">Tracking ID</th>
-                        <th class="py-3.5 px-4 font-black">Applicant Officer</th>
+                        <th class="py-3.5 px-4 font-black">Requester</th>
                         <th class="py-3.5 px-4 font-black">Type & Purpose</th>
                         <th class="py-3.5 px-4 font-black">Routing / Assignment</th>
                         <th class="py-3.5 px-4 font-black">Status</th>
@@ -404,10 +404,11 @@
                             'priority'           => $req->priority,
                             'priority_badge'     => $req->getPriorityBadgeClass(),
                             'submitted_at'       => $req->submitted_at?->format('M d, Y H:i:s') ?? 'N/A',
-                            'applicant_name'     => $req->requester?->full_name ?? 'Unknown Officer',
-                            'applicant_username' => $req->requester?->username ?? 'N/A',
+                            'applicant_name'     => $req->requester?->full_name ?: ($req->requester?->name ?: 'System / Unknown Requester'),
+                            'applicant_username' => $req->requester?->username ?: ($req->requester?->employee_id ?: 'N/A'),
                             'applicant_email'    => $req->requester?->email ?? 'N/A',
-                            'applicant_role'     => $req->requester?->getRoleTitle() ?? 'Officer',
+                            'applicant_role'     => $req->requester?->getRoleTitle() ?: ($req->requester?->role?->display_name ?: 'Officer'),
+                            'applicant_office'   => $req->requester?->office?->name ?? '',
                             'source_office'      => $req->sourceOffice?->name ?? 'National / Unassigned',
                             'source_parent'      => $req->sourceOffice?->parent?->name ?? '',
                             'destination_office' => $req->destinationOffice?->name ?? 'N/A',
@@ -436,14 +437,25 @@
                             </span>
                         </td>
 
-                        {{-- Applicant Officer --}}
+                        {{-- Requester --}}
                         <td class="py-3.5 px-4">
-                            <div class="font-black text-navy-900">{{ $req->requester?->full_name ?? 'Unknown Officer' }}</div>
-                            <div class="text-[10px] text-slate-400 font-mono flex items-center gap-1.5 mt-0.5">
-                                <span>{{ $req->requester?->username ?? 'N/A' }}</span>
-                                <span>&bull;</span>
-                                <span class="text-blue-600 font-semibold">{{ $req->requester?->getRoleTitle() ?? 'Officer' }}</span>
-                            </div>
+                            @if($req->requester)
+                                <div class="font-black text-navy-900">{{ $req->requester->full_name ?: ($req->requester->name ?: 'System / Unknown Requester') }}</div>
+                                <div class="text-[10px] text-slate-400 font-mono flex flex-wrap items-center gap-1.5 mt-0.5">
+                                    <span>{{ $req->requester->username ?: ($req->requester->employee_id ?: 'N/A') }}</span>
+                                    <span>&bull;</span>
+                                    <span class="text-blue-600 font-semibold">{{ $req->requester->getRoleTitle() ?: ($req->requester->role?->display_name ?: 'Officer') }}</span>
+                                    @if($req->requester->office)
+                                        <span>&bull;</span>
+                                        <span class="text-slate-500 font-medium" title="{{ $req->requester->office->name }}">
+                                            <i class="fa-solid fa-building text-[8px] mr-0.5"></i>{{ $req->requester->office->name }}
+                                        </span>
+                                    @endif
+                                </div>
+                            @else
+                                <div class="font-bold text-slate-500 italic">System / Unknown Requester</div>
+                                <div class="text-[10px] text-slate-400 font-mono">Legacy Record</div>
+                            @endif
                         </td>
 
                         {{-- Type & Purpose --}}

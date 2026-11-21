@@ -193,6 +193,7 @@ class SupportManagementController extends Controller
             ->where($applyScope)
             ->with([
                 'requester.role', 
+                'requester.activeScopes.office.parent.parent',
                 'sourceOffice.parent.parent', 
                 'destinationOffice.parent.parent', 
                 'assignedApprover',
@@ -271,6 +272,15 @@ class SupportManagementController extends Controller
                          ->orWhere('full_name', 'like', "%{$search}%")
                          ->orWhere('email', 'like', "%{$search}%");
                   });
+            });
+        }
+
+        // Dedicated Requester Search / Filter
+        if ($requesterFilter = $request->input('requester')) {
+            $query->whereHas('requester', function (Builder $uq) use ($requesterFilter) {
+                $uq->where('username', 'like', "%{$requesterFilter}%")
+                   ->orWhere('full_name', 'like', "%{$requesterFilter}%")
+                   ->orWhere('email', 'like', "%{$requesterFilter}%");
             });
         }
 
