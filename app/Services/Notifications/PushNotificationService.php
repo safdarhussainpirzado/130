@@ -239,6 +239,32 @@ class PushNotificationService
     }
 
     /**
+     * Dispatch a harmless test notification to a specific desk user's active subscriptions.
+     *
+     * @return array{recipients: int, webpush: array, fcm: array}
+     */
+    public function notifyTest(User $user): array
+    {
+        $dashboardUrl = Route::has('dashboard') ? route('dashboard', [], false) : '/dashboard';
+
+        $payload = [
+            'title' => '🚨 NHMP 130: Test Notification',
+            'body' => 'Desk push notifications are active and functioning correctly.',
+            'icon' => '/favicon-192x192.png',
+            'badge' => '/favicon-32x32.png',
+            'tag' => "test-notification-{$user->id}-".time(),
+            'data' => [
+                'type' => 'test_notification',
+                'user_id' => $user->id,
+                'url' => $dashboardUrl,
+                'requireInteraction' => false,
+            ],
+        ];
+
+        return $this->dispatchToSubscriptions([$user->id], $payload, 'test_ping', (string) time());
+    }
+
+    /**
      * Dispatch notification payload to active subscriptions for the given users.
      * Handles deduplication, rate-limiting, and channel routing.
      *

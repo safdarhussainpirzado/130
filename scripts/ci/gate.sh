@@ -185,14 +185,25 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# 5. Service Worker URL Security Test (Node)
+# 5. Service Worker URL Security & Lifecycle Tests (Node)
 # ------------------------------------------------------------------------------
 echo ""
-echo "--- 5. Service Worker Fallback Security Test ---"
-if node tests/sw_url_fallback_test.cjs >/dev/null 2>&1; then
-    pass_gate "Service Worker security test: 12/12 URL fallback and sanitization assertions passed."
+echo "--- 5. Service Worker Security & Lifecycle Tests ---"
+SW_FAILED=false
+if ! node tests/sw_url_fallback_test.cjs >/dev/null 2>&1; then
+    echo "  Service worker URL fallback test failed."
+    SW_FAILED=true
+fi
+
+if ! node tests/sw_service_worker_lifecycle_test.cjs >/dev/null 2>&1; then
+    echo "  Service worker lifecycle simulation test failed."
+    SW_FAILED=true
+fi
+
+if [ "$SW_FAILED" = false ]; then
+    pass_gate "Service Worker tests: 26/26 URL fallback, lifecycle, and security assertions passed."
 else
-    fail_gate "Service Worker security test failed."
+    fail_gate "Service Worker tests failed."
 fi
 
 # ------------------------------------------------------------------------------
@@ -212,10 +223,11 @@ else
         -e DB_DATABASE=130_crm_test_disposable -e DB_USERNAME=root -e DB_PASSWORD=MomxjpGVoxlLtsllGX7PgU6Tti67OgV4 \
         $HARNESS_IMAGE php ./vendor/bin/phpunit \
         tests/Unit/Notifications/ tests/Feature/Notifications/ \
-        tests/Feature/TravelAdvisoryApprovalWorkflowTest.php tests/Feature/CallReminderTest.php"
+        tests/Feature/TravelAdvisoryApprovalWorkflowTest.php tests/Feature/CallReminderTest.php \
+        tests/Feature/GeospatialLookupTest.php"
 
     if eval "$TEST_CMD"; then
-        pass_gate "Docker test suite: Notification, Advisory workflow, and Call reminder tests passed."
+        pass_gate "Docker test suite: Notification, Advisory workflow, Call reminder, and Geospatial tests passed."
     else
         fail_gate "Docker test suite: One or more tests failed in harness."
     fi
@@ -231,6 +243,42 @@ if echo "$COMPOSE_CFG_OUT" | grep -q "services:"; then
     pass_gate "Docker compose config: Validated syntax with variable image tags and push-worker healthcheck."
 else
     fail_gate "Docker compose config: Failed to parse docker-compose.octane.yml."
+fi
+
+# ------------------------------------------------------------------------------
+# 8. Hardcoded Image Tag Check
+# ------------------------------------------------------------------------------
+echo ""
+echo "--- 8. Hardcoded Docker Image Tag Check ---"
+RC25_LITERALS=$(grep -n "rc25" docker-compose.octane.yml | grep -v '\${NHMP_IMAGE:-' || true)
+if [ -n "$RC25_LITERALS" ]; then
+    fail_gate "Docker compose check: Literal rc25 found outside \${NHMP_IMAGE:-...}: $RC25_LITERALS"
+else
+    pass_gate "Docker compose check: Zero hardcoded rc25 image tags found outside \${NHMP_IMAGE:-...} fallback."
+fi
+
+# ------------------------------------------------------------------------------
+# 9. Direct env() Usage Check
+# ------------------------------------------------------------------------------
+echo ""
+echo "--- 9. Direct env() Call Check ---"
+ENV_VIOLATIONS=0
+CHANGED_PHP_OUTSIDE_CONFIG=$(git diff --name-only "$BASE_REF" | grep '\.php$' | grep -v '^config/' || true)
+while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    if [ -f "$f" ]; then
+        MATCHES=$(grep -En '\benv\(' "$f" || true)
+        if [ -n "$MATCHES" ]; then
+            echo "  Direct env() violation in $f: $MATCHES"
+            ENV_VIOLATIONS=$((ENV_VIOLATIONS + 1))
+        fi
+    fi
+done <<< "$CHANGED_PHP_OUTSIDE_CONFIG"
+
+if [ $ENV_VIOLATIONS -eq 0 ]; then
+    pass_gate "Direct env() check: Zero direct env() calls detected in changed PHP files outside config/."
+else
+    fail_gate "Direct env() check: $ENV_VIOLATIONS files contain direct env() calls outside config/."
 fi
 
 # ------------------------------------------------------------------------------

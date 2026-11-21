@@ -175,25 +175,48 @@ php artisan config:cache
 ## 7. Round 3 Review Remediation & CI Gate Verification
 
 ### 7.1 Separation of KM-Optional Feature
-- **Branch:** `fix/km-optional` in worktree `/home/mrpirzado/projects/130-km` (commit `70eb169`).
+- **Branch:** `fix/km-optional` in worktree `/home/mrpirzado/projects/130-km` (commit `70eb169` / `fac8dd8`).
 - **Scope:** Surgical diff for helpline call intake (`CallController::store()`, `resources/views/calls/create.blade.php`, `CallFlowTest.php`).
-- **Tests:** 6 tests, 30 assertions passing in Docker test harness (`docs/evidence/km-optional/test-run-20261121.txt`).
-- **Zero Push Dependency:** Independent branch ready for immediate review and hot-patch by Claude.
+- **Status:** Reviewed, accepted, hot-patched to production by Claude, fast-forwarded to `main` and pushed to GitHub.
 
-### 7.2 Cleanup of `feat/push-notifications-desk` (Commit: `a3cda5a`)
+### 7.2 Cleanup of `feat/push-notifications-desk`
 - **Noise Elimination:** Restored existing files (`CallController.php`, `TravelAdvisoryController.php`, `SupportRequest.php`, `SupportRequestAction.php`, `Call.php`, `CallService.php`, `AppServiceProvider.php`) to exact `main` baseline, re-applying only the functional push hunks.
-- **Diff Stat Agreement:** `git diff main...HEAD -w --stat` and `git diff main...HEAD --stat` are in ~100% agreement (zero Pint formatting churn on existing files).
+- **Diff Stat Agreement:** `git diff main...HEAD -w --stat` and `git diff main...HEAD --stat` are in 100% agreement (zero Pint formatting churn on existing files).
 - **Zero Patrol Reference:** Removed `PatrolRecipientResolverInterface.php`.
-- **Diagnostic Fixes:** Used string `class_exists('Minishlink\WebPush\WebPush')` and `Redis::setex(...)` to eliminate Intelephense warnings.
+- **Zero CallController Diff:** `CallController.php`, `create.blade.php`, and `CallFlowTest.php` match `main` (fac8dd8) 100%.
 
-### 7.3 Automated CI Gate (`scripts/ci/gate.sh`)
+### 7.3 Automated CI Gate (`scripts/ci/gate.sh`) & PUSH-4 Additions
+- Check 8: Validates no hardcoded `rc25` tags in `docker-compose.octane.yml` outside `${NHMP_IMAGE:-...}` fallback.
+- Check 9: Validates no direct `env()` calls in changed PHP files outside `config/`.
 - Executed `bash scripts/ci/gate.sh` with full logging to `docs/evidence/gate-last-run.txt`:
   1. Scope Verification: `[PASS]`
   2. Secret & Credential Scan: `[PASS]`
   3. Minimal-Diff Check: `[PASS]`
   4. PHP Syntax & Pint Style Check (New files only): `[PASS]`
-  5. Service Worker Fallback Security Test: `[PASS]` (12/12)
-  6. Docker Test Harness (71 tests, 303 assertions): `[PASS]`
+  5. Service Worker Fallback & Lifecycle Tests: `[PASS]` (26/26 assertions)
+  6. Docker Test Harness (80 tests, 328 assertions): `[PASS]`
   7. Docker Compose Validation: `[PASS]`
+  8. Hardcoded Docker Image Tag Check: `[PASS]`
+  9. Direct env() Usage Check: `[PASS]`
   - **Verdict:** `GATE: PASS`
+
+---
+
+## 8. PUSH-4 Production-Readiness Package Deliverables
+
+1. **Rollout Runbook (`docs/PUSH_ROLLOUT_RUNBOOK.md`)**:
+   - Complete copy-paste operational steps: image build archive check, dependency verification with disposable container, placeholder secrets (mode 600), additive migrations with `migrate --pretend` GR analysis, worker health check (`push:status --health`), dark enable -> canary -> full enable, zero-downtime Nginx reload, and Safdar FCM setup guide.
+2. **Read-Only Verification Script (`scripts/deploy/push_rollout_checklist.sh`)**:
+   - Executable checklist script (chmod +x) that inspects libraries, secrets permissions, environment flags, Service Worker assets, and container status without modifying any state.
+3. **Desk Push Test Command (`push:test`)**:
+   - `php artisan push:test --user=<id>` sends a single queued test push to that user's active subscriptions.
+   - Refuses execution if `PUSH_ENABLED=false`.
+   - Never prints secrets, private keys, or credentials.
+   - Covered by unit tests in `tests/Unit/Notifications/PushTestCommandTest.php` (5 tests, 13 assertions).
+4. **Service Worker Lifecycle & Browser Testing**:
+   - Automated SW push/click simulation in `tests/sw_service_worker_lifecycle_test.cjs` (14 assertions).
+   - Documented 10-minute manual browser verification procedure in `docs/evidence/push-notifications/manual-browser-test.md`.
+5. **Geospatial Lookup Regression Coverage**:
+   - Feature test `tests/Feature/GeospatialLookupTest.php` verifying `/ajax/geospatial-lookup` with missing parameters, empty strings, numbers, and odd inputs.
+
 
