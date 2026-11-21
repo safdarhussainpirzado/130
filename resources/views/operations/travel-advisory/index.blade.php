@@ -35,6 +35,11 @@
     currentRoad: '{{ $currentRoad ?? "all" }}',
     currentStatus: '{{ $currentStatus ?? "active" }}',
     currentType: '{{ $currentType ?? "all" }}',
+    hierarchy: {{ Js::from($hierarchy ?? ['zones' => [], 'sectors' => [], 'beats' => []]) }},
+    lock: {{ Js::from($officeScope['lock'] ?? ['zone' => null, 'sector' => null, 'beat' => null]) }},
+    selZone: {{ (int) ($selZone ?? 0) }},
+    selSector: {{ (int) ($selSector ?? 0) }},
+    selBeat: {{ (int) ($selBeat ?? 0) }},
     dateFrom: '{{ $dateFrom ?? "" }}',
     dateTo: '{{ $dateTo ?? "" }}',
     search: '{{ $search ?? "" }}',
@@ -214,101 +219,170 @@
 
     </div>
 
-    <!-- HIGHWAY ROUTE PILLS & SEARCH TOOLBAR WITH EMBEDDED ACTION BUTTONS -->
-    <div class="bg-white rounded-3xl border border-slate-200/80 p-4 shadow-sm space-y-3.5">
-        <!-- Top Toolbar Line: Corridor Pills + Action Buttons -->
-        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-            <!-- Route Chips Scroll/Pill Bar -->
-            <div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs scrollbar-none flex-1">
-                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-1 shrink-0 flex items-center gap-1">
-                    <i class="fa-solid fa-road text-slate-400"></i> Corridor:
-                </span>
-                <button type="button" @click="setRoad('all')"
-                    class="px-3 py-1.5 rounded-xl font-bold transition shrink-0 cursor-pointer"
-                    :class="currentRoad === 'all' ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'">
-                    All Corridors
+    <!-- PREMIUM FILTER CARD: corridor + jurisdiction (zone > sector > beat) + status/category/date/search -->
+    <style>
+        .taf-card{background:#fff;border:1px solid #e2e8f0;border-radius:28px;padding:18px 20px;box-shadow:0 18px 50px -24px rgba(15,23,42,.18);display:grid;gap:14px}
+        .taf-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+        .taf-title{display:flex;align-items:center;gap:10px;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#64748b}
+        .taf-title i{width:28px;height:28px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;font-size:12px;box-shadow:0 8px 16px -8px rgba(37,99,235,.6)}
+        .taf-count{font-size:11px;font-weight:700;color:#475569;background:#f1f5f9;border-radius:999px;padding:4px 10px}
+        .taf-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+        .taf-row{display:grid;grid-template-columns:92px minmax(0,1fr);align-items:start;gap:10px;padding-top:12px;border-top:1px dashed #e2e8f0}
+        .taf-label{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#94a3b8;padding-top:9px;white-space:nowrap}
+        .taf-chips{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+        .taf-chip{appearance:none;border:1px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 13px;border-radius:12px;font-size:12px;font-weight:700;color:#334155;background:#f1f5f9;transition:all .15s ease;white-space:nowrap}
+        .taf-chip:hover{background:#e2e8f0;transform:translateY(-1px)}
+        .taf-chip.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+        .taf-chip.on{color:#fff;background:linear-gradient(135deg,#2563eb,#4f46e5);box-shadow:0 10px 20px -10px rgba(37,99,235,.7);border-color:rgba(255,255,255,.25)}
+        .taf-chip.locked{cursor:not-allowed;color:#92400e;background:#fffbeb;border-color:#fde68a;box-shadow:none;transform:none}
+        .taf-chip.locked i{color:#d97706}
+        .taf-chip.on.locked{color:#fff;cursor:not-allowed;transform:none;border-color:rgba(255,255,255,.35)}
+        .taf-chip.on.locked i{color:rgba(255,255,255,.92)}
+        .taf-chip.zone.on{background:linear-gradient(135deg,#0f766e,#14b8a6);box-shadow:0 10px 20px -10px rgba(13,148,136,.7)}
+        .taf-chip.sector.on{background:linear-gradient(135deg,#7c3aed,#a855f7);box-shadow:0 10px 20px -10px rgba(124,58,237,.7)}
+        .taf-chip.beat.on{background:linear-gradient(135deg,#ea580c,#f59e0b);box-shadow:0 10px 20px -10px rgba(234,88,12,.7)}
+        .taf-hint{font-size:11px;color:#94a3b8;font-weight:600;padding-top:9px}
+        .taf-tools{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.8fr) minmax(0,1.2fr);gap:12px;padding-top:12px;border-top:1px dashed #e2e8f0;align-items:start}
+        .taf-dates .taf-input{min-width:0;padding:0 8px}
+        @media (max-width:1100px){.taf-tools{grid-template-columns:repeat(2,minmax(0,1fr))}.taf-field.dates{grid-column:span 2}}
+        @media (max-width:640px){.taf-tools{grid-template-columns:minmax(0,1fr)}.taf-field.dates{grid-column:span 1}}
+        .taf-field{display:grid;gap:5px;min-width:0}
+        .taf-field>span{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#94a3b8;display:flex;align-items:center;gap:6px}
+        .taf-input{width:100%;height:40px;border-radius:14px;border:1px solid #e2e8f0;background:#f8fafc;padding:0 12px;font-size:12.5px;font-weight:700;color:#1e293b;outline:none;transition:all .15s ease;font-family:inherit}
+        .taf-input:focus{background:#fff;border-color:#60a5fa;box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+        .taf-search{position:relative}
+        .taf-search i{position:absolute;left:12px;top:13px;font-size:12px;color:#94a3b8}
+        .taf-search .taf-input{padding-left:32px;font-weight:600}
+        .taf-dates{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+        .taf-presets{display:flex;gap:6px;flex-wrap:wrap}
+        .taf-mini{appearance:none;border:0;cursor:pointer;height:30px;padding:0 11px;border-radius:10px;font-size:11px;font-weight:800;color:#475569;background:#f1f5f9;font-family:inherit}
+        .taf-mini:hover{background:#e2e8f0}
+        .taf-mini.danger{color:#e11d48;background:#fff1f2}
+        .taf-btn{appearance:none;border:0;cursor:pointer;height:40px;padding:0 16px;border-radius:14px;font-size:12px;font-weight:800;display:inline-flex;align-items:center;gap:8px;font-family:inherit;text-decoration:none}
+        .taf-btn.primary{color:#fff;background:linear-gradient(135deg,#2563eb,#4f46e5);box-shadow:0 12px 24px -12px rgba(37,99,235,.8)}
+        .taf-btn.ghost{color:#334155;background:#f1f5f9}
+        .taf-btn.ghost:hover{background:#e2e8f0}
+        @media (max-width:760px){.taf-row{grid-template-columns:1fr}.taf-label{padding-top:0}.taf-card{padding:14px;border-radius:22px}}
+    </style>
+    <div class="taf-card">
+        <div class="taf-head">
+            <div class="taf-title"><i class="fa-solid fa-sliders"></i> Filters <span class="taf-count" x-text="(pagination.total || 0) + ' advisories'"></span></div>
+            <div class="taf-actions">
+                <button type="button" class="taf-btn ghost" x-show="isFiltered()" @click="resetFilters()" title="Reset all filters">
+                    <i class="fa-solid fa-rotate-left" style="color:#2563eb"></i> Reset
                 </button>
-                <template x-for="rCode in corridorList" :key="rCode">
-                    <button type="button" @click="setRoad(rCode)"
-                        class="px-3 py-1.5 rounded-xl font-mono font-bold transition shrink-0 cursor-pointer"
-                        :class="currentRoad === rCode ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
-                        x-text="rCode">
-                    </button>
-                </template>
-            </div>
-
-            <!-- Action Buttons: Log Advisory / Fog -->
-            <div class="flex items-center gap-2 shrink-0">
-                <a href="{{ route('ops.travel-advisory.create') }}"
-                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 shadow-md shadow-blue-600/25 active:translate-y-0.5 transition-all">
-                    <i class="fa-solid fa-plus-circle"></i>
-                    <span>Log Advisory / Fog</span>
+                <a href="{{ route('ops.travel-advisory.create') }}" class="taf-btn primary">
+                    <i class="fa-solid fa-plus-circle"></i> Log Advisory / Fog
                 </a>
             </div>
         </div>
 
-        <!-- Search & Secondary Filter Form (NO FORM SUBMIT / PURE AJAX) -->
-        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-slate-100">
-            <div class="flex flex-wrap items-center gap-2">
-                <!-- Status filter dropdown -->
-                <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs">
-                    <i class="fa-solid fa-clock-rotate-left text-slate-400 text-xs"></i>
-                    <select x-model="currentStatus" @change="fetchData()" class="bg-transparent font-bold text-slate-700 outline-none cursor-pointer">
-                        <option value="active">Active / Live Alerts</option>
-                        <option value="pending">Pending Review (Supervisors)</option>
-                        <option value="rejected">Rejected Advisories</option>
-                        <option value="all">All Records</option>
-                        <option value="resolved">Resolved Only</option>
-                        <option value="expired">Expired Only</option>
-                    </select>
-                </div>
-
-                <!-- Type filter dropdown (All Categories) -->
-                <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs">
-                    <i class="fa-solid fa-tags text-slate-400 text-xs"></i>
-                    <select x-model="currentType" @change="fetchData()" class="bg-transparent font-bold text-slate-700 outline-none cursor-pointer">
-                        <option value="all">All Categories</option>
-                        <option value="fog">Fog & Smog</option>
-                        <option value="road_closure">Road Closures</option>
-                        <option value="road_works">Road Works</option>
-                        <option value="traffic">Traffic Congestion</option>
-                        <option value="weather">Weather & Rain</option>
-                        <option value="diversion">Diversions</option>
-                    </select>
-                </div>
-
-                <!-- Date range filter (inserted date, Asia/Karachi) -->
-                <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs">
-                    <i class="fa-solid fa-calendar-days text-slate-400 text-xs"></i>
-                    <span class="font-bold text-slate-400 uppercase text-[10px]">From</span>
-                    <input type="date" x-model="dateFrom" :max="dateTo || null" @change="fetchData(1)" class="bg-transparent font-bold text-slate-700 outline-none cursor-pointer">
-                    <span class="font-bold text-slate-400 uppercase text-[10px]">To</span>
-                    <input type="date" x-model="dateTo" :min="dateFrom || null" @change="fetchData(1)" class="bg-transparent font-bold text-slate-700 outline-none cursor-pointer">
-                </div>
-                <div class="flex items-center gap-1">
-                    <button type="button" @click="setDatePreset(1)" class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer">Today</button>
-                    <button type="button" @click="setDatePreset(7)" class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer">7 Days</button>
-                    <button type="button" @click="setDatePreset(30)" class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer">30 Days</button>
-                    <button type="button" x-show="dateFrom || dateTo" @click="clearDates()" class="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-bold cursor-pointer">Clear dates</button>
-                </div>
-            </div>
-
-            <!-- Search input & Reset -->
-            <div class="flex items-center gap-2">
-                <div class="relative w-full sm:w-72">
-                    <input type="text" x-model="search" @input.debounce.300ms="fetchData()" placeholder="Search landmarks, KM, title..."
-                        class="w-full text-xs font-medium pl-8 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
-                </div>
-                <button type="button" @click="resetFilters()"
-                    x-show="currentRoad !== 'all' || currentType !== 'all' || currentStatus !== 'active' || search || dateFrom || dateTo"
-                    class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm" title="Reset All Filters">
-                    <i class="fa-solid fa-rotate-left text-blue-600"></i>
-                    <span class="hidden sm:inline">Reset</span>
-                </button>
+        <!-- Corridor -->
+        <div class="taf-row">
+            <div class="taf-label"><i class="fa-solid fa-road"></i> Corridor</div>
+            <div class="taf-chips">
+                <button type="button" class="taf-chip" :class="currentRoad === 'all' ? 'on' : ''" @click="setRoad('all')">All Corridors</button>
+                <template x-for="rCode in corridorList" :key="rCode">
+                    <button type="button" class="taf-chip mono" :class="currentRoad === rCode ? 'on' : ''" @click="setRoad(rCode)" x-text="rCode"></button>
+                </template>
             </div>
         </div>
+
+        <!-- Zone -->
+        <div class="taf-row" x-show="hierarchy.zones.length > 0">
+            <div class="taf-label"><i class="fa-solid fa-earth-asia"></i> Zone</div>
+            <div class="taf-chips">
+                <template x-if="!lock.zone">
+                    <button type="button" class="taf-chip zone" :class="!zoneId ? 'on' : ''" @click="setZone(0)">All Zones</button>
+                </template>
+                <template x-for="z in visibleZones()" :key="z.id">
+                    <button type="button" class="taf-chip zone" :class="[zoneId === z.id ? 'on' : '', lock.zone ? 'locked' : '']" :title="lock.zone ? 'Your assigned zone' : ''" @click="setZone(z.id)">
+                        <i x-show="lock.zone" class="fa-solid fa-lock"></i><span x-text="z.name"></span>
+                    </button>
+                </template>
+            </div>
+        </div>
+
+        <!-- Sector (loads after a zone is chosen) -->
+        <div class="taf-row" x-show="zoneId || lock.sector" x-transition.opacity.duration.150ms>
+            <div class="taf-label"><i class="fa-solid fa-diagram-project"></i> Sector</div>
+            <div class="taf-chips">
+                <template x-if="!lock.sector">
+                    <button type="button" class="taf-chip sector" :class="!sectorId ? 'on' : ''" @click="setSector(0)">All Sectors</button>
+                </template>
+                <template x-for="sx in visibleSectors()" :key="sx.id">
+                    <button type="button" class="taf-chip sector" :class="[sectorId === sx.id ? 'on' : '', lock.sector ? 'locked' : '']" :title="lock.sector ? 'Your assigned sector' : ''" @click="setSector(sx.id)">
+                        <i x-show="lock.sector" class="fa-solid fa-lock"></i><span x-text="sx.name"></span>
+                    </button>
+                </template>
+                <span class="taf-hint" x-show="visibleSectors().length === 0">No sectors in this zone.</span>
+            </div>
+        </div>
+
+        <!-- Beat (loads after a sector is chosen) -->
+        <div class="taf-row" x-show="sectorId || lock.beat" x-transition.opacity.duration.150ms>
+            <div class="taf-label"><i class="fa-solid fa-location-dot"></i> Beat</div>
+            <div class="taf-chips">
+                <template x-if="!lock.beat">
+                    <button type="button" class="taf-chip beat" :class="!beatId ? 'on' : ''" @click="setBeat(0)">All Beats</button>
+                </template>
+                <template x-for="b in visibleBeats()" :key="b.id">
+                    <button type="button" class="taf-chip beat" :class="[beatId === b.id ? 'on' : '', lock.beat ? 'locked' : '']" :title="lock.beat ? 'Your assigned beat' : ''" @click="setBeat(b.id)">
+                        <i x-show="lock.beat" class="fa-solid fa-lock"></i><span x-text="b.name"></span>
+                    </button>
+                </template>
+                <span class="taf-hint" x-show="visibleBeats().length === 0">No beats in this sector.</span>
+            </div>
+        </div>
+
+        <!-- Status / Category / Dates / Search -->
+        <div class="taf-tools">
+            <label class="taf-field">
+                <span><i class="fa-solid fa-clock-rotate-left"></i> Status</span>
+                <select x-model="currentStatus" @change="fetchData(1)" class="taf-input">
+                    <option value="active">Active / Live Alerts</option>
+                    <option value="pending">Pending Review (Supervisors)</option>
+                    <option value="rejected">Rejected Advisories</option>
+                    <option value="all">All Records</option>
+                    <option value="resolved">Resolved Only</option>
+                    <option value="expired">Expired Only</option>
+                </select>
+            </label>
+            <label class="taf-field">
+                <span><i class="fa-solid fa-tags"></i> Category</span>
+                <select x-model="currentType" @change="fetchData(1)" class="taf-input">
+                    <option value="all">All Categories</option>
+                    <option value="fog">Fog &amp; Smog</option>
+                    <option value="road_closure">Road Closures</option>
+                    <option value="road_works">Road Works</option>
+                    <option value="traffic">Traffic Congestion</option>
+                    <option value="weather">Weather &amp; Rain</option>
+                    <option value="diversion">Diversions</option>
+                </select>
+            </label>
+            <div class="taf-field dates">
+                <span><i class="fa-solid fa-calendar-days"></i> Inserted between</span>
+                <div class="taf-dates">
+                    <input type="date" x-model="dateFrom" :max="dateTo || null" @change="fetchData(1)" class="taf-input" aria-label="From date">
+                    <input type="date" x-model="dateTo" :min="dateFrom || null" @change="fetchData(1)" class="taf-input" aria-label="To date">
+                </div>
+                <div class="taf-presets">
+                    <button type="button" class="taf-mini" @click="setDatePreset(1)">Today</button>
+                    <button type="button" class="taf-mini" @click="setDatePreset(7)">7 Days</button>
+                    <button type="button" class="taf-mini" @click="setDatePreset(30)">30 Days</button>
+                    <button type="button" class="taf-mini danger" x-show="dateFrom || dateTo" @click="clearDates()">Clear</button>
+                </div>
+            </div>
+            <label class="taf-field">
+                <span><i class="fa-solid fa-keyboard"></i> Search</span>
+                <div class="taf-search">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" x-model="search" @input.debounce.300ms="fetchData(1)" placeholder="Landmarks, KM, title..." class="taf-input">
+                </div>
+            </label>
+        </div>
     </div>
+
 
     <!-- 3D TACTILE TABLE OF ADVISORIES (Pure Alpine AJAX Driven) -->
     <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden relative">
@@ -1235,6 +1309,11 @@ function advisoryIndexManager(config) {
         currentStatus: config.currentStatus || 'active',
         currentType: config.currentType || 'all',
         currentSeverity: 'all',
+        hierarchy: config.hierarchy || { zones: [], sectors: [], beats: [] },
+        lock: config.lock || { zone: null, sector: null, beat: null },
+        zoneId: config.selZone || 0,
+        sectorId: config.selSector || 0,
+        beatId: config.selBeat || 0,
         dateFrom: config.dateFrom || '',
         dateTo: config.dateTo || '',
         search: config.search || '',
@@ -1243,6 +1322,35 @@ function advisoryIndexManager(config) {
         corridorList: ['M-1', 'M-2', 'M-3', 'M-4', 'M-5', 'M-9', 'M-11', 'M-14', 'N-5', 'E-35', 'N-55'],
         isLoading: false,
 
+        visibleZones() {
+            const z = this.hierarchy.zones || [];
+            return this.lock.zone ? z.filter(x => x.id === this.lock.zone) : z;
+        },
+        visibleSectors() {
+            const all = (this.hierarchy.sectors || []).filter(x => x.zone_id === this.zoneId);
+            return this.lock.sector ? all.filter(x => x.id === this.lock.sector) : all;
+        },
+        visibleBeats() {
+            const all = (this.hierarchy.beats || []).filter(x => x.sector_id === this.sectorId);
+            return this.lock.beat ? all.filter(x => x.id === this.lock.beat) : all;
+        },
+        setZone(id) {
+            if (this.lock.zone) return;
+            this.zoneId = id || 0; this.sectorId = 0; this.beatId = 0; this.fetchData(1);
+        },
+        setSector(id) {
+            if (this.lock.sector) return;
+            this.sectorId = id || 0; this.beatId = 0; this.fetchData(1);
+        },
+        setBeat(id) {
+            if (this.lock.beat) return;
+            this.beatId = id || 0; this.fetchData(1);
+        },
+        isFiltered() {
+            return this.currentRoad !== 'all' || this.currentType !== 'all' || this.currentStatus !== 'active' || !!this.search
+                || !!this.dateFrom || !!this.dateTo
+                || (!this.lock.zone && !!this.zoneId) || (!this.lock.sector && !!this.sectorId) || (!this.lock.beat && !!this.beatId);
+        },
         hasDateRange() { return !!(this.dateFrom || this.dateTo); },
         categoryStatus() { return this.hasDateRange() ? 'all' : 'active'; },
         setDatePreset(days) {
@@ -1684,6 +1792,9 @@ function advisoryIndexManager(config) {
             this.search = '';
             this.dateFrom = '';
             this.dateTo = '';
+            this.zoneId = this.lock.zone || 0;
+            this.sectorId = this.lock.sector || 0;
+            this.beatId = this.lock.beat || 0;
             this.activeCard = 'all';
             this.fetchData(1);
         },
@@ -1705,6 +1816,9 @@ function advisoryIndexManager(config) {
                 status: this.currentStatus,
                 type: this.currentType,
                 severity: this.currentSeverity,
+                zone_id: this.zoneId || '',
+                sector_id: this.sectorId || '',
+                beat_id: this.beatId || '',
                 date_from: this.dateFrom || '',
                 date_to: this.dateTo || '',
                 search: this.search || ''
