@@ -635,6 +635,6 @@ class SupportManagementController extends Controller
             'public_id' => $latest?->public_id,
             'subject'   => $latest?->subject,
             'type'      => $latest?->request_type,
-        ]);
+        ])->header('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
 }

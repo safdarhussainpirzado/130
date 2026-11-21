@@ -53,6 +53,7 @@
         <script src="{{ asset('vendor/protomaps-leaflet/protomaps-leaflet.js') }}"></script>
     @endif
     <script src="{{ asset('js/nhmp-basemap.js') }}"></script>
+    <script src="{{ asset('js/nhmp-poll.js') }}"></script>
     <script>
         // Global Defensive Guards for Leaflet Animation & Position Updates (Anti-Crash Layer)
         (function() {
@@ -1265,17 +1266,29 @@
                 pendingCount: 0,
                 voiceEnabled: localStorage.getItem('nhmp_voice_enabled') === 'true',
 
+                poller: null,
+
                 init() {
                     // Efficiency Protocol: Only specific regional roles initiate the heartbeat
                     if (!this.allowedRoles.includes(this.userRole)) {
                         return;
                     }
 
-                    // Slight delay to allow system stabilization before first poll
-                    setTimeout(() => {
-                        this.poll();
-                        this.interval = setInterval(() => this.poll(), this.pollFrequency);
-                    }, 5000);
+                    if (typeof window.nhmpPoll === 'function') {
+                        this.poller = window.nhmpPoll(() => this.poll(), {
+                            interval: 20000,        // visible: 20 s per POLL-1
+                            hiddenInterval: 60000,  // hidden: 60 s per POLL-1
+                            jitter: 0.1,
+                            backoff: true,
+                            initialDelay: 5000
+                        });
+                    } else {
+                        // Fallback if helper is not yet loaded
+                        setTimeout(() => {
+                            this.poll();
+                            this.interval = setInterval(() => this.poll(), this.pollFrequency);
+                        }, 5000);
+                    }
                 },
 
                 toggleVoice() {
@@ -1305,8 +1318,9 @@
 
                         if (response.status === 403) {
                             console.warn('Heartbeat: Access denied (403). Polling suspended.');
+                            if (this.poller) this.poller.stop();
                             if (this.interval) clearInterval(this.interval);
-                            return;
+                            return response;
                         }
 
                         const data = await response.json();
@@ -1324,8 +1338,11 @@
                         if (data.timestamp) {
                             this.lastCheck = data.timestamp;
                         }
+
+                        return response;
                     } catch (e) {
                         console.error('Heartbeat sync failed:', e);
+                        return false;
                     }
                 },
 
@@ -1435,14 +1452,26 @@
                         }
                     }
                     isInitialCheck = false;
+                    return res;
                 } catch (e) {
                     // Fail silently on polling connection drop
+                    return false;
                 }
             }
 
-            // Initial check + 30-second interval poll
-            setTimeout(checkPendingSupportRequests, 1200);
-            setInterval(checkPendingSupportRequests, 30000);
+            // Adaptive background polling (visible: 60s, hidden: 120s per POLL-1)
+            if (typeof window.nhmpPoll === 'function') {
+                window.nhmpPoll(checkPendingSupportRequests, {
+                    interval: 60000,
+                    hiddenInterval: 120000,
+                    jitter: 0.1,
+                    backoff: true,
+                    initialDelay: 1200
+                });
+            } else {
+                setTimeout(checkPendingSupportRequests, 1200);
+                setInterval(checkPendingSupportRequests, 60000);
+            }
         });
     </script>
     @endcanany

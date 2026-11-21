@@ -1407,7 +1407,15 @@
                     }, 400);
                 },
 
+                _initialized: false,
+                emergencyPoller: null,
+                backgroundPoller: null,
+                emergencyInterval: null,
+                backgroundInterval: null,
+
                 init() {
+                    if (this._initialized) return;
+                    this._initialized = true;
                     // Check if the user is a privileged role (Admin, Supervisor, Agent)
                     const isPrivileged = ['super_admin', 'operation_admin', 'agent_supervisor', 'agent'].includes(this.userRole);
 
@@ -1473,7 +1481,7 @@
 
                     // Real-Time Emergency Monitor for Pending Women Safety Calls
                     // Strictly scoped to the operator's active beat jurisdiction
-                    setInterval(async () => {
+                    const emergencyPollFn = async () => {
                         if (this.showDetailModal || this.showTransitionModal || this.showConfirmModal) return;
                         try {
                             const p = new URLSearchParams();
@@ -1495,7 +1503,7 @@
                                     if (Number(data.total_pending_women) === 0) {
                                         this.stopAlarm();
                                     }
-                                    return;
+                                    return res;
                                 }
 
                                 if (data.has_new_emergency && data.call && data.call.id > this.lastEmergencySeenId) {
@@ -1514,15 +1522,45 @@
                                     this.stopAlarm();
                                 }
                             }
-                        } catch (e) {}
-                    }, 3000);
+                            return res;
+                        } catch (e) {
+                            return false;
+                        }
+                    };
+
+                    if (typeof window.nhmpPoll === 'function') {
+                        this.emergencyPoller = window.nhmpPoll(emergencyPollFn, {
+                            interval: 5000,        // visible: 5 s (safety feature, pending emergency alerts)
+                            hiddenInterval: 30000, // hidden: 30 s per POLL-1
+                            jitter: 0.1,
+                            backoff: true,
+                            initialDelay: 1000
+                        });
+                    } else {
+                        // Safety fallback: plain setInterval if nhmp-poll.js fails to load
+                        setTimeout(emergencyPollFn, 1000);
+                        this.emergencyInterval = setInterval(emergencyPollFn, 5000);
+                    }
 
                     // Periodic background refresh (30s) to discover general state updates
-                    setInterval(() => {
+                    const backgroundPollFn = async () => {
                         if (!this.isLoading && !this.showDetailModal && !this.showTransitionModal && !this.showConfirmModal) {
-                            this.fetchData();
+                            return this.fetchData();
                         }
-                    }, 30000);
+                    };
+
+                    if (typeof window.nhmpPoll === 'function') {
+                        this.backgroundPoller = window.nhmpPoll(backgroundPollFn, {
+                            interval: 30000,        // visible: 30 s per POLL-1
+                            hiddenInterval: 'skip', // hidden: skip per POLL-1
+                            jitter: 0.1,
+                            backoff: false,
+                            initialDelay: 30000
+                        });
+                    } else {
+                        // Safety fallback: plain setInterval (30s)
+                        this.backgroundInterval = setInterval(backgroundPollFn, 30000);
+                    }
                 },
 
                 density: 'spacious',

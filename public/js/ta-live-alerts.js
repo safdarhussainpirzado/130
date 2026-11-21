@@ -76,13 +76,36 @@
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin'
             });
-            if (res.status === 401 || res.status === 403) { stopped = true; return; }
-            if (!res.ok) return;
+            if (res.status === 401 || res.status === 403) {
+                stopped = true;
+                if (window.__taPoller) window.__taPoller.stop();
+                if (window.__taInterval) clearInterval(window.__taInterval);
+                return res;
+            }
+            if (!res.ok) return res;
             var data = await res.json();
             if (after !== null && data.events && data.events.length) handle(data.events);
             if (typeof data.last_seq === 'number') after = data.last_seq;
-        } catch (e) { /* transient network error: try again next tick */ }
+            return res;
+        } catch (e) {
+            return false;
+        }
     }
 
-    setTimeout(function () { poll(); setInterval(poll, INTERVAL); }, 3000);
+    if (typeof window.nhmpPoll === 'function') {
+        window.__taPoller = window.nhmpPoll(poll, {
+            interval: 10000,        // visible: 10 s per POLL-1
+            hiddenInterval: 60000,  // hidden: 60 s per POLL-1
+            jitter: 0.1,
+            backoff: true,
+            initialDelay: 3000
+        });
+    } else {
+        setTimeout(function () {
+            if (!stopped) poll();
+            window.__taInterval = setInterval(function () {
+                if (!stopped) poll();
+            }, 10000);
+        }, 3000);
+    }
 })();
