@@ -300,6 +300,119 @@ class TravelAdvisoryController extends Controller
     }
 
     /**
+     * Resolve which jurisdiction levels are LOCKED for the user and which offices they may see.
+     * National roles (and users without an operational assignment) are unrestricted.
+     *
+     * @return array{mode:string,lock:array{zone:?int,sector:?int,beat:?int},allowed:?array<int>}
+     */
+    private function resolveOfficeScope(?\App\Models\User $user): array
+    {
+        $national = ['mode' => 'national', 'lock' => ['zone' => null, 'sector' => null, 'beat' => null], 'allowed' => null];
+        if (! $user) {
+            return $national;
+        }
+        $role = $user->role?->name;
+        if (in_array($role, [Role::SUPER_ADMIN, Role::IT_ADMIN, Role::AGENT_SUPERVISOR], true) || $user->hasPermission('travel_advisory.approve')) {
+            return $national;
+        }
+
+        $officeIds = $user->activeScopes()->pluck('office_id')->filter()->map(fn ($i) => (int) $i)->unique()->values()->all();
+        if (empty($officeIds) && ! empty($user->office_id)) {
+            $officeIds = [(int) $user->office_id];
+        }
+        $lite = Office::liteMap();
+        $officeIds = array_values(array_filter($officeIds, fn ($id) => isset($lite[$id]) && in_array($lite[$id]['type'], ['zone', 'sector', 'beat'], true)));
+        if (empty($officeIds)) {
+            return $national;
+        }
+
+        $allowed = [];
+        foreach ($officeIds as $id) {
+            $allowed = array_merge($allowed, Office::getDescendantIdsFor($id));
+        }
+        $allowed = array_values(array_unique($allowed));
+
+        $lock = ['zone' => null, 'sector' => null, 'beat' => null];
+        if (count($officeIds) === 1) {
+            $o = $lite[$officeIds[0]];
+            if ($o['type'] === 'beat') {
+                $lock['beat'] = $o['id'];
+                $lock['sector'] = $o['parent_id'];
+                $lock['zone'] = $o['parent_id'] ? ($lite[$o['parent_id']]['parent_id'] ?? null) : null;
+            } elseif ($o['type'] === 'sector') {
+                $lock['sector'] = $o['id'];
+                $lock['zone'] = $o['parent_id'];
+            } else {
+                $lock['zone'] = $o['id'];
+            }
+        } else {
+            // several assignments: lock the zone only when they all sit in the same zone
+            $zones = [];
+            foreach ($officeIds as $id) {
+                $o = $lite[$id];
+                $zones[] = $o['type'] === 'zone' ? $o['id'] : ($o['type'] === 'sector' ? $o['parent_id'] : ($lite[$o['parent_id']]['parent_id'] ?? null));
+            }
+            $zones = array_values(array_unique($zones));
+            if (count($zones) === 1 && $zones[0]) {
+                $lock['zone'] = (int) $zones[0];
+            }
+        }
+
+        return ['mode' => $lock['beat'] ? 'beat' : ($lock['sector'] ? 'sector' : ($lock['zone'] ? 'zone' : 'multi')), 'lock' => $lock, 'allowed' => $allowed];
+    }
+
+    /**
+     * Combine the requested zone/sector/beat with the locked levels and the allowed offices; drop inconsistent picks.
+     *
+     * @return array{0:int,1:int,2:int} zone, sector, beat (0 = all)
+     */
+    private function sanitizeOfficeSelection(array $scope, int $zone, int $sector, int $beat): array
+    {
+        $lite = Office::liteMap();
+        $type = fn (int $id) => $lite[$id]['type'] ?? null;
+        $allowed = $scope['allowed'];
+        $ok = fn (int $id) => $id > 0 && isset($lite[$id]) && ($allowed === null || in_array($id, $allowed, true));
+
+        $zone = ($ok($zone) && $type($zone) === 'zone') ? $zone : 0;
+        $sector = ($ok($sector) && $type($sector) === 'sector') ? $sector : 0;
+        $beat = ($ok($beat) && $type($beat) === 'beat') ? $beat : 0;
+
+        foreach (['zone', 'sector', 'beat'] as $lvl) {
+            if (! empty($scope['lock'][$lvl])) {
+                ${$lvl} = (int) $scope['lock'][$lvl];
+            }
+        }
+        // keep the chain consistent: a child must belong to the selected parent
+        if ($beat && $sector && ($lite[$beat]['parent_id'] ?? 0) !== $sector) { $beat = 0; }
+        if ($sector && $zone && ($lite[$sector]['parent_id'] ?? 0) !== $zone) { $sector = 0; $beat = 0; }
+        if ($beat && ! $sector) { $sector = (int) ($lite[$beat]['parent_id'] ?? 0); }
+        if ($sector && ! $zone) { $zone = (int) ($lite[$sector]['parent_id'] ?? 0); }
+
+        return [$zone, $sector, $beat];
+    }
+
+    /**
+     * Zones / sectors / beats for the cascading chips (restricted to the user's allowed offices).
+     *
+     * @return array{zones:array,sectors:array,beats:array}
+     */
+    private function hierarchyFor(array $scope): array
+    {
+        $allowed = $scope['allowed'];
+        $zones = []; $sectors = []; $beats = [];
+        foreach (Office::liteMap() as $o) {
+            if (! $o['is_active']) { continue; }
+            if ($allowed !== null && ! in_array($o['id'], $allowed, true) && ! in_array($o['id'], array_filter($scope['lock']), true)) { continue; }
+            if ($o['type'] === 'zone') { $zones[] = ['id' => $o['id'], 'name' => $o['name']]; }
+            elseif ($o['type'] === 'sector') { $sectors[] = ['id' => $o['id'], 'name' => $o['name'], 'zone_id' => $o['parent_id']]; }
+            elseif ($o['type'] === 'beat') { $beats[] = ['id' => $o['id'], 'name' => $o['name'], 'sector_id' => $o['parent_id']]; }
+        }
+        $byName = fn ($a, $b) => strnatcasecmp($a['name'], $b['name']);
+        usort($zones, $byName); usort($sectors, $byName); usort($beats, $byName);
+        return ['zones' => $zones, 'sectors' => $sectors, 'beats' => $beats];
+    }
+
+    /**
      * Parse a YYYY-MM-DD query value as a start/end of day in the app timezone. Invalid input is ignored.
      */
     private function parseDateParam(?string $value, bool $endOfDay): ?Carbon
@@ -334,9 +447,30 @@ class TravelAdvisoryController extends Controller
         $dateFrom = $this->parseDateParam($request->query('date_from'), false);
         $dateTo   = $this->parseDateParam($request->query('date_to'), true);
         $hasDates = ($dateFrom !== null || $dateTo !== null);
-        $applyDates = function ($q) use ($dateFrom, $dateTo) {
+        // Jurisdiction (zone > sector > beat). Locked levels come from the user's assignment and cannot be overridden.
+        $officeScope = $this->resolveOfficeScope(Auth::user());
+        [$zoneId, $sectorId, $beatId] = $this->sanitizeOfficeSelection(
+            $officeScope,
+            (int) $request->query('zone_id'),
+            (int) $request->query('sector_id'),
+            (int) $request->query('beat_id')
+        );
+        $allowedOffices = $officeScope['allowed'];
+
+        $applyDates = function ($q) use ($dateFrom, $dateTo, $zoneId, $sectorId, $beatId, $allowedOffices) {
             if ($dateFrom) { $q->where('created_at', '>=', $dateFrom); }
             if ($dateTo)   { $q->where('created_at', '<=', $dateTo); }
+            if ($beatId) {
+                $q->where('office_id', $beatId);
+            } elseif ($sectorId) {
+                $ids = Office::getDescendantIdsFor($sectorId);
+                $q->where(fn ($w) => $w->whereIn('office_id', $ids)->orWhere('sector_id', $sectorId));
+            } elseif ($zoneId) {
+                $ids = Office::getDescendantIdsFor($zoneId);
+                $q->where(fn ($w) => $w->whereIn('office_id', $ids)->orWhereIn('sector_id', $ids)->orWhere('zone_id', $zoneId));
+            } elseif ($allowedOffices !== null) {
+                $q->where(fn ($w) => $w->whereIn('office_id', $allowedOffices)->orWhereIn('sector_id', $allowedOffices)->orWhereIn('zone_id', $allowedOffices));
+            }
             return $q;
         };
 
@@ -498,6 +632,11 @@ class TravelAdvisoryController extends Controller
             'currentRoad'   => $road,
             'currentStatus' => $status,
             'currentType'   => $type,
+            'officeScope'   => $officeScope,
+            'hierarchy'     => $this->hierarchyFor($officeScope),
+            'selZone'       => $zoneId ?: null,
+            'selSector'     => $sectorId ?: null,
+            'selBeat'       => $beatId ?: null,
             'dateFrom'      => $request->query('date_from'),
             'dateTo'        => $request->query('date_to'),
             'search'        => $search,

@@ -570,4 +570,56 @@ class TravelAdvisoryApprovalWorkflowTest extends TestCase
         // invalid dates are ignored (no 500)
         $this->actingAs($this->supervisorUser)->getJson(route('ops.travel-advisory.index', ['ajax' => 1, 'date_from' => 'nonsense', 'date_to' => '2026-13-99']))->assertOk();
     }
+
+    public function test_hierarchy_filters_cascade_zone_sector_beat_for_national_users(): void
+    {
+        $zone = $this->testSector->parent;
+        $otherZone = Office::create(['name' => 'Other Zone ' . Str::random(4), 'type' => 'zone', 'is_active' => true]);
+        $otherSector = Office::create(['name' => 'Other Sector ' . Str::random(4), 'type' => 'sector', 'parent_id' => $otherZone->id, 'is_active' => true]);
+        $otherBeat = Office::create(['name' => 'Other Beat ' . Str::random(4), 'type' => 'beat', 'parent_id' => $otherSector->id, 'is_active' => true]);
+        Office::clearHierarchyCache();
+
+        $mine  = $this->seedAdvisory(['title' => 'Mine in zone', 'office_id' => $this->testBeat->id, 'sector_id' => $this->testSector->id, 'zone_id' => $zone->id]);
+        $other = $this->seedAdvisory(['title' => 'Elsewhere', 'office_id' => $otherBeat->id, 'sector_id' => $otherSector->id, 'zone_id' => $otherZone->id]);
+
+        $titles = fn ($q) => collect($this->actingAs($this->supervisorUser)->getJson(route('ops.travel-advisory.index', array_merge(['ajax' => 1, 'status' => 'all'], $q)))->assertOk()->json('items'))->pluck('title');
+
+        $this->assertTrue($titles([])->contains('Elsewhere') && $titles([])->contains('Mine in zone'), 'national sees everything');
+        $z = $titles(['zone_id' => $zone->id]);
+        $this->assertTrue($z->contains('Mine in zone')); $this->assertFalse($z->contains('Elsewhere'));
+        $sx = $titles(['zone_id' => $zone->id, 'sector_id' => $this->testSector->id]);
+        $this->assertTrue($sx->contains('Mine in zone')); $this->assertFalse($sx->contains('Elsewhere'));
+        $b = $titles(['beat_id' => $otherBeat->id]);
+        $this->assertTrue($b->contains('Elsewhere')); $this->assertFalse($b->contains('Mine in zone'));
+        // inconsistent chain (sector from another zone) is dropped, not trusted
+        $bad = $titles(['zone_id' => $zone->id, 'sector_id' => $otherSector->id]);
+        $this->assertTrue($bad->contains('Mine in zone'));
+
+        $page = $this->actingAs($this->supervisorUser)->get(route('ops.travel-advisory.index'))->assertOk();
+        $page->assertSee('All Zones', false);
+    }
+
+    public function test_sector_operator_is_locked_to_own_zone_and_sector(): void
+    {
+        $zone = $this->testSector->parent;
+        $otherSector = Office::create(['name' => 'Rival Sector ' . Str::random(4), 'type' => 'sector', 'parent_id' => $zone->id, 'is_active' => true]);
+        $otherBeat = Office::create(['name' => 'Rival Beat ' . Str::random(4), 'type' => 'beat', 'parent_id' => $otherSector->id, 'is_active' => true]);
+        Office::clearHierarchyCache();
+
+        \App\Models\UserScope::create(['user_id' => $this->sectorAdminUser->id, 'office_id' => $this->testSector->id, 'access_level' => 'read_only', 'is_active' => true]);
+        $this->seedAdvisory(['title' => 'Own sector item', 'office_id' => $this->testBeat->id, 'sector_id' => $this->testSector->id, 'zone_id' => $zone->id]);
+        $this->seedAdvisory(['title' => 'Rival sector item', 'office_id' => $otherBeat->id, 'sector_id' => $otherSector->id, 'zone_id' => $zone->id]);
+
+        $res = $this->actingAs($this->sectorAdminUser)->getJson(route('ops.travel-advisory.index', [
+            'ajax' => 1, 'status' => 'all', 'sector_id' => $otherSector->id, 'zone_id' => 0,
+        ]))->assertOk();
+        $titles = collect($res->json('items'))->pluck('title');
+        $this->assertTrue($titles->contains('Own sector item'), 'sector operator must see own sector items');
+        $this->assertFalse($titles->contains('Rival sector item'), 'a sector operator cannot override the locked sector');
+
+        $page = $this->actingAs($this->sectorAdminUser)->get(route('ops.travel-advisory.index'))->assertOk();
+        // Js::from() encodes quotes as \u0022 inside JSON.parse('...')
+        $page->assertSee('\\u0022sector\\u0022:' . $this->testSector->id, false);
+        $page->assertSee('\\u0022zone\\u0022:' . $zone->id, false);
+    }
 }

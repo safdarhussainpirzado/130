@@ -35,6 +35,11 @@
     currentRoad: '{{ $currentRoad ?? "all" }}',
     currentStatus: '{{ $currentStatus ?? "active" }}',
     currentType: '{{ $currentType ?? "all" }}',
+    hierarchy: {{ Js::from($hierarchy ?? ['zones' => [], 'sectors' => [], 'beats' => []]) }},
+    lock: {{ Js::from($officeScope['lock'] ?? ['zone' => null, 'sector' => null, 'beat' => null]) }},
+    selZone: {{ (int) ($selZone ?? 0) }},
+    selSector: {{ (int) ($selSector ?? 0) }},
+    selBeat: {{ (int) ($selBeat ?? 0) }},
     dateFrom: '{{ $dateFrom ?? "" }}',
     dateTo: '{{ $dateTo ?? "" }}',
     search: '{{ $search ?? "" }}',
@@ -214,101 +219,121 @@
 
     </div>
 
-    <!-- HIGHWAY ROUTE PILLS & SEARCH TOOLBAR WITH EMBEDDED ACTION BUTTONS -->
-    <div class="bg-white rounded-3xl border border-slate-200/80 p-4 shadow-sm space-y-3.5">
-        <!-- Top Toolbar Line: Corridor Pills + Action Buttons -->
-        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-            <!-- Route Chips Scroll/Pill Bar -->
-            <div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs scrollbar-none flex-1">
-                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-1 shrink-0 flex items-center gap-1">
-                    <i class="fa-solid fa-road text-slate-400"></i> Corridor:
-                </span>
-                <button type="button" @click="setRoad('all')"
-                    class="px-3 py-1.5 rounded-xl font-bold transition shrink-0 cursor-pointer"
-                    :class="currentRoad === 'all' ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'">
-                    All Corridors
-                </button>
+    <!-- COMPACT TOOLBAR (search + corridor + active filter pills) ; full filters live in the sticky drawer -->
+    <style>
+        .tb-card{background:#fff;border:1px solid #e2e8f0;border-radius:24px;padding:14px 16px;box-shadow:0 14px 40px -26px rgba(15,23,42,.25);display:grid;gap:10px}
+        .tb-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+        .tb-count{font-size:11px;font-weight:800;letter-spacing:.06em;color:#475569;background:#f1f5f9;border-radius:999px;padding:6px 12px;white-space:nowrap}
+        .tb-search{position:relative;flex:0 1 320px;min-width:200px}
+        .tb-search i{position:absolute;left:13px;top:13px;font-size:12px;color:#94a3b8}
+        .tb-input{width:100%;height:40px;border-radius:14px;border:1px solid #e2e8f0;background:#f8fafc;padding:0 12px 0 34px;font-size:12.5px;font-weight:600;color:#1e293b;outline:none;font-family:inherit}
+        .tb-input:focus{background:#fff;border-color:#60a5fa;box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+        .tb-corr{display:flex;align-items:center;gap:6px;flex:1 1 360px;min-width:0;overflow-x:auto;scrollbar-width:none;padding:2px}
+        .tb-corr::-webkit-scrollbar{display:none}
+        .tb-chip{appearance:none;border:1px solid #e2e8f0;border-bottom-width:3px;cursor:pointer;height:34px;padding:0 13px;border-radius:12px;font-size:12px;font-weight:700;color:#334155;background:#fff;white-space:nowrap;font-family:inherit;transition:transform .12s ease}
+        .tb-chip:hover{transform:translateY(-1px);background:#f8fafc}
+        .tb-chip.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+        .tb-chip.on{color:#fff;border-color:rgba(0,0,0,.12);border-bottom-color:rgba(0,0,0,.28);background:linear-gradient(135deg,#2563eb,#4f46e5);box-shadow:0 10px 18px -10px rgba(37,99,235,.7)}
+        .tb-btn{appearance:none;border:0;cursor:pointer;height:40px;padding:0 16px;border-radius:14px;font-size:12px;font-weight:800;display:inline-flex;align-items:center;gap:8px;font-family:inherit;text-decoration:none;white-space:nowrap}
+        .tb-btn.primary{color:#fff;background:linear-gradient(135deg,#2563eb,#4f46e5);box-shadow:0 12px 24px -12px rgba(37,99,235,.8)}
+        .tb-btn.ghost{color:#334155;background:#f1f5f9}
+        .tb-btn.ghost:hover{background:#e2e8f0}
+        .tb-pills{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding-top:10px;border-top:1px dashed #e2e8f0}
+        .tb-pills-label{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8}
+        .tb-pill{appearance:none;border:1px solid #dbeafe;background:linear-gradient(135deg,#eff6ff,#eef2ff);color:#1e3a8a;border-radius:999px;height:28px;padding:0 6px 0 12px;font-size:11.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:8px;font-family:inherit}
+        .tb-pill i{width:18px;height:18px;border-radius:50%;background:#fff;color:#64748b;font-size:9px;display:inline-flex;align-items:center;justify-content:center}
+        .tb-pill:hover i{background:#fee2e2;color:#e11d48}
+        @media (max-width:760px){.tb-search{flex:1 1 100%}}
+    </style>
+    <div class="tb-card">
+        <div class="tb-row">
+            <span class="tb-count" x-text="(pagination.total || 0) + ' advisories'"></span>
+            <div class="tb-search">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" x-model="search" @input.debounce.300ms="fetchData(1)" placeholder="Search landmarks, KM, title..." class="tb-input">
+            </div>
+            <div class="tb-corr" aria-label="Corridor">
+                <button type="button" class="tb-chip" :class="currentRoad === 'all' ? 'on' : ''" @click="setRoad('all')">All Corridors</button>
                 <template x-for="rCode in corridorList" :key="rCode">
-                    <button type="button" @click="setRoad(rCode)"
-                        class="px-3 py-1.5 rounded-xl font-mono font-bold transition shrink-0 cursor-pointer"
-                        :class="currentRoad === rCode ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
-                        x-text="rCode">
-                    </button>
+                    <button type="button" class="tb-chip mono" :class="currentRoad === rCode ? 'on' : ''" @click="setRoad(rCode)" x-text="rCode"></button>
                 </template>
             </div>
-
-            <!-- Action Buttons: Log Advisory / Fog -->
-            <div class="flex items-center gap-2 shrink-0">
-                <a href="{{ route('ops.travel-advisory.create') }}"
-                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 shadow-md shadow-blue-600/25 active:translate-y-0.5 transition-all">
-                    <i class="fa-solid fa-plus-circle"></i>
-                    <span>Log Advisory / Fog</span>
-                </a>
-            </div>
+            <a href="{{ route('ops.travel-advisory.create') }}" class="tb-btn primary"><i class="fa-solid fa-plus-circle"></i> Log Advisory / Fog</a>
         </div>
-
-        <!-- Search & Secondary Filter Form (NO FORM SUBMIT / PURE AJAX) -->
-        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-slate-100">
-            <div class="flex flex-wrap items-center gap-2">
-                <!-- Status filter dropdown -->
-                <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs">
-                    <i class="fa-solid fa-clock-rotate-left text-slate-400 text-xs"></i>
-                    <select x-model="currentStatus" @change="fetchData()" class="bg-transparent font-bold text-slate-700 outline-none cursor-pointer">
-                        <option value="active">Active / Live Alerts</option>
-                        <option value="pending">Pending Review (Supervisors)</option>
-                        <option value="rejected">Rejected Advisories</option>
-                        <option value="all">All Records</option>
-                        <option value="resolved">Resolved Only</option>
-                        <option value="expired">Expired Only</option>
-                    </select>
-                </div>
-
-                <!-- Type filter dropdown (All Categories) -->
-                <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs">
-                    <i class="fa-solid fa-tags text-slate-400 text-xs"></i>
-                    <select x-model="currentType" @change="fetchData()" class="bg-transparent font-bold text-slate-700 outline-none cursor-pointer">
-                        <option value="all">All Categories</option>
-                        <option value="fog">Fog & Smog</option>
-                        <option value="road_closure">Road Closures</option>
-                        <option value="road_works">Road Works</option>
-                        <option value="traffic">Traffic Congestion</option>
-                        <option value="weather">Weather & Rain</option>
-                        <option value="diversion">Diversions</option>
-                    </select>
-                </div>
-
-                <!-- Date range filter (inserted date, Asia/Karachi) -->
-                <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs">
-                    <i class="fa-solid fa-calendar-days text-slate-400 text-xs"></i>
-                    <span class="font-bold text-slate-400 uppercase text-[10px]">From</span>
-                    <input type="date" x-model="dateFrom" :max="dateTo || null" @change="fetchData(1)" class="bg-transparent font-bold text-slate-700 outline-none cursor-pointer">
-                    <span class="font-bold text-slate-400 uppercase text-[10px]">To</span>
-                    <input type="date" x-model="dateTo" :min="dateFrom || null" @change="fetchData(1)" class="bg-transparent font-bold text-slate-700 outline-none cursor-pointer">
-                </div>
-                <div class="flex items-center gap-1">
-                    <button type="button" @click="setDatePreset(1)" class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer">Today</button>
-                    <button type="button" @click="setDatePreset(7)" class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer">7 Days</button>
-                    <button type="button" @click="setDatePreset(30)" class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer">30 Days</button>
-                    <button type="button" x-show="dateFrom || dateTo" @click="clearDates()" class="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-bold cursor-pointer">Clear dates</button>
-                </div>
-            </div>
-
-            <!-- Search input & Reset -->
-            <div class="flex items-center gap-2">
-                <div class="relative w-full sm:w-72">
-                    <input type="text" x-model="search" @input.debounce.300ms="fetchData()" placeholder="Search landmarks, KM, title..."
-                        class="w-full text-xs font-medium pl-8 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
-                </div>
-                <button type="button" @click="resetFilters()"
-                    x-show="currentRoad !== 'all' || currentType !== 'all' || currentStatus !== 'active' || search || dateFrom || dateTo"
-                    class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm" title="Reset All Filters">
-                    <i class="fa-solid fa-rotate-left text-blue-600"></i>
-                    <span class="hidden sm:inline">Reset</span>
-                </button>
-            </div>
+        <div class="tb-pills" x-show="activePills().length > 0" x-transition.opacity.duration.150ms>
+            <span class="tb-pills-label">Active filters</span>
+            <template x-for="p in activePills()" :key="p.key">
+                <button type="button" class="tb-pill" @click="removePill(p.key)" :title="'Remove ' + p.label"><span x-text="p.label"></span><i class="fa-solid fa-xmark"></i></button>
+            </template>
+            <button type="button" class="tb-btn ghost" style="height:28px;padding:0 12px;font-size:11px" @click="resetFilters()"><i class="fa-solid fa-rotate-left" style="color:#2563eb"></i> Reset all</button>
         </div>
     </div>
+
+    <!-- STICKY FILTER TAB + SLIDE-OVER DRAWER -->
+    <x-filter-drawer open="filterOpen" title="Advisory Filters" subtitle="Refine corridor alerts" count="activeFilterCount()" reset="resetFilters()">
+        <div class="fd-card" x-show="hierarchy.zones.length > 0">
+            <div class="fd-label"><i class="fa-solid fa-earth-asia"></i> Zone</div>
+            <div class="fd-chips">
+                <template x-if="!lock.zone"><button type="button" class="fd-chip zone" :class="!zoneId ? 'on' : ''" @click="setZone(0)">All Zones</button></template>
+                <template x-for="z in visibleZones()" :key="z.id">
+                    <button type="button" class="fd-chip zone" :class="[zoneId === z.id ? 'on' : '', lock.zone ? 'locked' : '']" :title="lock.zone ? 'Your assigned zone' : ''" @click="setZone(z.id)"><i x-show="lock.zone" class="fa-solid fa-lock"></i><span x-text="z.name"></span></button>
+                </template>
+            </div>
+        </div>
+        <div class="fd-card" x-show="zoneId || lock.sector" x-transition.opacity.duration.150ms>
+            <div class="fd-label"><i class="fa-solid fa-diagram-project"></i> Sector</div>
+            <div class="fd-chips">
+                <template x-if="!lock.sector"><button type="button" class="fd-chip sector" :class="!sectorId ? 'on' : ''" @click="setSector(0)">All Sectors</button></template>
+                <template x-for="sx in visibleSectors()" :key="sx.id">
+                    <button type="button" class="fd-chip sector" :class="[sectorId === sx.id ? 'on' : '', lock.sector ? 'locked' : '']" :title="lock.sector ? 'Your assigned sector' : ''" @click="setSector(sx.id)"><i x-show="lock.sector" class="fa-solid fa-lock"></i><span x-text="sx.name"></span></button>
+                </template>
+                <span class="fd-hint" x-show="visibleSectors().length === 0">No sectors in this zone.</span>
+            </div>
+        </div>
+        <div class="fd-card" x-show="sectorId || lock.beat" x-transition.opacity.duration.150ms>
+            <div class="fd-label"><i class="fa-solid fa-location-dot"></i> Beat</div>
+            <div class="fd-chips">
+                <template x-if="!lock.beat"><button type="button" class="fd-chip beat" :class="!beatId ? 'on' : ''" @click="setBeat(0)">All Beats</button></template>
+                <template x-for="b in visibleBeats()" :key="b.id">
+                    <button type="button" class="fd-chip beat" :class="[beatId === b.id ? 'on' : '', lock.beat ? 'locked' : '']" :title="lock.beat ? 'Your assigned beat' : ''" @click="setBeat(b.id)"><i x-show="lock.beat" class="fa-solid fa-lock"></i><span x-text="b.name"></span></button>
+                </template>
+                <span class="fd-hint" x-show="visibleBeats().length === 0">No beats in this sector.</span>
+            </div>
+        </div>
+
+        <div class="fd-card">
+            <div class="fd-label"><i class="fa-solid fa-clock-rotate-left"></i> Status</div>
+            <div class="fd-chips">
+                <template x-for="st in statusOptions" :key="st.v">
+                    <button type="button" class="fd-chip" :class="currentStatus === st.v ? 'on' : ''" @click="setStatus(st.v)" x-text="st.l"></button>
+                </template>
+            </div>
+        </div>
+
+        <div class="fd-card">
+            <div class="fd-label"><i class="fa-solid fa-tags"></i> Category</div>
+            <div class="fd-chips">
+                <template x-for="ct in categoryOptions" :key="ct.v">
+                    <button type="button" class="fd-chip" :class="currentType === ct.v ? 'on' : ''" @click="setType(ct.v)" x-text="ct.l"></button>
+                </template>
+            </div>
+        </div>
+
+        <div class="fd-card">
+            <div class="fd-label"><i class="fa-solid fa-calendar-days"></i> Inserted between</div>
+            <div class="fd-grid2">
+                <input type="date" x-model="dateFrom" :max="dateTo || null" @change="fetchData(1)" class="fd-input" aria-label="From date">
+                <input type="date" x-model="dateTo" :min="dateFrom || null" @change="fetchData(1)" class="fd-input" aria-label="To date">
+            </div>
+            <div class="fd-chips" style="margin-top:10px">
+                <button type="button" class="fd-chip" @click="setDatePreset(1)">Today</button>
+                <button type="button" class="fd-chip" @click="setDatePreset(7)">7 Days</button>
+                <button type="button" class="fd-chip" @click="setDatePreset(30)">30 Days</button>
+                <button type="button" class="fd-chip" x-show="dateFrom || dateTo" @click="clearDates()"><i class="fa-solid fa-xmark" style="color:#e11d48"></i> Clear</button>
+            </div>
+        </div>
+    </x-filter-drawer>
+
 
     <!-- 3D TACTILE TABLE OF ADVISORIES (Pure Alpine AJAX Driven) -->
     <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden relative">
@@ -1235,6 +1260,11 @@ function advisoryIndexManager(config) {
         currentStatus: config.currentStatus || 'active',
         currentType: config.currentType || 'all',
         currentSeverity: 'all',
+        hierarchy: config.hierarchy || { zones: [], sectors: [], beats: [] },
+        lock: config.lock || { zone: null, sector: null, beat: null },
+        zoneId: config.selZone || 0,
+        sectorId: config.selSector || 0,
+        beatId: config.selBeat || 0,
         dateFrom: config.dateFrom || '',
         dateTo: config.dateTo || '',
         search: config.search || '',
@@ -1243,6 +1273,75 @@ function advisoryIndexManager(config) {
         corridorList: ['M-1', 'M-2', 'M-3', 'M-4', 'M-5', 'M-9', 'M-11', 'M-14', 'N-5', 'E-35', 'N-55'],
         isLoading: false,
 
+        scopeLabel() {
+            const z = (this.hierarchy.zones || []).find(x => x.id === this.zoneId);
+            const sx = (this.hierarchy.sectors || []).find(x => x.id === this.sectorId);
+            const b = (this.hierarchy.beats || []).find(x => x.id === this.beatId);
+            return [z && z.name, sx && sx.name, b && b.name].filter(Boolean).join('  \u203a  ');
+        },
+        visibleZones() {
+            const z = this.hierarchy.zones || [];
+            return this.lock.zone ? z.filter(x => x.id === this.lock.zone) : z;
+        },
+        visibleSectors() {
+            const all = (this.hierarchy.sectors || []).filter(x => x.zone_id === this.zoneId);
+            return this.lock.sector ? all.filter(x => x.id === this.lock.sector) : all;
+        },
+        visibleBeats() {
+            const all = (this.hierarchy.beats || []).filter(x => x.sector_id === this.sectorId);
+            return this.lock.beat ? all.filter(x => x.id === this.lock.beat) : all;
+        },
+        setZone(id) {
+            if (this.lock.zone) return;
+            this.zoneId = id || 0; this.sectorId = 0; this.beatId = 0; this.fetchData(1);
+        },
+        setSector(id) {
+            if (this.lock.sector) return;
+            this.sectorId = id || 0; this.beatId = 0; this.fetchData(1);
+        },
+        setBeat(id) {
+            if (this.lock.beat) return;
+            this.beatId = id || 0; this.fetchData(1);
+        },
+        isFiltered() {
+            return this.currentRoad !== 'all' || this.currentType !== 'all' || this.currentStatus !== 'active' || !!this.search
+                || !!this.dateFrom || !!this.dateTo
+                || (!this.lock.zone && !!this.zoneId) || (!this.lock.sector && !!this.sectorId) || (!this.lock.beat && !!this.beatId);
+        },
+        filterOpen: false,
+        statusOptions: [
+            { v: 'active', l: 'Active / Live' }, { v: 'pending', l: 'Pending Review' }, { v: 'rejected', l: 'Rejected' },
+            { v: 'expired', l: 'Expired' }, { v: 'resolved', l: 'Resolved' }, { v: 'all', l: 'All Records' }
+        ],
+        categoryOptions: [
+            { v: 'all', l: 'All Categories' }, { v: 'fog', l: 'Fog & Smog' }, { v: 'road_closure', l: 'Road Closures' },
+            { v: 'diversion', l: 'Diversions' }, { v: 'road_works', l: 'Road Works' }, { v: 'traffic', l: 'Congestion' }, { v: 'weather', l: 'Weather & Rain' }
+        ],
+        setStatus(v) { this.currentStatus = v; this.activeCard = 'custom'; this.fetchData(1); },
+        setType(v) { this.currentType = v; this.activeCard = 'custom'; this.fetchData(1); },
+        activeFilterCount() { return this.activePills().length; },
+        activePills() {
+            const pills = [];
+            if (this.currentRoad !== 'all') pills.push({ key: 'road', label: 'Corridor: ' + this.currentRoad });
+            const name = (list, id) => ((list || []).find(x => x.id === id) || {}).name;
+            if (!this.lock.zone && this.zoneId) pills.push({ key: 'zone', label: 'Zone: ' + (name(this.hierarchy.zones, this.zoneId) || this.zoneId) });
+            if (!this.lock.sector && this.sectorId) pills.push({ key: 'sector', label: 'Sector: ' + (name(this.hierarchy.sectors, this.sectorId) || this.sectorId) });
+            if (!this.lock.beat && this.beatId) pills.push({ key: 'beat', label: 'Beat: ' + (name(this.hierarchy.beats, this.beatId) || this.beatId) });
+            if (this.currentStatus !== 'active') { const st = this.statusOptions.find(x => x.v === this.currentStatus); pills.push({ key: 'status', label: 'Status: ' + (st ? st.l : this.currentStatus) }); }
+            if (this.currentType !== 'all') { const ct = this.categoryOptions.find(x => x.v === this.currentType); pills.push({ key: 'type', label: 'Category: ' + (ct ? ct.l : this.currentType) }); }
+            if (this.dateFrom || this.dateTo) pills.push({ key: 'dates', label: 'Inserted: ' + (this.dateFrom || '…') + ' → ' + (this.dateTo || '…') });
+            return pills;
+        },
+        removePill(key) {
+            if (key === 'road') this.currentRoad = 'all';
+            else if (key === 'zone') { this.zoneId = 0; this.sectorId = this.lock.sector || 0; this.beatId = this.lock.beat || 0; }
+            else if (key === 'sector') { this.sectorId = 0; this.beatId = this.lock.beat || 0; }
+            else if (key === 'beat') this.beatId = 0;
+            else if (key === 'status') this.currentStatus = 'active';
+            else if (key === 'type') this.currentType = 'all';
+            else if (key === 'dates') { this.dateFrom = ''; this.dateTo = ''; }
+            this.fetchData(1);
+        },
         hasDateRange() { return !!(this.dateFrom || this.dateTo); },
         categoryStatus() { return this.hasDateRange() ? 'all' : 'active'; },
         setDatePreset(days) {
@@ -1684,6 +1783,9 @@ function advisoryIndexManager(config) {
             this.search = '';
             this.dateFrom = '';
             this.dateTo = '';
+            this.zoneId = this.lock.zone || 0;
+            this.sectorId = this.lock.sector || 0;
+            this.beatId = this.lock.beat || 0;
             this.activeCard = 'all';
             this.fetchData(1);
         },
@@ -1705,6 +1807,9 @@ function advisoryIndexManager(config) {
                 status: this.currentStatus,
                 type: this.currentType,
                 severity: this.currentSeverity,
+                zone_id: this.zoneId || '',
+                sector_id: this.sectorId || '',
+                beat_id: this.beatId || '',
                 date_from: this.dateFrom || '',
                 date_to: this.dateTo || '',
                 search: this.search || ''
