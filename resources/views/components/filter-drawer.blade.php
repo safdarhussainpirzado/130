@@ -21,7 +21,7 @@
     .fd-tab:hover i{transform:rotate(90deg)}
     .fd-tab span.fd-tab-text{writing-mode:vertical-rl;transform:rotate(180deg);font-size:9px;font-weight:800;letter-spacing:.28em;text-transform:uppercase;color:#cbd5e1}
     .fd-badge{min-width:20px;height:20px;border-radius:999px;background:linear-gradient(135deg,#f43f5e,#e11d48);color:#fff;font-size:10px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;padding:0 5px;box-shadow:0 4px 10px rgba(225,29,72,.5)}
-    .fd-backdrop{position:fixed;inset:0;z-index:9000;background:rgba(15,23,42,.45);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+    .fd-backdrop{position:fixed;inset:0;z-index:9000;background:transparent;pointer-events:none}
     .fd-panel{position:fixed;top:0;bottom:0;right:0;z-index:9001;width:min(450px,100vw);background:#fff;display:flex;flex-direction:column;box-shadow:-20px 0 60px rgba(15,23,42,.3)}
     .fd-head{flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;color:#fff;background:linear-gradient(90deg,#2563eb,#4f46e5 55%,#7c3aed)}
     .fd-head-l{display:flex;align-items:center;gap:12px;min-width:0}
@@ -70,9 +70,10 @@
 <div x-show="{{ $open }}" x-cloak style="display:none;"
      x-transition:enter="transition-opacity ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
      x-transition:leave="transition-opacity ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
-     class="fd-backdrop" @click="{{ $open }} = false"></div>
+     class="fd-backdrop"></div>
 
-<aside x-show="{{ $open }}" x-cloak style="display:none;" role="dialog" aria-modal="true" aria-label="{{ $title }}"
+<aside x-show="{{ $open }}" x-cloak style="display:none;" role="dialog" aria-label="{{ $title }}"
+       x-effect="window.dispatchEvent(new CustomEvent({{ $open }} ? 'fd:open' : 'fd:close'))"
        @keydown.escape.window="{{ $open }} = false"
        x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
        x-transition:leave="transition ease-in duration-200 transform" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full"

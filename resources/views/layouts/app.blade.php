@@ -1226,7 +1226,17 @@
                 isMobile: window.innerWidth < 1024,
                 mobileOpen: false,
                 navigating: false,
+                sidebarWasExpanded: null,
                 init() {
+                    // Filter drawer opens -> auto-collapse the main sidebar (restore on close)
+                    window.addEventListener('fd:open', () => {
+                        if (this.isMobile) return;
+                        if (this.sidebarWasExpanded === null) this.sidebarWasExpanded = this.expanded;
+                        this.expanded = false;
+                    });
+                    window.addEventListener('fd:close', () => {
+                        if (this.sidebarWasExpanded !== null) { this.expanded = this.sidebarWasExpanded; this.sidebarWasExpanded = null; }
+                    });
                     window.addEventListener('resize', () => {
                         const wasMobile = this.isMobile;
                         this.isMobile = window.innerWidth < 1024;
