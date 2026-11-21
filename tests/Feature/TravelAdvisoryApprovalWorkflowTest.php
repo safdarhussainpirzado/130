@@ -501,4 +501,73 @@ class TravelAdvisoryApprovalWorkflowTest extends TestCase
 
         $this->assertSame($before, $advisory->fresh()->expires_at->getTimestamp(), 'Blank duration must not reset expiry');
     }
+
+    private function seedAdvisory(array $over = []): TabletAdvisory
+    {
+        $createdAt = $over['created_at'] ?? null;
+        unset($over['created_at']);
+        $advisory = TabletAdvisory::create(array_merge([
+            'uuid' => (string) Str::uuid(),
+            'title' => 'Card test ' . Str::random(6),
+            'category' => 'fog',
+            'severity' => 'advisory',
+            'route_name' => 'M-2',
+            'carriageway' => 'both',
+            'office_id' => $this->testBeat->id,
+            'message' => 'Test message',
+            'status' => 'published',
+            'start_km' => 10,
+            'end_km' => 20,
+            'expires_at' => now()->addHours(2),
+            'published_at' => now(),
+            'created_by' => $this->sectorAdminUser->id,
+        ], $over));
+        if ($createdAt) {
+            // created_at is not mass-assignable; set it directly to simulate an older insertion time
+            TabletAdvisory::where('id', $advisory->id)->update(['created_at' => $createdAt]);
+            $advisory->refresh();
+        }
+        return $advisory;
+    }
+
+    public function test_expired_card_counts_and_lists_expired_advisories_with_timing_fields(): void
+    {
+        $expired = $this->seedAdvisory(['title' => 'Expired fog one', 'expires_at' => now()->subHour(), 'created_at' => now()->subHours(5)]);
+        $live = $this->seedAdvisory(['title' => 'Live fog one']);
+
+        $res = $this->actingAs($this->supervisorUser)->getJson(route('ops.travel-advisory.index', ['ajax' => 1, 'status' => 'expired']))->assertOk();
+        $titles = collect($res->json('items'))->pluck('title');
+        $this->assertTrue($titles->contains('Expired fog one'));
+        $this->assertFalse($titles->contains('Live fog one'));
+        $this->assertGreaterThanOrEqual(1, $res->json('metrics.expired'));
+        $item = collect($res->json('items'))->firstWhere('id', $expired->id);
+        $this->assertSame('Expired', $item['validity_label']);
+        $this->assertNotEmpty($item['created_at_display']);
+        $this->assertNotEmpty($item['expires_at_display']);
+        $this->assertTrue($item['is_expired']);
+    }
+
+    public function test_date_range_filters_list_and_all_card_metrics(): void
+    {
+        $old = $this->seedAdvisory(['title' => 'Old dated advisory', 'category' => 'road_closure', 'created_at' => Carbon::parse('2026-01-10 10:00:00')]);
+        $new = $this->seedAdvisory(['title' => 'New dated advisory', 'category' => 'road_closure', 'created_at' => Carbon::parse('2026-02-20 10:00:00')]);
+
+        $res = $this->actingAs($this->supervisorUser)->getJson(route('ops.travel-advisory.index', [
+            'ajax' => 1, 'status' => 'all', 'date_from' => '2026-02-01', 'date_to' => '2026-02-28',
+        ]))->assertOk();
+        $titles = collect($res->json('items'))->pluck('title');
+        $this->assertTrue($titles->contains('New dated advisory'));
+        $this->assertFalse($titles->contains('Old dated advisory'));
+        $this->assertSame(1, $res->json('metrics.road_closures'), 'Category card follows the date range');
+        $this->assertSame(1, $res->json('metrics.total_all'));
+
+        // single day boundaries are inclusive
+        $res2 = $this->actingAs($this->supervisorUser)->getJson(route('ops.travel-advisory.index', [
+            'ajax' => 1, 'status' => 'all', 'date_from' => '2026-01-10', 'date_to' => '2026-01-10',
+        ]))->assertOk();
+        $this->assertTrue(collect($res2->json('items'))->pluck('title')->contains('Old dated advisory'));
+
+        // invalid dates are ignored (no 500)
+        $this->actingAs($this->supervisorUser)->getJson(route('ops.travel-advisory.index', ['ajax' => 1, 'date_from' => 'nonsense', 'date_to' => '2026-13-99']))->assertOk();
+    }
 }

@@ -300,6 +300,23 @@ class TravelAdvisoryController extends Controller
     }
 
     /**
+     * Parse a YYYY-MM-DD query value as a start/end of day in the app timezone. Invalid input is ignored.
+     */
+    private function parseDateParam(?string $value, bool $endOfDay): ?Carbon
+    {
+        $value = trim((string) $value);
+        if ($value === '' || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+            return null;
+        }
+        try {
+            $d = Carbon::createFromFormat('Y-m-d', $value, config('app.timezone'));
+        } catch (\Throwable $e) {
+            return null;
+        }
+        return $endOfDay ? $d->endOfDay() : $d->startOfDay();
+    }
+
+    /**
      * Wireless Operator Active Advisories Management Grid.
      * Accessible by wireless control operators to view, filter, extend, or resolve live corridor alerts.
      */
@@ -313,7 +330,18 @@ class TravelAdvisoryController extends Controller
         $severity = $request->query('severity', 'all');
         $search = $request->query('search');
 
+        // Date range on the INSERTION date (created_at), interpreted in the app timezone (Asia/Karachi).
+        $dateFrom = $this->parseDateParam($request->query('date_from'), false);
+        $dateTo   = $this->parseDateParam($request->query('date_to'), true);
+        $hasDates = ($dateFrom !== null || $dateTo !== null);
+        $applyDates = function ($q) use ($dateFrom, $dateTo) {
+            if ($dateFrom) { $q->where('created_at', '>=', $dateFrom); }
+            if ($dateTo)   { $q->where('created_at', '<=', $dateTo); }
+            return $q;
+        };
+
         $query = TabletAdvisory::with(['office.parent.parent', 'carriagewayModel']);
+        $applyDates($query);
 
         if ($status === 'active') {
             $query->active();
@@ -366,19 +394,23 @@ class TravelAdvisoryController extends Controller
             ->orderByRaw("COALESCE(published_at, created_at) DESC")
             ->paginate(15);
 
-        // Metrics for 3D filter stat cards
+        // Metrics for the status + category cards. They follow the date range when one is set.
+        // Category cards count currently-live alerts normally; with a date range they count every
+        // advisory of that category inserted in the range (any status).
+        $cat = fn () => $applyDates($hasDates ? TabletAdvisory::query() : TabletAdvisory::active());
         $metrics = [
-            'total_active'     => TabletAdvisory::active()->count(),
-            'pending_approval' => TabletAdvisory::where('status', 'pending_approval')->count(),
-            'rejected'         => TabletAdvisory::where('status', 'rejected')->count(),
-            'fog_alerts'       => TabletAdvisory::active()->where('category', 'fog')->count(),
-            'road_closures'    => TabletAdvisory::active()->where('category', 'road_closure')->where('category', '!=', 'diversion')->count(),
-            'road_works'       => TabletAdvisory::active()->whereIn('category', ['road_works', 'maintenance'])->count(),
-            'diversions'       => TabletAdvisory::active()->where('category', 'diversion')->count(),
-            'traffic_alerts'   => TabletAdvisory::active()->whereIn('category', ['traffic', 'congestion'])->count(),
-            'critical_hazards' => TabletAdvisory::active()->where('severity', 'critical')->count(),
-            'expired_resolved' => TabletAdvisory::where('status', 'resolved')->count(),
-            'total_all'        => TabletAdvisory::count(),
+            'total_active'     => $applyDates(TabletAdvisory::active())->count(),
+            'pending_approval' => $applyDates(TabletAdvisory::where('status', 'pending_approval'))->count(),
+            'rejected'         => $applyDates(TabletAdvisory::where('status', 'rejected'))->count(),
+            'expired'          => $applyDates(TabletAdvisory::where('status', 'published')->where('expires_at', '<=', Carbon::now()))->count(),
+            'expired_resolved' => $applyDates(TabletAdvisory::where('status', 'resolved'))->count(),
+            'fog_alerts'       => $cat()->where('category', 'fog')->count(),
+            'road_closures'    => $cat()->where('category', 'road_closure')->count(),
+            'diversions'       => $cat()->where('category', 'diversion')->count(),
+            'road_works'       => $cat()->whereIn('category', ['road_works', 'maintenance'])->count(),
+            'traffic_alerts'   => $cat()->whereIn('category', ['traffic', 'congestion'])->count(),
+            'critical_hazards' => $cat()->where('severity', 'critical')->count(),
+            'total_all'        => $applyDates(TabletAdvisory::query())->count(),
         ];
 
         $isSupervisor = $this->isSupervisorOrAdmin();
@@ -426,6 +458,14 @@ class TravelAdvisoryController extends Controller
                 'can_edit'            => $isSupervisor,
                 'can_reject'          => $isSupervisor,
                 'expires_at_human'    => $item->expires_at ? $item->expires_at->timezone('Asia/Karachi')->diffForHumans() : 'N/A',
+                'created_at_display'   => $item->created_at ? $item->created_at->timezone('Asia/Karachi')->format('d M Y, h:i A') : null,
+                'published_at_display' => $item->published_at ? $item->published_at->timezone('Asia/Karachi')->format('d M Y, h:i A') : null,
+                'expires_at_display'   => $item->expires_at ? $item->expires_at->timezone('Asia/Karachi')->format('d M Y, h:i A') : null,
+                'validity_label'       => $isPending ? 'Awaiting approval'
+                    : ($isRejected ? 'Rejected'
+                    : ($isResolved ? 'Resolved'
+                    : ($isExpired ? 'Expired'
+                    : ($isPublished && $item->published_at && $item->published_at->isFuture() ? 'Scheduled' : 'Active')))),
                 'published_at_human'  => $item->published_at ? $item->published_at->timezone('Asia/Karachi')->diffForHumans() : ($item->created_at ? $item->created_at->timezone('Asia/Karachi')->diffForHumans() : 'Pending'),
             ];
         })->all();
@@ -458,6 +498,8 @@ class TravelAdvisoryController extends Controller
             'currentRoad'   => $road,
             'currentStatus' => $status,
             'currentType'   => $type,
+            'dateFrom'      => $request->query('date_from'),
+            'dateTo'        => $request->query('date_to'),
             'search'        => $search,
             'canApprove'    => $isSupervisor,
         ]);

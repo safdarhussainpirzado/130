@@ -35,13 +35,14 @@
     currentRoad: '{{ $currentRoad ?? "all" }}',
     currentStatus: '{{ $currentStatus ?? "active" }}',
     currentType: '{{ $currentType ?? "all" }}',
+    dateFrom: '{{ $dateFrom ?? "" }}',
+    dateTo: '{{ $dateTo ?? "" }}',
     search: '{{ $search ?? "" }}',
     canApprove: {{ ($canApprove ?? false) ? 'true' : 'false' }},
 })" class="space-y-5 max-w-[1700px] mx-auto pb-12 pt-1" x-cloak>
 
-    <!-- 3D TACTILE FILTER CARDS (Strict Responsive Grid, 100% AJAX/Alpine) -->
-    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 xl:grid-cols-9 gap-3 pt-1 w-full" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
-        <!-- 1. ALL ACTIVE ALERTS -->
+    <!-- ROW 1: STATUS CARDS (Active, Pending, Rejected, Expired, Resolved) -->
+    <div class="gap-3 pt-3 w-full" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
         <div @click="setCardFilter('all')"
             :class="activeCard === 'all' ? 'card-3d-active blue' : ''"
             class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
@@ -57,7 +58,6 @@
             </div>
         </div>
 
-        <!-- 2. PENDING REVIEW (SUPERVISOR QUEUE) -->
         <div @click="setCardFilter('pending')"
             :class="activeCard === 'pending' ? 'card-3d-active amber ring-2 ring-amber-400' : ''"
             class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
@@ -73,7 +73,6 @@
             </div>
         </div>
 
-        <!-- 3. REJECTED ALERTS -->
         <div @click="setCardFilter('rejected')"
             :class="activeCard === 'rejected' ? 'card-3d-active rose ring-2 ring-rose-400' : ''"
             class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
@@ -89,7 +88,40 @@
             </div>
         </div>
 
-        <!-- 4. FOG & SMOG -->
+        <div @click="setCardFilter('expired')"
+            :class="activeCard === 'expired' ? 'card-3d-active amber ring-2 ring-amber-400' : ''"
+            class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
+            <div class="absolute -top-3 sm:-top-4 left-3 sm:left-4 h-8 w-8 sm:h-10 sm:w-10 xl:h-11 xl:w-11 grid place-items-center rounded-xl bg-orange-600 shadow-[0_8px_16px_rgba(234,88,12,0.28)] z-10 text-white">
+                <i class="fa-solid fa-hourglass-end text-xs sm:text-sm"></i>
+            </div>
+            <div class="p-3 sm:p-3.5 text-right pt-2 relative">
+                <p class="text-[9px] font-black tracking-widest text-orange-600 uppercase truncate">Expired</p>
+                <div class="flex items-center justify-end gap-1.5 mt-1">
+                    <span class="text-[9px] font-black text-white bg-orange-600 px-1.5 py-0.5 rounded-full shadow-sm shrink-0">LAPSED</span>
+                    <h4 class="text-xl sm:text-2xl font-black text-slate-900 truncate" x-text="metrics.expired || 0"></h4>
+                </div>
+            </div>
+        </div>
+
+        <div @click="setCardFilter('resolved')"
+            :class="activeCard === 'resolved' ? 'card-3d-active slate' : ''"
+            class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
+            <div class="absolute -top-3 sm:-top-4 left-3 sm:left-4 h-8 w-8 sm:h-10 sm:w-10 xl:h-11 xl:w-11 grid place-items-center rounded-xl bg-slate-600 shadow-[0_8px_16px_rgba(71,85,105,0.25)] z-10 text-white">
+                <i class="fa-solid fa-clock-rotate-left text-xs sm:text-sm"></i>
+            </div>
+            <div class="p-3 sm:p-3.5 text-right pt-2 relative">
+                <p class="text-[9px] font-black tracking-widest text-slate-500 uppercase truncate">Resolved</p>
+                <div class="flex items-center justify-end gap-1.5 mt-1">
+                    <span class="text-[9px] font-black text-white bg-slate-600 px-1.5 py-0.5 rounded-full shadow-sm shrink-0">ARCHIVE</span>
+                    <h4 class="text-xl sm:text-2xl font-black text-slate-900 truncate" x-text="metrics.expired_resolved || 0"></h4>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ROW 2: CATEGORY CARDS (Fog & Smoke, Closure, Diversion, Roadworks, Congestion, Critical) -->
+    <div class="gap-3 pt-4 w-full" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
         <div @click="setCardFilter('fog')"
             :class="activeCard === 'fog' ? 'card-3d-active amber' : ''"
             class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
@@ -97,7 +129,7 @@
                 <i class="fa-solid fa-smog text-xs sm:text-sm"></i>
             </div>
             <div class="p-3 sm:p-3.5 text-right pt-2 relative">
-                <p class="text-[9px] font-black tracking-widest text-amber-600 uppercase truncate">Fog & Smog</p>
+                <p class="text-[9px] font-black tracking-widest text-amber-600 uppercase truncate">Fog & Smoke</p>
                 <div class="flex items-center justify-end gap-1.5 mt-1">
                     <span class="text-[9px] font-black text-white bg-amber-500 px-1.5 py-0.5 rounded-full shadow-sm shrink-0">VIS</span>
                     <h4 class="text-xl sm:text-2xl font-black text-slate-900 truncate" x-text="metrics.fog_alerts || 0"></h4>
@@ -105,7 +137,6 @@
             </div>
         </div>
 
-        <!-- 5. CLOSURES & DIVERSIONS -->
         <div @click="setCardFilter('closure')"
             :class="activeCard === 'closure' ? 'card-3d-active rose' : ''"
             class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
@@ -113,7 +144,7 @@
                 <i class="fa-solid fa-road-barrier text-xs sm:text-sm"></i>
             </div>
             <div class="p-3 sm:p-3.5 text-right pt-2 relative">
-                <p class="text-[9px] font-black tracking-widest text-rose-600 uppercase truncate">Closures</p>
+                <p class="text-[9px] font-black tracking-widest text-rose-600 uppercase truncate">Closure</p>
                 <div class="flex items-center justify-end gap-1.5 mt-1">
                     <span class="text-[9px] font-black text-white bg-rose-600 px-1.5 py-0.5 rounded-full shadow-sm shrink-0">BLOCK</span>
                     <h4 class="text-xl sm:text-2xl font-black text-slate-900 truncate" x-text="metrics.road_closures || 0"></h4>
@@ -121,7 +152,6 @@
             </div>
         </div>
 
-        <!-- DIVERSIONS -->
         <div @click="setCardFilter('diversion')"
             :class="activeCard === 'diversion' ? 'card-3d-active purple' : ''"
             class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
@@ -137,7 +167,6 @@
             </div>
         </div>
 
-        <!-- 6. ROAD WORKS -->
         <div @click="setCardFilter('works')"
             :class="activeCard === 'works' ? 'card-3d-active amber' : ''"
             class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
@@ -145,7 +174,7 @@
                 <i class="fa-solid fa-triangle-exclamation text-xs sm:text-sm"></i>
             </div>
             <div class="p-3 sm:p-3.5 text-right pt-2 relative">
-                <p class="text-[9px] font-black tracking-widest text-orange-600 uppercase truncate">Road Works</p>
+                <p class="text-[9px] font-black tracking-widest text-orange-600 uppercase truncate">Roadworks</p>
                 <div class="flex items-center justify-end gap-1.5 mt-1">
                     <span class="text-[9px] font-black text-white bg-orange-500 px-1.5 py-0.5 rounded-full shadow-sm shrink-0">LANES</span>
                     <h4 class="text-xl sm:text-2xl font-black text-slate-900 truncate" x-text="metrics.road_works || 0"></h4>
@@ -153,7 +182,6 @@
             </div>
         </div>
 
-        <!-- 7. TRAFFIC CONGESTION -->
         <div @click="setCardFilter('traffic')"
             :class="activeCard === 'traffic' ? 'card-3d-active red ring-2 ring-red-400' : ''"
             class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
@@ -169,7 +197,6 @@
             </div>
         </div>
 
-        <!-- 8. CRITICAL HAZARDS -->
         <div @click="setCardFilter('critical')"
             :class="activeCard === 'critical' ? 'card-3d-active rose' : ''"
             class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
@@ -185,21 +212,6 @@
             </div>
         </div>
 
-        <!-- 9. EXPIRED / RESOLVED -->
-        <div @click="setCardFilter('resolved')"
-            :class="activeCard === 'resolved' ? 'card-3d-active slate' : ''"
-            class="relative flex flex-col bg-white rounded-2xl xl:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 hover:-translate-y-1 transition-all duration-300 cursor-pointer group select-none">
-            <div class="absolute -top-3 sm:-top-4 left-3 sm:left-4 h-8 w-8 sm:h-10 sm:w-10 xl:h-11 xl:w-11 grid place-items-center rounded-xl bg-slate-600 shadow-[0_8px_16px_rgba(71,85,105,0.25)] z-10 text-white">
-                <i class="fa-solid fa-clock-rotate-left text-xs sm:text-sm"></i>
-            </div>
-            <div class="p-3 sm:p-3.5 text-right pt-2 relative">
-                <p class="text-[9px] font-black tracking-widest text-slate-500 uppercase truncate">Resolved</p>
-                <div class="flex items-center justify-end gap-1.5 mt-1">
-                    <span class="text-[9px] font-black text-white bg-slate-600 px-1.5 py-0.5 rounded-full shadow-sm shrink-0">ARCHIVE</span>
-                    <h4 class="text-xl sm:text-2xl font-black text-slate-900 truncate" x-text="metrics.expired_resolved || 0"></h4>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- HIGHWAY ROUTE PILLS & SEARCH TOOLBAR WITH EMBEDDED ACTION BUTTONS -->
@@ -264,6 +276,21 @@
                         <option value="diversion">Diversions</option>
                     </select>
                 </div>
+
+                <!-- Date range filter (inserted date, Asia/Karachi) -->
+                <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs">
+                    <i class="fa-solid fa-calendar-days text-slate-400 text-xs"></i>
+                    <span class="font-bold text-slate-400 uppercase text-[10px]">From</span>
+                    <input type="date" x-model="dateFrom" :max="dateTo || null" @change="fetchData(1)" class="bg-transparent font-bold text-slate-700 outline-none cursor-pointer">
+                    <span class="font-bold text-slate-400 uppercase text-[10px]">To</span>
+                    <input type="date" x-model="dateTo" :min="dateFrom || null" @change="fetchData(1)" class="bg-transparent font-bold text-slate-700 outline-none cursor-pointer">
+                </div>
+                <div class="flex items-center gap-1">
+                    <button type="button" @click="setDatePreset(1)" class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer">Today</button>
+                    <button type="button" @click="setDatePreset(7)" class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer">7 Days</button>
+                    <button type="button" @click="setDatePreset(30)" class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer">30 Days</button>
+                    <button type="button" x-show="dateFrom || dateTo" @click="clearDates()" class="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-bold cursor-pointer">Clear dates</button>
+                </div>
             </div>
 
             <!-- Search input & Reset -->
@@ -274,7 +301,7 @@
                     <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
                 </div>
                 <button type="button" @click="resetFilters()"
-                    x-show="currentRoad !== 'all' || currentType !== 'all' || currentStatus !== 'active' || search"
+                    x-show="currentRoad !== 'all' || currentType !== 'all' || currentStatus !== 'active' || search || dateFrom || dateTo"
                     class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm" title="Reset All Filters">
                     <i class="fa-solid fa-rotate-left text-blue-600"></i>
                     <span class="hidden sm:inline">Reset</span>
@@ -301,6 +328,7 @@
                         <th class="py-3.5 px-3">Incident & Summary</th>
                         <th class="py-3.5 px-3">Live Conditions</th>
                         <th class="py-3.5 px-3">Jurisdiction</th>
+                        <th class="py-3.5 px-3">Inserted &amp; Expires</th>
                         <th class="py-3.5 px-3">Direction & Validity</th>
                         <th class="py-3.5 px-3 text-right">Actions</th>
                     </tr>
@@ -413,6 +441,20 @@
                                     <span x-text="item.office_name || 'Wireless Station'"></span>
                                 </div>
                                 <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mt-0.5" x-text="(item.sector_name || 'Sector') + ' • ' + (item.reported_by_tier || 'Operator') + ' Tier'"></div>
+                            </td>
+
+                            <!-- Inserted / Expires (explicit timestamps, Asia/Karachi) -->
+                            <td class="py-3 px-3 whitespace-nowrap align-top">
+                                <div class="space-y-1.5">
+                                    <div>
+                                        <div class="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-slate-400"><i class="fa-solid fa-circle-plus text-emerald-500"></i> Inserted</div>
+                                        <div class="text-[11px] font-bold text-slate-700" x-text="item.created_at_display || '—'"></div>
+                                    </div>
+                                    <div>
+                                        <div class="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-slate-400"><i class="fa-solid fa-hourglass-end text-rose-500"></i> Expires</div>
+                                        <div class="text-[11px] font-bold" :class="item.is_expired ? 'text-rose-600' : 'text-slate-700'" x-text="item.expires_at_display || 'Not configured'"></div>
+                                    </div>
+                                </div>
                             </td>
 
                             <!-- Direction + Validity / Expiry Timer (merged column) -->
@@ -529,7 +571,7 @@
 
                     <!-- Empty State -->
                     <tr x-show="items.length === 0">
-                        <td colspan="6" class="py-14 text-center text-slate-400">
+                        <td colspan="7" class="py-14 text-center text-slate-400">
                             <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3 text-2xl">
                                 <i class="fa-solid fa-shield-cat"></i>
                             </div>
@@ -611,6 +653,14 @@
 
                 <!-- Modal Body Form -->
                 <form @submit.prevent="submitEditModal()" class="p-6 space-y-4">
+                    <div class="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div class="grid gap-2 pt-2" style="grid-template-columns:repeat(3,minmax(0,1fr));">
+                            <div class="rounded-xl bg-white border border-slate-200 px-2.5 py-1.5"><div class="text-[9px] font-black uppercase tracking-wider text-slate-400">Inserted</div><div class="text-[11px] font-bold text-slate-700" x-text="editForm.times?.created_at_display || '—'"></div></div>
+                            <div class="rounded-xl bg-white border border-slate-200 px-2.5 py-1.5"><div class="text-[9px] font-black uppercase tracking-wider text-slate-400">Published</div><div class="text-[11px] font-bold text-slate-700" x-text="editForm.times?.published_at_display || 'Not published'"></div></div>
+                            <div class="rounded-xl bg-white border border-slate-200 px-2.5 py-1.5"><div class="text-[9px] font-black uppercase tracking-wider text-slate-400">Expires</div><div class="text-[11px] font-bold" :class="editForm.times?.is_expired ? 'text-rose-600' : 'text-slate-700'" x-text="editForm.times?.expires_at_display || 'Not configured'"></div></div>
+                        </div>
+                        <div class="text-[10px] font-black uppercase tracking-wider text-slate-500 pt-1" x-text="'Status: ' + (editForm.times?.validity_label || '—')"></div>
+                    </div>
                     <!-- Title -->
                     <div>
                         <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">
@@ -787,6 +837,12 @@
                             <span class="text-xs font-black text-slate-800" x-text="approveTarget?.title"></span>
                         </div>
                         <p class="text-xs text-slate-600 leading-relaxed" x-text="approveTarget?.message"></p>
+                        <div class="grid gap-2 pt-2" style="grid-template-columns:repeat(3,minmax(0,1fr));">
+                            <div class="rounded-xl bg-white border border-slate-200 px-2.5 py-1.5"><div class="text-[9px] font-black uppercase tracking-wider text-slate-400">Inserted</div><div class="text-[11px] font-bold text-slate-700" x-text="approveTarget?.created_at_display || '—'"></div></div>
+                            <div class="rounded-xl bg-white border border-slate-200 px-2.5 py-1.5"><div class="text-[9px] font-black uppercase tracking-wider text-slate-400">Published</div><div class="text-[11px] font-bold text-slate-700" x-text="approveTarget?.published_at_display || 'Not published'"></div></div>
+                            <div class="rounded-xl bg-white border border-slate-200 px-2.5 py-1.5"><div class="text-[9px] font-black uppercase tracking-wider text-slate-400">Expires</div><div class="text-[11px] font-bold" :class="approveTarget?.is_expired ? 'text-rose-600' : 'text-slate-700'" x-text="approveTarget?.expires_at_display || 'Not configured'"></div></div>
+                        </div>
+                        <div class="text-[10px] font-black uppercase tracking-wider text-slate-500 pt-1" x-text="'Status: ' + (approveTarget?.validity_label || '—')"></div>
                         <div class="text-[10px] font-bold text-slate-400 flex items-center gap-1.5 pt-1">
                             <i class="fa-solid fa-user-clock text-slate-400"></i>
                             <span>Logged by: </span>
@@ -860,6 +916,12 @@
                     <div class="p-3.5 bg-rose-50/50 rounded-2xl border border-rose-100">
                         <div class="text-xs font-black text-rose-900" x-text="rejectTarget?.title"></div>
                         <div class="text-[11px] text-slate-500 mt-1 line-clamp-2" x-text="rejectTarget?.message"></div>
+                        <div class="grid gap-2 pt-2" style="grid-template-columns:repeat(3,minmax(0,1fr));">
+                            <div class="rounded-xl bg-white border border-slate-200 px-2.5 py-1.5"><div class="text-[9px] font-black uppercase tracking-wider text-slate-400">Inserted</div><div class="text-[11px] font-bold text-slate-700" x-text="rejectTarget?.created_at_display || '—'"></div></div>
+                            <div class="rounded-xl bg-white border border-slate-200 px-2.5 py-1.5"><div class="text-[9px] font-black uppercase tracking-wider text-slate-400">Published</div><div class="text-[11px] font-bold text-slate-700" x-text="rejectTarget?.published_at_display || 'Not published'"></div></div>
+                            <div class="rounded-xl bg-white border border-slate-200 px-2.5 py-1.5"><div class="text-[9px] font-black uppercase tracking-wider text-slate-400">Expires</div><div class="text-[11px] font-bold" :class="rejectTarget?.is_expired ? 'text-rose-600' : 'text-slate-700'" x-text="rejectTarget?.expires_at_display || 'Not configured'"></div></div>
+                        </div>
+                        <div class="text-[10px] font-black uppercase tracking-wider text-slate-500 pt-1" x-text="'Status: ' + (rejectTarget?.validity_label || '—')"></div>
                     </div>
 
                     <div>
@@ -954,6 +1016,12 @@
                             <span class="text-xs font-black text-slate-800" x-text="resolveTarget?.title"></span>
                         </div>
                         <div class="text-[11px] text-slate-600" x-text="resolveTarget?.message"></div>
+                        <div class="grid gap-2 pt-2" style="grid-template-columns:repeat(3,minmax(0,1fr));">
+                            <div class="rounded-xl bg-white border border-slate-200 px-2.5 py-1.5"><div class="text-[9px] font-black uppercase tracking-wider text-slate-400">Inserted</div><div class="text-[11px] font-bold text-slate-700" x-text="resolveTarget?.created_at_display || '—'"></div></div>
+                            <div class="rounded-xl bg-white border border-slate-200 px-2.5 py-1.5"><div class="text-[9px] font-black uppercase tracking-wider text-slate-400">Published</div><div class="text-[11px] font-bold text-slate-700" x-text="resolveTarget?.published_at_display || 'Not published'"></div></div>
+                            <div class="rounded-xl bg-white border border-slate-200 px-2.5 py-1.5"><div class="text-[9px] font-black uppercase tracking-wider text-slate-400">Expires</div><div class="text-[11px] font-bold" :class="resolveTarget?.is_expired ? 'text-rose-600' : 'text-slate-700'" x-text="resolveTarget?.expires_at_display || 'Not configured'"></div></div>
+                        </div>
+                        <div class="text-[10px] font-black uppercase tracking-wider text-slate-500 pt-1" x-text="'Status: ' + (resolveTarget?.validity_label || '—')"></div>
                         <div class="text-[10px] font-bold text-slate-400 pt-1" x-text="'Span: KM ' + resolveTarget?.start_km + ' - ' + resolveTarget?.end_km"></div>
                     </div>
 
@@ -1053,6 +1121,12 @@
                             <span class="text-xs font-black text-slate-800" x-text="extendTarget?.title"></span>
                         </div>
                         <div class="text-[11px] text-slate-600" x-text="extendTarget?.message"></div>
+                        <div class="grid gap-2 pt-2" style="grid-template-columns:repeat(3,minmax(0,1fr));">
+                            <div class="rounded-xl bg-white border border-slate-200 px-2.5 py-1.5"><div class="text-[9px] font-black uppercase tracking-wider text-slate-400">Inserted</div><div class="text-[11px] font-bold text-slate-700" x-text="extendTarget?.created_at_display || '—'"></div></div>
+                            <div class="rounded-xl bg-white border border-slate-200 px-2.5 py-1.5"><div class="text-[9px] font-black uppercase tracking-wider text-slate-400">Published</div><div class="text-[11px] font-bold text-slate-700" x-text="extendTarget?.published_at_display || 'Not published'"></div></div>
+                            <div class="rounded-xl bg-white border border-slate-200 px-2.5 py-1.5"><div class="text-[9px] font-black uppercase tracking-wider text-slate-400">Expires</div><div class="text-[11px] font-bold" :class="extendTarget?.is_expired ? 'text-rose-600' : 'text-slate-700'" x-text="extendTarget?.expires_at_display || 'Not configured'"></div></div>
+                        </div>
+                        <div class="text-[10px] font-black uppercase tracking-wider text-slate-500 pt-1" x-text="'Status: ' + (extendTarget?.validity_label || '—')"></div>
                         <div class="text-[10px] font-bold text-blue-700 pt-1 flex items-center gap-1.5">
                             <i class="fa-solid fa-hourglass-half"></i>
                             <span x-text="'Current Validity: Expires ' + (extendTarget?.expires_at_human || 'soon')"></span>
@@ -1161,11 +1235,23 @@ function advisoryIndexManager(config) {
         currentStatus: config.currentStatus || 'active',
         currentType: config.currentType || 'all',
         currentSeverity: 'all',
+        dateFrom: config.dateFrom || '',
+        dateTo: config.dateTo || '',
         search: config.search || '',
 
         activeCard: 'all',
         corridorList: ['M-1', 'M-2', 'M-3', 'M-4', 'M-5', 'M-9', 'M-11', 'M-14', 'N-5', 'E-35', 'N-55'],
         isLoading: false,
+
+        hasDateRange() { return !!(this.dateFrom || this.dateTo); },
+        categoryStatus() { return this.hasDateRange() ? 'all' : 'active'; },
+        setDatePreset(days) {
+            const fmt = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+            const to = new Date(); const from = new Date(); from.setDate(from.getDate() - (days - 1));
+            this.dateFrom = fmt(from); this.dateTo = fmt(to);
+            this.fetchData(1);
+        },
+        clearDates() { this.dateFrom = ''; this.dateTo = ''; this.fetchData(1); },
 
         setCardFilter(type) {
             this.activeCard = type;
@@ -1182,29 +1268,33 @@ function advisoryIndexManager(config) {
                 this.currentType = 'all';
                 this.currentSeverity = 'all';
             } else if (type === 'fog') {
-                this.currentStatus = 'active';
+                this.currentStatus = this.categoryStatus();
                 this.currentType = 'fog';
                 this.currentSeverity = 'all';
             } else if (type === 'closure') {
-                this.currentStatus = 'active';
+                this.currentStatus = this.categoryStatus();
                 this.currentType = 'road_closure';
                 this.currentSeverity = 'all';
             } else if (type === 'diversion') {
-                this.currentStatus = 'active';
+                this.currentStatus = this.categoryStatus();
                 this.currentType = 'diversion';
                 this.currentSeverity = 'all';
             } else if (type === 'works') {
-                this.currentStatus = 'active';
+                this.currentStatus = this.categoryStatus();
                 this.currentType = 'road_works';
                 this.currentSeverity = 'all';
             } else if (type === 'traffic') {
-                this.currentStatus = 'active';
+                this.currentStatus = this.categoryStatus();
                 this.currentType = 'traffic';
                 this.currentSeverity = 'all';
             } else if (type === 'critical') {
-                this.currentStatus = 'active';
+                this.currentStatus = this.categoryStatus();
                 this.currentType = 'all';
                 this.currentSeverity = 'critical';
+            } else if (type === 'expired') {
+                this.currentStatus = 'expired';
+                this.currentType = 'all';
+                this.currentSeverity = 'all';
             } else if (type === 'resolved') {
                 this.currentStatus = 'resolved';
                 this.currentType = 'all';
@@ -1266,6 +1356,7 @@ function advisoryIndexManager(config) {
                 duration_hours: '',
                 is_pending: !!item.is_pending,
                 approve_now: false,
+                times: item,
                 expires_hint: item.expires_at_human ? ('Currently expires ' + item.expires_at_human) : '',
             };
             this.isEditModalOpen = true;
@@ -1591,6 +1682,8 @@ function advisoryIndexManager(config) {
             this.currentType = 'all';
             this.currentSeverity = 'all';
             this.search = '';
+            this.dateFrom = '';
+            this.dateTo = '';
             this.activeCard = 'all';
             this.fetchData(1);
         },
@@ -1612,6 +1705,8 @@ function advisoryIndexManager(config) {
                 status: this.currentStatus,
                 type: this.currentType,
                 severity: this.currentSeverity,
+                date_from: this.dateFrom || '',
+                date_to: this.dateTo || '',
                 search: this.search || ''
             });
 
