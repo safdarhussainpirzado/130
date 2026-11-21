@@ -18,7 +18,7 @@ class AuthenticatedSessionController extends Controller
      */
     public function create(): \Illuminate\Http\Response
     {
-        return response()->view('auth.login')->header('Clear-Site-Data', '"cache", "storage"');
+        return response()->view('auth.login')->header('Clear-Site-Data', '"cache"');
     }
 
     public function store(LoginRequest $request): RedirectResponse
@@ -159,7 +159,8 @@ class AuthenticatedSessionController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        // Wipe the browser-side state of the person who just logged out (shared workstations).
-        return redirect('/')->header('Clear-Site-Data', '"cache", "storage"');
+        // Clear HTTP caches only. Never "storage": it unregisters the service worker and destroys the push
+        // subscription, so desk users would stop receiving alerts after every logout (fixed 2026-11-21).
+        return redirect('/')->header('Clear-Site-Data', '"cache"');
     }
 }

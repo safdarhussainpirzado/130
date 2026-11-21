@@ -12,7 +12,8 @@ class ClientStateIsolationTest extends TestCase
 {
     public function test_login_page_clears_client_site_data(): void
     {
-        $this->get('/login')->assertOk()->assertHeader('Clear-Site-Data', '"cache", "storage"');
+        // "storage" must NOT be sent: it unregisters the service worker and kills the push subscription.
+        $this->get('/login')->assertOk()->assertHeader('Clear-Site-Data', '"cache"');
     }
 
     public function test_session_cookie_is_secure_in_production(): void
