@@ -367,39 +367,23 @@ class PushNotificationService
             }
         }
 
+        // Owner decision (2026-11-21): help alerts go ONLY to the staff of the offices the call belongs to:
+        // beat operators, sector admins and zone admins holding an active scope on the call's beat, its
+        // sector or its zone. Supervisors, operation admins and super admins are NOT recipients, and a call
+        // without a beat alerts nobody.
         $userIds = [];
-
-        // 1. Scoped users covering the call's beat / sector / zone
         if (! empty($officeIds)) {
-            $scopedUsers = UserScope::whereIn('office_id', $officeIds)
+            $userIds = UserScope::whereIn('office_id', $officeIds)
                 ->where('is_active', true)
+                ->whereHas('user', function ($q) {
+                    $q->where('is_active', true)
+                        ->where('is_blocked', false)
+                        ->whereHas('role', fn ($r) => $r->whereIn('name', [Role::BEAT_OPERATOR, Role::SECTOR_ADMIN, Role::ZONE_ADMIN]));
+                })
+                ->limit(500)
                 ->pluck('user_id')
                 ->toArray();
-            $userIds = array_merge($userIds, $scopedUsers);
         }
-
-        // 2. Agent Supervisors
-        $supervisors = User::whereHas('role', function ($q) {
-            $q->whereIn('name', [Role::AGENT_SUPERVISOR, Role::ZONE_ADMIN]);
-        })
-            ->where('is_active', true)
-            ->where('is_blocked', false)
-            ->pluck('id')
-            ->toArray();
-
-        $userIds = array_merge($userIds, $supervisors);
-
-        // 3. Operation Admins & Super Admins receive EVERY pending help (owner decision 2026-11-21).
-        $admins = User::whereHas('role', function ($q) {
-            $q->whereIn('name', [Role::IT_ADMIN, Role::SUPER_ADMIN]);
-        })
-            ->where('is_active', true)
-            ->where('is_blocked', false)
-            ->limit(500)
-            ->pluck('id')
-            ->toArray();
-
-        $userIds = array_merge($userIds, $admins);
 
         $userIds = array_values(array_unique(array_filter($userIds)));
         if (count($userIds) > 500) {
