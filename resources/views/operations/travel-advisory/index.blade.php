@@ -219,190 +219,120 @@
 
     </div>
 
-    <!-- PREMIUM FILTER CARD: corridor + jurisdiction (zone > sector > beat) + status/category/date/search -->
+    <!-- COMPACT TOOLBAR (search + corridor + active filter pills) ; full filters live in the sticky drawer -->
     <style>
-        .taf-card{background:#fff;border:1px solid #e2e8f0;border-radius:28px;padding:18px 20px;box-shadow:0 18px 50px -24px rgba(15,23,42,.18);display:grid;gap:14px}
-        .taf-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-        .taf-title{display:flex;align-items:center;gap:10px;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#64748b}
-        .taf-title i{width:28px;height:28px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;font-size:12px;box-shadow:0 8px 16px -8px rgba(37,99,235,.6)}
-        .taf-count{font-size:11px;font-weight:700;color:#475569;background:#f1f5f9;border-radius:999px;padding:4px 10px}
-        .taf-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-        .taf-row{display:grid;grid-template-columns:92px minmax(0,1fr);align-items:start;gap:10px;padding-top:12px;border-top:1px dashed #e2e8f0}
-        .taf-label{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#94a3b8;padding-top:9px;white-space:nowrap}
-        .taf-chips{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
-        .taf-chip{appearance:none;border:1px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 13px;border-radius:12px;font-size:12px;font-weight:700;color:#334155;background:#f1f5f9;transition:all .15s ease;white-space:nowrap}
-        .taf-chip:hover{background:#e2e8f0;transform:translateY(-1px)}
-        .taf-chip.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-        .taf-chip.on{color:#fff;background:linear-gradient(135deg,#2563eb,#4f46e5);box-shadow:0 10px 20px -10px rgba(37,99,235,.7);border-color:rgba(255,255,255,.25)}
-        .taf-chip.locked{cursor:not-allowed;color:#92400e;background:#fffbeb;border-color:#fde68a;box-shadow:none;transform:none}
-        .taf-chip.locked i{color:#d97706}
-        .taf-chip.on.locked{color:#fff;cursor:not-allowed;transform:none;border-color:rgba(255,255,255,.35)}
-        .taf-chip.on.locked i{color:rgba(255,255,255,.92)}
-        .taf-chip.zone.on{background:linear-gradient(135deg,#0f766e,#14b8a6);box-shadow:0 10px 20px -10px rgba(13,148,136,.7)}
-        .taf-chip.sector.on{background:linear-gradient(135deg,#7c3aed,#a855f7);box-shadow:0 10px 20px -10px rgba(124,58,237,.7)}
-        .taf-chip.beat.on{background:linear-gradient(135deg,#ea580c,#f59e0b);box-shadow:0 10px 20px -10px rgba(234,88,12,.7)}
-        .taf-hint{font-size:11px;color:#94a3b8;font-weight:600;padding-top:9px}
-        .taf-split{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(330px,1fr);gap:18px;align-items:start}
-        .taf-scope{display:grid;gap:0;min-width:0}
-        .taf-scope .taf-row:first-child{border-top:0;padding-top:2px}
-        .taf-side{background:linear-gradient(180deg,#f8fafc,#f1f5f9);border:1px solid #e2e8f0;border-radius:20px;padding:14px;min-width:0}
-        .taf-tools{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:start}
-        .taf-tools .taf-field.dates,.taf-tools .taf-field.wide{grid-column:span 2}
-        .taf-side .taf-input{background:#fff;height:38px}
-        .taf-side .taf-tools{gap:8px}
-        .taf-crumb{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;padding:9px 12px;border-radius:14px;background:linear-gradient(135deg,#eff6ff,#eef2ff);border:1px solid #dbeafe;font-size:11.5px;font-weight:600;color:#475569}
-        .taf-crumb i{color:#2563eb}
-        .taf-crumb strong{color:#1e293b;font-weight:800}
-        .taf-dates .taf-input{min-width:0;padding:0 8px}
-        @media (max-width:1100px){.taf-split{grid-template-columns:minmax(0,1fr)}}
-        @media (max-width:640px){.taf-tools{grid-template-columns:minmax(0,1fr)}.taf-tools .taf-field.dates,.taf-tools .taf-field.wide{grid-column:span 1}}
-        .taf-field{display:grid;gap:5px;min-width:0}
-        .taf-field>span{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#94a3b8;display:flex;align-items:center;gap:6px}
-        .taf-input{width:100%;height:40px;border-radius:14px;border:1px solid #e2e8f0;background:#f8fafc;padding:0 12px;font-size:12.5px;font-weight:700;color:#1e293b;outline:none;transition:all .15s ease;font-family:inherit}
-        .taf-input:focus{background:#fff;border-color:#60a5fa;box-shadow:0 0 0 3px rgba(59,130,246,.15)}
-        .taf-search{position:relative}
-        .taf-search i{position:absolute;left:12px;top:13px;font-size:12px;color:#94a3b8}
-        .taf-search .taf-input{padding-left:32px;font-weight:600}
-        .taf-dates{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-        .taf-presets{display:flex;gap:6px;flex-wrap:wrap}
-        .taf-mini{appearance:none;border:0;cursor:pointer;height:30px;padding:0 11px;border-radius:10px;font-size:11px;font-weight:800;color:#475569;background:#f1f5f9;font-family:inherit}
-        .taf-mini:hover{background:#e2e8f0}
-        .taf-mini.danger{color:#e11d48;background:#fff1f2}
-        .taf-btn{appearance:none;border:0;cursor:pointer;height:40px;padding:0 16px;border-radius:14px;font-size:12px;font-weight:800;display:inline-flex;align-items:center;gap:8px;font-family:inherit;text-decoration:none}
-        .taf-btn.primary{color:#fff;background:linear-gradient(135deg,#2563eb,#4f46e5);box-shadow:0 12px 24px -12px rgba(37,99,235,.8)}
-        .taf-btn.ghost{color:#334155;background:#f1f5f9}
-        .taf-btn.ghost:hover{background:#e2e8f0}
-        @media (max-width:760px){.taf-row{grid-template-columns:1fr}.taf-label{padding-top:0}.taf-card{padding:14px;border-radius:22px}}
+        .tb-card{background:#fff;border:1px solid #e2e8f0;border-radius:24px;padding:14px 16px;box-shadow:0 14px 40px -26px rgba(15,23,42,.25);display:grid;gap:10px}
+        .tb-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+        .tb-count{font-size:11px;font-weight:800;letter-spacing:.06em;color:#475569;background:#f1f5f9;border-radius:999px;padding:6px 12px;white-space:nowrap}
+        .tb-search{position:relative;flex:0 1 320px;min-width:200px}
+        .tb-search i{position:absolute;left:13px;top:13px;font-size:12px;color:#94a3b8}
+        .tb-input{width:100%;height:40px;border-radius:14px;border:1px solid #e2e8f0;background:#f8fafc;padding:0 12px 0 34px;font-size:12.5px;font-weight:600;color:#1e293b;outline:none;font-family:inherit}
+        .tb-input:focus{background:#fff;border-color:#60a5fa;box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+        .tb-corr{display:flex;align-items:center;gap:6px;flex:1 1 360px;min-width:0;overflow-x:auto;scrollbar-width:none;padding:2px}
+        .tb-corr::-webkit-scrollbar{display:none}
+        .tb-chip{appearance:none;border:1px solid #e2e8f0;border-bottom-width:3px;cursor:pointer;height:34px;padding:0 13px;border-radius:12px;font-size:12px;font-weight:700;color:#334155;background:#fff;white-space:nowrap;font-family:inherit;transition:transform .12s ease}
+        .tb-chip:hover{transform:translateY(-1px);background:#f8fafc}
+        .tb-chip.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+        .tb-chip.on{color:#fff;border-color:rgba(0,0,0,.12);border-bottom-color:rgba(0,0,0,.28);background:linear-gradient(135deg,#2563eb,#4f46e5);box-shadow:0 10px 18px -10px rgba(37,99,235,.7)}
+        .tb-btn{appearance:none;border:0;cursor:pointer;height:40px;padding:0 16px;border-radius:14px;font-size:12px;font-weight:800;display:inline-flex;align-items:center;gap:8px;font-family:inherit;text-decoration:none;white-space:nowrap}
+        .tb-btn.primary{color:#fff;background:linear-gradient(135deg,#2563eb,#4f46e5);box-shadow:0 12px 24px -12px rgba(37,99,235,.8)}
+        .tb-btn.ghost{color:#334155;background:#f1f5f9}
+        .tb-btn.ghost:hover{background:#e2e8f0}
+        .tb-pills{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding-top:10px;border-top:1px dashed #e2e8f0}
+        .tb-pills-label{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8}
+        .tb-pill{appearance:none;border:1px solid #dbeafe;background:linear-gradient(135deg,#eff6ff,#eef2ff);color:#1e3a8a;border-radius:999px;height:28px;padding:0 6px 0 12px;font-size:11.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:8px;font-family:inherit}
+        .tb-pill i{width:18px;height:18px;border-radius:50%;background:#fff;color:#64748b;font-size:9px;display:inline-flex;align-items:center;justify-content:center}
+        .tb-pill:hover i{background:#fee2e2;color:#e11d48}
+        @media (max-width:760px){.tb-search{flex:1 1 100%}}
     </style>
-    <div class="taf-card">
-        <div class="taf-head">
-            <div class="taf-title"><i class="fa-solid fa-sliders"></i> Filters <span class="taf-count" x-text="(pagination.total || 0) + ' advisories'"></span></div>
-            <div class="taf-actions">
-                <button type="button" class="taf-btn ghost" x-show="isFiltered()" @click="resetFilters()" title="Reset all filters">
-                    <i class="fa-solid fa-rotate-left" style="color:#2563eb"></i> Reset
-                </button>
-                <a href="{{ route('ops.travel-advisory.create') }}" class="taf-btn primary">
-                    <i class="fa-solid fa-plus-circle"></i> Log Advisory / Fog
-                </a>
+    <div class="tb-card">
+        <div class="tb-row">
+            <span class="tb-count" x-text="(pagination.total || 0) + ' advisories'"></span>
+            <div class="tb-search">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" x-model="search" @input.debounce.300ms="fetchData(1)" placeholder="Search landmarks, KM, title..." class="tb-input">
             </div>
-        </div>
-
-        <!-- Corridor -->
-        <div class="taf-row">
-            <div class="taf-label"><i class="fa-solid fa-road"></i> Corridor</div>
-            <div class="taf-chips">
-                <button type="button" class="taf-chip" :class="currentRoad === 'all' ? 'on' : ''" @click="setRoad('all')">All Corridors</button>
+            <div class="tb-corr" aria-label="Corridor">
+                <button type="button" class="tb-chip" :class="currentRoad === 'all' ? 'on' : ''" @click="setRoad('all')">All Corridors</button>
                 <template x-for="rCode in corridorList" :key="rCode">
-                    <button type="button" class="taf-chip mono" :class="currentRoad === rCode ? 'on' : ''" @click="setRoad(rCode)" x-text="rCode"></button>
+                    <button type="button" class="tb-chip mono" :class="currentRoad === rCode ? 'on' : ''" @click="setRoad(rCode)" x-text="rCode"></button>
                 </template>
             </div>
+            <a href="{{ route('ops.travel-advisory.create') }}" class="tb-btn primary"><i class="fa-solid fa-plus-circle"></i> Log Advisory / Fog</a>
         </div>
-
-        <!-- Two-column body: jurisdiction chips (left) | status, category, dates, search (right) -->
-        <div class="taf-split">
-        <div class="taf-scope">
-        <!-- Zone -->
-        <div class="taf-row" x-show="hierarchy.zones.length > 0">
-            <div class="taf-label"><i class="fa-solid fa-earth-asia"></i> Zone</div>
-            <div class="taf-chips">
-                <template x-if="!lock.zone">
-                    <button type="button" class="taf-chip zone" :class="!zoneId ? 'on' : ''" @click="setZone(0)">All Zones</button>
-                </template>
-                <template x-for="z in visibleZones()" :key="z.id">
-                    <button type="button" class="taf-chip zone" :class="[zoneId === z.id ? 'on' : '', lock.zone ? 'locked' : '']" :title="lock.zone ? 'Your assigned zone' : ''" @click="setZone(z.id)">
-                        <i x-show="lock.zone" class="fa-solid fa-lock"></i><span x-text="z.name"></span>
-                    </button>
-                </template>
-            </div>
-        </div>
-
-        <!-- Sector (loads after a zone is chosen) -->
-        <div class="taf-row" x-show="zoneId || lock.sector" x-transition.opacity.duration.150ms>
-            <div class="taf-label"><i class="fa-solid fa-diagram-project"></i> Sector</div>
-            <div class="taf-chips">
-                <template x-if="!lock.sector">
-                    <button type="button" class="taf-chip sector" :class="!sectorId ? 'on' : ''" @click="setSector(0)">All Sectors</button>
-                </template>
-                <template x-for="sx in visibleSectors()" :key="sx.id">
-                    <button type="button" class="taf-chip sector" :class="[sectorId === sx.id ? 'on' : '', lock.sector ? 'locked' : '']" :title="lock.sector ? 'Your assigned sector' : ''" @click="setSector(sx.id)">
-                        <i x-show="lock.sector" class="fa-solid fa-lock"></i><span x-text="sx.name"></span>
-                    </button>
-                </template>
-                <span class="taf-hint" x-show="visibleSectors().length === 0">No sectors in this zone.</span>
-            </div>
-        </div>
-
-        <!-- Beat (loads after a sector is chosen) -->
-        <div class="taf-row" x-show="sectorId || lock.beat" x-transition.opacity.duration.150ms>
-            <div class="taf-label"><i class="fa-solid fa-location-dot"></i> Beat</div>
-            <div class="taf-chips">
-                <template x-if="!lock.beat">
-                    <button type="button" class="taf-chip beat" :class="!beatId ? 'on' : ''" @click="setBeat(0)">All Beats</button>
-                </template>
-                <template x-for="b in visibleBeats()" :key="b.id">
-                    <button type="button" class="taf-chip beat" :class="[beatId === b.id ? 'on' : '', lock.beat ? 'locked' : '']" :title="lock.beat ? 'Your assigned beat' : ''" @click="setBeat(b.id)">
-                        <i x-show="lock.beat" class="fa-solid fa-lock"></i><span x-text="b.name"></span>
-                    </button>
-                </template>
-                <span class="taf-hint" x-show="visibleBeats().length === 0">No beats in this sector.</span>
-            </div>
-        </div>
-
-            <div class="taf-crumb" x-show="zoneId || sectorId || beatId" x-transition.opacity.duration.150ms>
-                <i class="fa-solid fa-location-crosshairs"></i>
-                <span>Showing advisories for</span>
-                <strong x-text="scopeLabel()"></strong>
-            </div>
-        </div>
-        <div class="taf-side">
-        <div class="taf-tools">
-            <label class="taf-field">
-                <span><i class="fa-solid fa-clock-rotate-left"></i> Status</span>
-                <select x-model="currentStatus" @change="fetchData(1)" class="taf-input">
-                    <option value="active">Active / Live Alerts</option>
-                    <option value="pending">Pending Review (Supervisors)</option>
-                    <option value="rejected">Rejected Advisories</option>
-                    <option value="all">All Records</option>
-                    <option value="resolved">Resolved Only</option>
-                    <option value="expired">Expired Only</option>
-                </select>
-            </label>
-            <label class="taf-field">
-                <span><i class="fa-solid fa-tags"></i> Category</span>
-                <select x-model="currentType" @change="fetchData(1)" class="taf-input">
-                    <option value="all">All Categories</option>
-                    <option value="fog">Fog &amp; Smog</option>
-                    <option value="road_closure">Road Closures</option>
-                    <option value="road_works">Road Works</option>
-                    <option value="traffic">Traffic Congestion</option>
-                    <option value="weather">Weather &amp; Rain</option>
-                    <option value="diversion">Diversions</option>
-                </select>
-            </label>
-            <div class="taf-field dates">
-                <span><i class="fa-solid fa-calendar-days"></i> Inserted between</span>
-                <div class="taf-dates">
-                    <input type="date" x-model="dateFrom" :max="dateTo || null" @change="fetchData(1)" class="taf-input" aria-label="From date">
-                    <input type="date" x-model="dateTo" :min="dateFrom || null" @change="fetchData(1)" class="taf-input" aria-label="To date">
-                </div>
-                <div class="taf-presets">
-                    <button type="button" class="taf-mini" @click="setDatePreset(1)">Today</button>
-                    <button type="button" class="taf-mini" @click="setDatePreset(7)">7 Days</button>
-                    <button type="button" class="taf-mini" @click="setDatePreset(30)">30 Days</button>
-                    <button type="button" class="taf-mini danger" x-show="dateFrom || dateTo" @click="clearDates()">Clear</button>
-                </div>
-            </div>
-            <label class="taf-field wide">
-                <span><i class="fa-solid fa-keyboard"></i> Search</span>
-                <div class="taf-search">
-                    <i class="fa-solid fa-magnifying-glass"></i>
-                    <input type="text" x-model="search" @input.debounce.300ms="fetchData(1)" placeholder="Landmarks, KM, title..." class="taf-input">
-                </div>
-            </label>
-        </div>
-        </div>
+        <div class="tb-pills" x-show="activePills().length > 0" x-transition.opacity.duration.150ms>
+            <span class="tb-pills-label">Active filters</span>
+            <template x-for="p in activePills()" :key="p.key">
+                <button type="button" class="tb-pill" @click="removePill(p.key)" :title="'Remove ' + p.label"><span x-text="p.label"></span><i class="fa-solid fa-xmark"></i></button>
+            </template>
+            <button type="button" class="tb-btn ghost" style="height:28px;padding:0 12px;font-size:11px" @click="resetFilters()"><i class="fa-solid fa-rotate-left" style="color:#2563eb"></i> Reset all</button>
         </div>
     </div>
+
+    <!-- STICKY FILTER TAB + SLIDE-OVER DRAWER -->
+    <x-filter-drawer open="filterOpen" title="Advisory Filters" subtitle="Refine corridor alerts" count="activeFilterCount()" reset="resetFilters()">
+        <div class="fd-card" x-show="hierarchy.zones.length > 0">
+            <div class="fd-label"><i class="fa-solid fa-earth-asia"></i> Zone</div>
+            <div class="fd-chips">
+                <template x-if="!lock.zone"><button type="button" class="fd-chip zone" :class="!zoneId ? 'on' : ''" @click="setZone(0)">All Zones</button></template>
+                <template x-for="z in visibleZones()" :key="z.id">
+                    <button type="button" class="fd-chip zone" :class="[zoneId === z.id ? 'on' : '', lock.zone ? 'locked' : '']" :title="lock.zone ? 'Your assigned zone' : ''" @click="setZone(z.id)"><i x-show="lock.zone" class="fa-solid fa-lock"></i><span x-text="z.name"></span></button>
+                </template>
+            </div>
+        </div>
+        <div class="fd-card" x-show="zoneId || lock.sector" x-transition.opacity.duration.150ms>
+            <div class="fd-label"><i class="fa-solid fa-diagram-project"></i> Sector</div>
+            <div class="fd-chips">
+                <template x-if="!lock.sector"><button type="button" class="fd-chip sector" :class="!sectorId ? 'on' : ''" @click="setSector(0)">All Sectors</button></template>
+                <template x-for="sx in visibleSectors()" :key="sx.id">
+                    <button type="button" class="fd-chip sector" :class="[sectorId === sx.id ? 'on' : '', lock.sector ? 'locked' : '']" :title="lock.sector ? 'Your assigned sector' : ''" @click="setSector(sx.id)"><i x-show="lock.sector" class="fa-solid fa-lock"></i><span x-text="sx.name"></span></button>
+                </template>
+                <span class="fd-hint" x-show="visibleSectors().length === 0">No sectors in this zone.</span>
+            </div>
+        </div>
+        <div class="fd-card" x-show="sectorId || lock.beat" x-transition.opacity.duration.150ms>
+            <div class="fd-label"><i class="fa-solid fa-location-dot"></i> Beat</div>
+            <div class="fd-chips">
+                <template x-if="!lock.beat"><button type="button" class="fd-chip beat" :class="!beatId ? 'on' : ''" @click="setBeat(0)">All Beats</button></template>
+                <template x-for="b in visibleBeats()" :key="b.id">
+                    <button type="button" class="fd-chip beat" :class="[beatId === b.id ? 'on' : '', lock.beat ? 'locked' : '']" :title="lock.beat ? 'Your assigned beat' : ''" @click="setBeat(b.id)"><i x-show="lock.beat" class="fa-solid fa-lock"></i><span x-text="b.name"></span></button>
+                </template>
+                <span class="fd-hint" x-show="visibleBeats().length === 0">No beats in this sector.</span>
+            </div>
+        </div>
+
+        <div class="fd-card">
+            <div class="fd-label"><i class="fa-solid fa-clock-rotate-left"></i> Status</div>
+            <div class="fd-chips">
+                <template x-for="st in statusOptions" :key="st.v">
+                    <button type="button" class="fd-chip" :class="currentStatus === st.v ? 'on' : ''" @click="setStatus(st.v)" x-text="st.l"></button>
+                </template>
+            </div>
+        </div>
+
+        <div class="fd-card">
+            <div class="fd-label"><i class="fa-solid fa-tags"></i> Category</div>
+            <div class="fd-chips">
+                <template x-for="ct in categoryOptions" :key="ct.v">
+                    <button type="button" class="fd-chip" :class="currentType === ct.v ? 'on' : ''" @click="setType(ct.v)" x-text="ct.l"></button>
+                </template>
+            </div>
+        </div>
+
+        <div class="fd-card">
+            <div class="fd-label"><i class="fa-solid fa-calendar-days"></i> Inserted between</div>
+            <div class="fd-grid2">
+                <input type="date" x-model="dateFrom" :max="dateTo || null" @change="fetchData(1)" class="fd-input" aria-label="From date">
+                <input type="date" x-model="dateTo" :min="dateFrom || null" @change="fetchData(1)" class="fd-input" aria-label="To date">
+            </div>
+            <div class="fd-chips" style="margin-top:10px">
+                <button type="button" class="fd-chip" @click="setDatePreset(1)">Today</button>
+                <button type="button" class="fd-chip" @click="setDatePreset(7)">7 Days</button>
+                <button type="button" class="fd-chip" @click="setDatePreset(30)">30 Days</button>
+                <button type="button" class="fd-chip" x-show="dateFrom || dateTo" @click="clearDates()"><i class="fa-solid fa-xmark" style="color:#e11d48"></i> Clear</button>
+            </div>
+        </div>
+    </x-filter-drawer>
 
 
     <!-- 3D TACTILE TABLE OF ADVISORIES (Pure Alpine AJAX Driven) -->
@@ -1377,6 +1307,40 @@ function advisoryIndexManager(config) {
             return this.currentRoad !== 'all' || this.currentType !== 'all' || this.currentStatus !== 'active' || !!this.search
                 || !!this.dateFrom || !!this.dateTo
                 || (!this.lock.zone && !!this.zoneId) || (!this.lock.sector && !!this.sectorId) || (!this.lock.beat && !!this.beatId);
+        },
+        filterOpen: false,
+        statusOptions: [
+            { v: 'active', l: 'Active / Live' }, { v: 'pending', l: 'Pending Review' }, { v: 'rejected', l: 'Rejected' },
+            { v: 'expired', l: 'Expired' }, { v: 'resolved', l: 'Resolved' }, { v: 'all', l: 'All Records' }
+        ],
+        categoryOptions: [
+            { v: 'all', l: 'All Categories' }, { v: 'fog', l: 'Fog & Smog' }, { v: 'road_closure', l: 'Road Closures' },
+            { v: 'diversion', l: 'Diversions' }, { v: 'road_works', l: 'Road Works' }, { v: 'traffic', l: 'Congestion' }, { v: 'weather', l: 'Weather & Rain' }
+        ],
+        setStatus(v) { this.currentStatus = v; this.activeCard = 'custom'; this.fetchData(1); },
+        setType(v) { this.currentType = v; this.activeCard = 'custom'; this.fetchData(1); },
+        activeFilterCount() { return this.activePills().length; },
+        activePills() {
+            const pills = [];
+            if (this.currentRoad !== 'all') pills.push({ key: 'road', label: 'Corridor: ' + this.currentRoad });
+            const name = (list, id) => ((list || []).find(x => x.id === id) || {}).name;
+            if (!this.lock.zone && this.zoneId) pills.push({ key: 'zone', label: 'Zone: ' + (name(this.hierarchy.zones, this.zoneId) || this.zoneId) });
+            if (!this.lock.sector && this.sectorId) pills.push({ key: 'sector', label: 'Sector: ' + (name(this.hierarchy.sectors, this.sectorId) || this.sectorId) });
+            if (!this.lock.beat && this.beatId) pills.push({ key: 'beat', label: 'Beat: ' + (name(this.hierarchy.beats, this.beatId) || this.beatId) });
+            if (this.currentStatus !== 'active') { const st = this.statusOptions.find(x => x.v === this.currentStatus); pills.push({ key: 'status', label: 'Status: ' + (st ? st.l : this.currentStatus) }); }
+            if (this.currentType !== 'all') { const ct = this.categoryOptions.find(x => x.v === this.currentType); pills.push({ key: 'type', label: 'Category: ' + (ct ? ct.l : this.currentType) }); }
+            if (this.dateFrom || this.dateTo) pills.push({ key: 'dates', label: 'Inserted: ' + (this.dateFrom || '…') + ' → ' + (this.dateTo || '…') });
+            return pills;
+        },
+        removePill(key) {
+            if (key === 'road') this.currentRoad = 'all';
+            else if (key === 'zone') { this.zoneId = 0; this.sectorId = this.lock.sector || 0; this.beatId = this.lock.beat || 0; }
+            else if (key === 'sector') { this.sectorId = 0; this.beatId = this.lock.beat || 0; }
+            else if (key === 'beat') this.beatId = 0;
+            else if (key === 'status') this.currentStatus = 'active';
+            else if (key === 'type') this.currentType = 'all';
+            else if (key === 'dates') { this.dateFrom = ''; this.dateTo = ''; }
+            this.fetchData(1);
         },
         hasDateRange() { return !!(this.dateFrom || this.dateTo); },
         categoryStatus() { return this.hasDateRange() ? 'all' : 'active'; },
