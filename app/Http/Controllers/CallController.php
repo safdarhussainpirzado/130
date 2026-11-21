@@ -1295,7 +1295,7 @@ class CallController extends Controller
                 'new_calls' => $results,
                 'pending_count' => $pendingCount,
                 'timestamp' => now()->toIso8601String()
-            ]);
+            ])->header('Cache-Control', 'no-cache, no-store, must-revalidate');
         } catch (Throwable $e) {
             Log::error('Notifications poll failed', [
                 'error' => $e->getMessage(),

@@ -204,7 +204,7 @@ class RealtimeStreamController extends Controller
             'call' => $newEmergency,
             'total_pending_women' => $totalPendingWomen,
             'timestamp' => now()->toIso8601String(),
-        ]);
+        ])->header('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
 }
 

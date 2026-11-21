@@ -1,0 +1,49 @@
+================================================================================
+NHMP 130 Unified CI Gate
+Date: 2026-11-21 13:22:22 PKT
+Worktree: /home/mrpirzado/projects/130-push
+Branch: perf/reduce-polling
+================================================================================
+
+--- 1. Scope Verification ---
+  [PASS] Scope check: No forbidden commuter/patrol/API files touched.
+
+--- 2. Secret & Credential Scan ---
+  [PASS] Secret scan: Zero tracked secrets or real credential blocks detected.
+
+--- 3. Minimal-Diff Check ---
+  [PASS] Minimal-diff check: All modified files contain surgical functional changes without format noise.
+
+--- 4. PHP Syntax & Code Style ---
+  [PASS] PHP syntax check: All modified/created PHP files passed php -l.
+  [PASS] Pint style check: All newly created branch files conform to Pint rules.
+
+--- 5. Service Worker Security & Lifecycle Tests ---
+  [PASS] Service Worker tests: 26/26 URL fallback, lifecycle, and security assertions passed.
+
+--- 6. Docker Test Harness (Unit & Feature Suite) ---
+PHPUnit 11.5.57 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.3.36
+Configuration: /var/www/html/phpunit.xml
+
+................................................................. 65 / 80 ( 81%)
+...............                                                   80 / 80 (100%)
+
+Time: 00:08.304, Memory: 66.50 MB
+
+OK (80 tests, 328 assertions)
+  [PASS] Docker test suite: Notification, Advisory workflow, Call reminder, and Geospatial tests passed.
+
+--- 7. Docker Compose Validation ---
+  [PASS] Docker compose config: Validated syntax with variable image tags and push-worker healthcheck.
+
+--- 8. Hardcoded Docker Image Tag Check ---
+  [PASS] Docker compose check: Zero hardcoded rc25 image tags found outside ${NHMP_IMAGE:-...} fallback.
+
+--- 9. Direct env() Call Check ---
+  [PASS] Direct env() check: Zero direct env() calls detected in changed PHP files outside config/.
+
+================================================================================
+GATE: PASS
+================================================================================

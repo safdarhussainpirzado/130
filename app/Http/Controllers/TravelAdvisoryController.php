@@ -597,7 +597,8 @@ class TravelAdvisoryController extends Controller
         $latest = TravelAdvisoryEventFeed::latestSeq();
 
         if (! $request->query->has('after')) {
-            return response()->json(['last_seq' => $latest, 'events' => []]);
+            return response()->json(['last_seq' => $latest, 'events' => []])
+                ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
         }
 
         $isSupervisor = $this->isSupervisorOrAdmin($user);
@@ -621,7 +622,8 @@ class TravelAdvisoryController extends Controller
             }
         ));
 
-        return response()->json(['last_seq' => $latest, 'events' => $events]);
+        return response()->json(['last_seq' => $latest, 'events' => $events])
+            ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
 
     /**
