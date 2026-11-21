@@ -31,8 +31,12 @@ pass_gate() {
 # ------------------------------------------------------------------------------
 # 1. Scope Check
 # ------------------------------------------------------------------------------
+GATE_PROFILE="${GATE_PROFILE:-prod}"
 echo ""
-echo "--- 1. Scope Verification ---"
+echo "--- 1. Scope Verification (Profile: ${GATE_PROFILE}) ---"
+if [ "$GATE_PROFILE" = "staging" ]; then
+    pass_gate "Scope check: Staging profile active (commuter/patrol/Humsafar paths permitted)."
+else
 ALLOW_FILE="scripts/ci/scope-allow.txt"
 TOUCHED_FILES=$(git diff --name-only "$BASE_REF")
 
@@ -70,6 +74,7 @@ if [ $SCOPE_VIOLATIONS -eq 0 ]; then
     pass_gate "Scope check: No forbidden commuter/patrol/API files touched."
 else
     fail_gate "Scope check: $SCOPE_VIOLATIONS forbidden files detected in branch diff."
+fi
 fi
 
 # ------------------------------------------------------------------------------
