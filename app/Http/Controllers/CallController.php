@@ -1471,7 +1471,7 @@ class CallController extends Controller
     }
 
     /** @return array<int, array<string, mixed>> */
-    private function buildGeospatialLookup($road, $kmMarker, $direction): array
+    private function buildGeospatialLookup(?string $road, ?string $kmMarker, ?string $direction): array
     {
         $offices = Office::liteMap();
 

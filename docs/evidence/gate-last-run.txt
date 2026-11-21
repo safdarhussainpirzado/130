@@ -1,6 +1,6 @@
 ================================================================================
 NHMP 130 Unified CI Gate
-Date: 2026-11-21 09:36:04 PKT
+Date: 2026-11-21 09:44:43 PKT
 Worktree: /home/mrpirzado/projects/130-push
 Branch: feat/push-notifications-desk
 ================================================================================
@@ -30,7 +30,7 @@ Configuration: /var/www/html/phpunit.xml
 ................................................................. 65 / 71 ( 91%)
 ......                                                            71 / 71 (100%)
 
-Time: 00:08.454, Memory: 64.50 MB
+Time: 00:13.560, Memory: 64.50 MB
 
 OK (71 tests, 303 assertions)
   [PASS] Docker test suite: Notification, Advisory workflow, and Call reminder tests passed.

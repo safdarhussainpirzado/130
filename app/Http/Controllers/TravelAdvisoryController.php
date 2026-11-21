@@ -666,7 +666,7 @@ class TravelAdvisoryController extends Controller
 
         $reason = $request->input('reason', 'Rejected by Call Center Agent Supervisor.');
         $advisory->reject(Auth::id(), $reason);
-        $this->pushEvent('rejected', $advisory, ['reason' => \Illuminate\Support\Str::limit((string) $reason, 120)]);
+        $this->pushEvent('rejected', $advisory, ['reason' => Str::limit((string) $reason, 120)]);
 
         if ($request->wantsJson() || $request->ajax() || $request->boolean('ajax')) {
             return response()->json([
