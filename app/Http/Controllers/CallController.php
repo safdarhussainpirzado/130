@@ -1151,7 +1151,7 @@ class CallController extends Controller
         $this->authorize('calls.api_lookup');
         if (!$call) {
             $ref = $request->input('ref') ?? $request->input('id') ?? $request->input('call_id');
-            if (\Illuminate\Support\Str::isUuid($ref)) {
+            if (Str::isUuid($ref)) {
                 $call = Call::where('uuid', $ref)->firstOrFail();
             } else {
                 $call = Call::findOrFail($ref);
@@ -1464,13 +1464,13 @@ class CallController extends Controller
         $direction = $request->input('direction');
 
         $key = 'geo_lookup:v1:' . md5(json_encode([$road, $kmMarker, $direction]));
-        $landmarks = Cache::remember($key, 120, fn () => $this->buildGeospatialLookup($road, $kmMarker, $direction));
+        $landmarks = Cache::remember($key, 120, fn (): mixed => $this->buildGeospatialLookup($road, $kmMarker, $direction));
 
         return response()->json(['success' => true, 'landmarks' => $landmarks]);
     }
 
     /** @return array<int, array<string, mixed>> */
-    private function buildGeospatialLookup($road, $kmMarker, $direction): array
+    private function buildGeospatialLookup(?string $road, ?string $kmMarker, ?string $direction): array
     {
         $offices = Office::liteMap();
 
@@ -1582,7 +1582,7 @@ class CallController extends Controller
         $sectorId = (int) $request->input('sector_id');
         $beatId = (int) $request->input('beat_id');
 
-        $contacts = Cache::remember("spatial_contacts:v2:{$zoneId}:{$sectorId}:{$beatId}", 300, function () use ($zoneId, $sectorId, $beatId): array {
+        $contacts = Cache::remember("spatial_contacts:v2:{$zoneId}:{$sectorId}:{$beatId}", 300, function () use ($zoneId, $sectorId, $beatId): mixed {
             $offices = Office::liteMap();
             $landmarkContact = function (array $officeIds): ?string {
                 return $officeIds
