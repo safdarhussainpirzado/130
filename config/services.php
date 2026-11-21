@@ -50,14 +50,14 @@ return [
         'enabled'          => (bool) env('PUSH_ENABLED', false),
         'public_key'       => env('VAPID_PUBLIC_KEY'),
         'private_key'      => env('VAPID_PRIVATE_KEY'),
-        'private_key_file' => env('VAPID_PRIVATE_KEY_FILE', base_path('secrets/vapid_private_key')),
+        'private_key_file' => env('VAPID_PRIVATE_KEY_FILE', is_readable('/run/secrets/vapid_private_key') ? '/run/secrets/vapid_private_key' : base_path('secrets/vapid_private_key')),
         'subject'          => env('VAPID_SUBJECT', 'mailto:admin@130.nhmp.gov.pk'),
     ],
 
     'firebase' => [
         'enabled'          => (bool) env('PUSH_FCM_ENABLED', false),
         'project_id'       => env('FIREBASE_PROJECT_ID'),
-        'credentials_file' => env('FIREBASE_CREDENTIALS_FILE', base_path('secrets/firebase_credentials.json')),
+        'credentials_file' => env('FIREBASE_CREDENTIALS_FILE', is_readable('/run/secrets/firebase_credentials') ? '/run/secrets/firebase_credentials' : base_path('secrets/firebase_credentials.json')),
     ],
 
 ];

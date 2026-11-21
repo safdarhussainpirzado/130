@@ -351,6 +351,37 @@ else
 fi
 
 # ------------------------------------------------------------------------------
+# 11. Protected production lines must never be removed (polling, cache header, toasts, native Notification)
+# ------------------------------------------------------------------------------
+echo ""
+echo "--- 11. Protected-lines regression guard ---"
+PROT_FAILED=0
+guard() { # file, fixed-string
+    if ! grep -qF -- "$2" "$1" 2>/dev/null; then
+        echo "  Missing protected line in $1: $2"
+        PROT_FAILED=$((PROT_FAILED + 1))
+    fi
+}
+guard public/js/nhmp-poll.js "nhmpPoll"
+guard app/Http/Controllers/Admin/SupportManagementController.php "no-cache, no-store, must-revalidate"
+guard public/js/notification.js "NHMPNativeNotification"
+guard public/js/notification.js "window.showSuccess"
+guard public/js/voice-alert.js "NHMPVoiceAlert"
+guard resources/views/layouts/app.blade.php "voice-alert.js"
+# Humsafar/patrol/commuter work must never reach main (staging-only until the owner allows it)
+if [ "$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" = "main" ]; then
+    if git ls-files | grep -qiE 'SurveyLocation|SurveyCategory|CommuterDirectory|OnlineOfficers|HumsafarEcosystem'; then
+        echo "  Humsafar/patrol/commuter files are tracked on main (staging-only)."
+        PROT_FAILED=$((PROT_FAILED + 1))
+    fi
+fi
+if [ $PROT_FAILED -eq 0 ]; then
+    pass_gate "Protected-lines guard: polling, cache header, toast helpers, native Notification and voice alerts intact."
+else
+    fail_gate "Protected-lines guard: $PROT_FAILED protected lines missing or staging-only files present."
+fi
+
+# ------------------------------------------------------------------------------
 # Final Gate Summary
 # ------------------------------------------------------------------------------
 echo ""

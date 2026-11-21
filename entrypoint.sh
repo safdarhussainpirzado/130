@@ -12,6 +12,9 @@ cd /var/www/html
 for _f in $(env | sed -n 's/^\([A-Z0-9_]*_FILE\)=.*/\1/p'); do
     _var="${_f%_FILE}"
     _path="$(printenv "$_f")"
+    # Push private keys stay file-based: the app reads them lazily at send time, so the key is never
+    # exported into the process environment nor baked into bootstrap/cache/config.php (PUSH-6).
+    case "$_var" in VAPID_PRIVATE_KEY|FIREBASE_CREDENTIALS) continue ;; esac
     if [ -r "$_path" ]; then
         export "$_var=$(cat "$_path")"
         unset "$_f"

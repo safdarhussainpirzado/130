@@ -126,15 +126,19 @@ class PushStatusCommand extends Command
         $this->line('');
         $this->comment('2. Web Push (RFC 8292 VAPID) Configuration:');
         $pubKey = config('services.webpush.public_key');
+        $privKeyConfig = config('services.webpush.private_key');
         $privKeyFile = config('services.webpush.private_key_file');
         $subject = config('services.webpush.subject');
 
         $hasPubKey = ! empty($pubKey) && strlen($pubKey) >= 65;
+        $hasPrivKeyConfig = ! empty($privKeyConfig) && is_string($privKeyConfig) && trim($privKeyConfig) !== '';
         $hasPrivKeyFile = ! empty($privKeyFile) && file_exists($privKeyFile) && is_readable($privKeyFile);
         $isPrivKeyEmpty = $hasPrivKeyFile && filesize($privKeyFile) === 0;
 
         $privKeyStatus = '<error>MISSING OR UNREADABLE</error>';
-        if ($isPrivKeyEmpty) {
+        if ($hasPrivKeyConfig) {
+            $privKeyStatus = '<info>CONFIGURED (via environment / resolved secret)</info>';
+        } elseif ($isPrivKeyEmpty) {
             $privKeyStatus = "<comment>PLACEHOLDER PRESENT (EMPTY - NOT CONFIGURED) [{$privKeyFile}]</comment>";
         } elseif ($hasPrivKeyFile) {
             $privKeyStatus = "<info>SECURE FILE PRESENT [{$privKeyFile}] (mode ".substr(sprintf('%o', fileperms($privKeyFile)), -4).')</info>';
@@ -148,19 +152,38 @@ class PushStatusCommand extends Command
         $this->line('');
         $this->comment('3. Firebase Cloud Messaging (HTTP v1) Configuration:');
         $projectId = config('services.firebase.project_id');
+        $fcmCredsConfig = config('services.firebase.credentials');
         $fcmCredsFile = config('services.firebase.credentials_file');
+
+        $hasFcmConfig = ! empty($fcmCredsConfig);
         $hasFcmFile = ! empty($fcmCredsFile) && file_exists($fcmCredsFile) && is_readable($fcmCredsFile);
         $isFcmEmpty = $hasFcmFile && filesize($fcmCredsFile) === 0;
 
+        if (empty($projectId)) {
+            if ($hasFcmConfig) {
+                if (is_array($fcmCredsConfig)) {
+                    $projectId = $fcmCredsConfig['project_id'] ?? null;
+                } elseif (is_string($fcmCredsConfig)) {
+                    $parsed = json_decode($fcmCredsConfig, true);
+                    $projectId = $parsed['project_id'] ?? null;
+                }
+            } elseif ($hasFcmFile && ! $isFcmEmpty) {
+                $parsed = json_decode((string) file_get_contents($fcmCredsFile), true);
+                $projectId = $parsed['project_id'] ?? null;
+            }
+        }
+
         $fcmStatus = '<comment>NOT FOUND (Optional: drop in secrets/firebase_credentials.json)</comment>';
-        if ($isFcmEmpty) {
+        if ($hasFcmConfig) {
+            $fcmStatus = '<info>CONFIGURED (via environment / resolved secret)</info>';
+        } elseif ($isFcmEmpty) {
             $fcmStatus = "<comment>PLACEHOLDER PRESENT (EMPTY - NOT CONFIGURED) [{$fcmCredsFile}]</comment>";
         } elseif ($hasFcmFile) {
             $fcmStatus = "<info>PRESENT [{$fcmCredsFile}]</info>";
         }
 
         $this->line('   - Project ID:       '.(! empty($projectId) ? "<info>{$projectId}</info>" : '<comment>NOT CONFIGURED</comment>'));
-        $this->line("   - Credentials File: {$fcmStatus}");
+        $this->line("   - Credentials:      {$fcmStatus}");
 
         // 4. Redis Queue Connection & Worker Health
         $this->line('');
