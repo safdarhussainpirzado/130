@@ -770,6 +770,21 @@ class TravelAdvisoryController extends Controller
      * Real-time alert feed. Supervisors receive what sector operators do (insert/update/clear/extend);
      * sector operators receive what supervisors do (approve/reject/update/clear/extend) on their advisories.
      */
+    /** Sidebar badge: advisories awaiting approval, within the user's jurisdiction. */
+    public function pendingCount(): JsonResponse
+    {
+        $this->authorizeSectorAdmin();
+        $scope = $this->resolveOfficeScope(Auth::user());
+        $q = TabletAdvisory::query()->where('status', 'pending_approval');
+        if ($scope['allowed'] !== null) {
+            $ids = $scope['allowed'];
+            $q->where(fn ($w) => $w->whereIn('office_id', $ids)->orWhereIn('sector_id', $ids)->orWhereIn('zone_id', $ids));
+        }
+
+        return response()->json(['count' => (int) $q->count()])
+            ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+
     public function liveEvents(Request $request): JsonResponse
     {
         $this->authorizeSectorAdmin();

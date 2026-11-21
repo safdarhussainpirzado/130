@@ -836,9 +836,13 @@
                         </a>
 
                         <a href="{{ route('ops.travel-advisory.index') }}"
-                            class="nav-item {{ request()->routeIs('ops.travel-advisory.index') ? 'active' : '' }}">
-                            <span class="nav-icon text-sky-500"><i class="fa-solid fa-triangle-exclamation"></i></span>
-                            <span class="nav-label">Travel Advisories</span>
+                            class="nav-item {{ request()->routeIs('ops.travel-advisory.index') ? 'active' : '' }} flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="nav-icon text-sky-500"><i class="fa-solid fa-triangle-exclamation"></i></span>
+                                <span class="nav-label">Travel Advisories</span>
+                            </div>
+                            <span id="advisory-pending-badge"
+                                  class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white shadow-sm ml-auto hidden">0</span>
                             <span class="nav-tooltip">Advisories Management Grid</span>
                         </a>
                     @endif
@@ -1409,6 +1413,27 @@
 
     @if (!empty($canAccessTravelAdvisory))
         <script>window.NHMP_TA_LIVE = { url: "{{ route('ops.travel-advisory.events') }}", interval: 8000 };</script>
+        <script>
+            (function () {
+                var url = "{{ route('ops.travel-advisory.pending-count') }}";
+                function refresh() {
+                    return fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+                        .then(function (r) { return r.ok ? r.json() : null; })
+                        .then(function (d) {
+                            var b = document.getElementById('advisory-pending-badge');
+                            if (!b || !d) return;
+                            b.textContent = d.count;
+                            b.classList.toggle('hidden', !(d.count > 0));
+                        }).catch(function () {});
+                }
+                window.nhmpRefreshAdvisoryBadge = refresh;
+                document.addEventListener('DOMContentLoaded', function () {
+                    setTimeout(refresh, 600);
+                    if (window.nhmpPoll) { window.nhmpPoll(refresh, { interval: 60000 }); } else { setInterval(refresh, 60000); }
+                });
+                window.addEventListener('ta:event', function () { setTimeout(refresh, 400); });
+            })();
+        </script>
         <script defer src="{{ asset('js/ta-live-alerts.js') }}"></script>
     @endif
 

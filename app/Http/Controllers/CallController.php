@@ -123,13 +123,43 @@ class CallController extends Controller
             } elseif (preg_match('/^(\+?92|0)?(3[0-9]{2,})$/', $s, $m)) {
                 $phonePrefix = '0' . $m[2];
                 $bidx = (strlen($phonePrefix) >= 10 && function_exists('phone_blind_index')) ? phone_blind_index($phonePrefix) : null;
-                $query->where(function ($q) use ($phonePrefix, $bidx) {
+                $fragTokens = \App\Services\CallSearchTokens::phoneQueryTokens(preg_replace('/\D+/', '', $s));
+                $query->where(function ($q) use ($phonePrefix, $bidx, $fragTokens) {
                     if ($bidx) {
                         $q->where('calls.caller_number_bidx', $bidx)
                           ->orWhere('calls.caller_number', 'like', "{$phonePrefix}%");
                     } else {
+                        // Partial number (e.g. "030067"): numbers are encrypted, so match the blind-index fragments.
                         $q->where('calls.caller_number', 'like', "{$phonePrefix}%");
+                        if ($fragTokens) {
+                            $q->orWhereIn('calls.id', DB::table('call_search_tokens')->select('call_id')->whereIn('token_bidx', $fragTokens));
+                        }
                     }
+                });
+            } elseif (preg_match('/^[\d\s\-+]{4,}$/', $s) && ($frag = preg_replace('/\D+/', '', $s)) && strlen($frag) >= 4 && strlen($frag) <= 7) {
+                // Partial phone digits: last 4-7 digits or first 6-7 digits (blind-index tokens, encrypted numbers)
+                $tok = \App\Services\CallSearchTokens::phoneQueryTokens($frag);
+                $query->where(function ($q) use ($tok, $s) {
+                    $q->whereIn('calls.id', DB::table('call_search_tokens')->select('call_id')->whereIn('token_bidx', $tok))
+                      ->orWhere('calls.call_number', 'like', "%{$s}%");
+                });
+            } elseif (preg_match('/\p{L}/u', $s) && ! preg_match('/^crm/i', $s) && ($words = array_values(array_filter(preg_split('/[\s\-_.,]+/u', strtolower($s), -1, PREG_SPLIT_NO_EMPTY), fn ($w) => mb_strlen($w) >= 2))) && count($words) > 0) {
+                // Caller NAME search: every typed word must match a word/prefix token of the (encrypted) caller name,
+                // OR the text matches a category / vehicle / beat name (existing behaviour).
+                $vehicleTypeIds = VehicleType::where('name', 'like', "%$s%")->pluck('id');
+                $callTypeIds = CallType::where('name', 'like', "%$s%")->pluck('id');
+                $callSubTypeIds = CallSubType::where('name', 'like', "%$s%")->pluck('id');
+                $officeIds = Office::where('name', 'like', "%$s%")->pluck('id');
+                $query->where(function ($q) use ($words, $s, $vehicleTypeIds, $callTypeIds, $callSubTypeIds, $officeIds) {
+                    $q->where(function ($nq) use ($words) {
+                        foreach (array_slice($words, 0, 4) as $w) {
+                            $nq->whereIn('calls.id', DB::table('call_search_tokens')->select('call_id')->whereIn('token_bidx', \App\Services\CallSearchTokens::nameWordTokens($w)));
+                        }
+                    })->orWhere('calls.call_number', 'like', "{$s}%")->orWhere('calls.vehicle_no', 'like', "{$s}%");
+                    if ($vehicleTypeIds->isNotEmpty()) { $q->orWhereIn('calls.vehicle_type_id', $vehicleTypeIds); }
+                    if ($callTypeIds->isNotEmpty()) { $q->orWhereIn('calls.call_type_id', $callTypeIds); }
+                    if ($callSubTypeIds->isNotEmpty()) { $q->orWhereIn('calls.call_sub_type_id', $callSubTypeIds); }
+                    if ($officeIds->isNotEmpty()) { $q->orWhereIn('calls.office_id', $officeIds); }
                 });
             } else {
                 // Pre-fetch matching IDs from small auxiliary tables in-memory
@@ -1337,21 +1367,28 @@ class CallController extends Controller
                 $query->orderBy('status', 'asc')->orderBy('created_at', 'desc');
             }
 
-            // Optimize query for export: minimal columns, no large remarks/details
+            // Optimize query for export: minimal columns, no relations (cursor() never eager-loads, which used to
+            // cost ~7 queries PER ROW; lookups are preloaded into memory maps instead).
             $query->select([
                 'id', 'call_number', 'created_at', 'priority', 'status',
                 'call_type_id', 'call_sub_type_id', 'office_id',
                 'caller_name', 'caller_number', 'vehicle_no',
                 'vehicle_type_id', 'agent_id'
-            ])->with([
-                'callType:id,name', 
-                'callSubType:id,name', 
-                'office:id,name,type,parent_id',
-                'office.parent:id,name,type,parent_id',
-                'office.parent.parent:id,name,type',
-                'agent:id,full_name,username', 
-                'vehicleType:id,name'
             ]);
+
+            $maxRows = 250000;
+            $total = (clone $query)->toBase()->getCountForPagination();
+            if ($total > $maxRows) {
+                return response()->json([
+                    'error' => "This filter matches " . number_format($total) . " helps; an export is limited to " . number_format($maxRows) . ". Please narrow the date range, zone, sector or beat and export again.",
+                ], 422);
+            }
+
+            $callTypeNames = CallType::pluck('name', 'id')->all();
+            $subTypeNames = CallSubType::pluck('name', 'id')->all();
+            $vehicleTypeNames = VehicleType::pluck('name', 'id')->all();
+            $officeMap = Office::query()->get(['id', 'name', 'type', 'parent_id'])->keyBy('id');
+            $agentNames = $showAgent ? User::query()->pluck('full_name', 'id')->all() : [];
 
             // Set execution limits for large exports
             set_time_limit(300); // 5 minutes
@@ -1366,8 +1403,9 @@ class CallController extends Controller
                 "Expires"             => "0"
             ];
 
-            return response()->stream(function() use ($query, $showAgent) {
+            return response()->stream(function() use ($query, $showAgent, $callTypeNames, $subTypeNames, $vehicleTypeNames, $officeMap, $agentNames) {
                 $file = fopen('php://output', 'w');
+                fwrite($file, "\xEF\xBB\xBF"); // UTF-8 BOM so Excel shows Urdu/Unicode names correctly
                 
                 // Write Header
                 $columns = [
@@ -1383,18 +1421,18 @@ class CallController extends Controller
                 $processedCount = 0;
                 foreach ($query->cursor() as $call) {
                     $processedCount++;
-                    // Efficiently find zone and sector from eager-loaded hierarchy
-                    $beat = $call->office;
+                    // Resolve zone / sector / beat from the preloaded office map
+                    $beat = $call->office_id ? ($officeMap[$call->office_id] ?? null) : null;
                     $sector = null;
                     $zone = null;
 
                     if ($beat) {
                         if ($beat->type === 'beat') {
-                            $sector = $beat->parent;
-                            $zone = $sector?->parent;
+                            $sector = $beat->parent_id ? ($officeMap[$beat->parent_id] ?? null) : null;
+                            $zone = $sector && $sector->parent_id ? ($officeMap[$sector->parent_id] ?? null) : null;
                         } elseif ($beat->type === 'sector') {
                             $sector = $beat;
-                            $zone = $sector->parent;
+                            $zone = $sector->parent_id ? ($officeMap[$sector->parent_id] ?? null) : null;
                         } elseif ($beat->type === 'zone') {
                             $zone = $beat;
                         }
@@ -1406,19 +1444,19 @@ class CallController extends Controller
                         $call->created_at ? $call->created_at->format('H:i:s') : '',
                         $call->priority,
                         $call->status,
-                        $call->callType ? $call->callType->name : '',
-                        $call->callSubType ? $call->callSubType->name : '',
+                        $callTypeNames[$call->call_type_id] ?? '',
+                        $subTypeNames[$call->call_sub_type_id] ?? '',
                         $zone ? $zone->name : '',
                         $sector ? $sector->name : '',
                         $beat && $beat->type === 'beat' ? $beat->name : '',
                         $call->caller_name,
                         $call->caller_number,
                         $call->vehicle_no,
-                        $call->vehicleType ? $call->vehicleType->name : ''
+                        $vehicleTypeNames[$call->vehicle_type_id] ?? ''
                     ];
 
                     if ($showAgent) {
-                        array_splice($row, 5, 0, [$call->agent?->full_name ?? 'N/A']);
+                        array_splice($row, 5, 0, [$agentNames[$call->agent_id] ?? 'N/A']);
                     }
                     fputcsv($file, $row);
 

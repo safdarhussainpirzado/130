@@ -110,6 +110,12 @@ class Call extends Model
             }
         });
 
+        static::saved(function (Call $call): void {
+            if ($call->wasRecentlyCreated || $call->wasChanged(['caller_name', 'caller_number'])) {
+                \App\Services\CallSearchTokens::sync($call);
+            }
+        });
+
         static::saving(function (Call $call): void {
             if (!empty($call->caller_number)) {
                 $call->caller_number_bidx = phone_blind_index((string) $call->caller_number);

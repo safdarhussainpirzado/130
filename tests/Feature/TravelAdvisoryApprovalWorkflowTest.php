@@ -622,4 +622,16 @@ class TravelAdvisoryApprovalWorkflowTest extends TestCase
         $page->assertSee('\\u0022sector\\u0022:' . $this->testSector->id, false);
         $page->assertSee('\\u0022zone\\u0022:' . $zone->id, false);
     }
+
+    public function test_pending_count_endpoint_counts_pending_for_supervisors(): void
+    {
+        $sup = $this->supervisorUser;
+        $this->seedAdvisory(['status' => 'pending_approval']);
+        $this->seedAdvisory(['status' => 'pending_approval']);
+        $this->seedAdvisory(['status' => 'published']);
+
+        $res = $this->actingAs($sup)->getJson(route('ops.travel-advisory.pending-count'));
+        $res->assertOk();
+        $this->assertGreaterThanOrEqual(2, $res->json('count'));
+    }
 }
