@@ -3,13 +3,11 @@
 namespace App\Console\Commands;
 
 use App\Models\PushSubscription;
-use Google\Auth\Credentials\ServiceAccountCredentials;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Schema;
-use Minishlink\WebPush\WebPush;
 use Throwable;
 
 class PushStatusCommand extends Command
@@ -116,8 +114,8 @@ class PushStatusCommand extends Command
         );
 
         // 1. Library Status
-        $webPushLib = class_exists(WebPush::class);
-        $googleAuthLib = class_exists(ServiceAccountCredentials::class);
+        $webPushLib = class_exists('Minishlink\WebPush\WebPush');
+        $googleAuthLib = class_exists('Google\Auth\Credentials\ServiceAccountCredentials');
 
         $this->line('');
         $this->comment('1. Dependencies & Libraries:');

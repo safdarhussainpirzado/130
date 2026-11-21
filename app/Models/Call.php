@@ -2,25 +2,19 @@
 
 namespace App\Models;
 
-use App\Casts\GracefulEncrypted;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Str;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Call extends Model
 {
     use HasFactory;
 
     public const PRIORITY_P1 = 1;
-
     public const PRIORITY_P2 = 2;
-
     public const PRIORITY_P3 = 3;
-
     public const PRIORITY_P4 = 4;
-
     public const PRIORITY_P5 = 5;
 
     protected $fillable = [
@@ -89,20 +83,20 @@ class Call extends Model
     ];
 
     protected $casts = [
-        'caller_number' => GracefulEncrypted::class,
-        'caller_name' => GracefulEncrypted::class,
-        'is_reminder_call' => 'boolean',
+        'caller_number'     => \App\Casts\GracefulEncrypted::class,
+        'caller_name'       => \App\Casts\GracefulEncrypted::class,
+        'is_reminder_call'  => 'boolean',
         'is_phone_activity' => 'boolean',
-        'followup_needed' => 'boolean',
-        'call_start_time' => 'datetime',
-        'call_pickup_time' => 'datetime',
-        'call_end_time' => 'datetime',
-        'assigned_at' => 'datetime',
-        'acknowledged_at' => 'datetime',
-        'inprogress_at' => 'datetime',
-        'tiger_reached_at' => 'datetime',
-        'completed_at' => 'datetime',
-        'last_reminder_at' => 'datetime',
+        'followup_needed'   => 'boolean',
+        'call_start_time'   => 'datetime',
+        'call_pickup_time'  => 'datetime',
+        'call_end_time'     => 'datetime',
+        'assigned_at'       => 'datetime',
+        'acknowledged_at'   => 'datetime',
+        'inprogress_at'     => 'datetime',
+        'tiger_reached_at'  => 'datetime',
+        'completed_at'      => 'datetime',
+        'last_reminder_at'  => 'datetime',
     ];
 
     /**
@@ -112,12 +106,12 @@ class Call extends Model
     {
         static::creating(function (Call $call): void {
             if (empty($call->uuid)) {
-                $call->uuid = (string) Str::uuid7();
+                $call->uuid = (string) \Illuminate\Support\Str::uuid7();
             }
         });
 
         static::saving(function (Call $call): void {
-            if (! empty($call->caller_number)) {
+            if (!empty($call->caller_number)) {
                 $call->caller_number_bidx = phone_blind_index((string) $call->caller_number);
             }
         });
@@ -136,7 +130,7 @@ class Call extends Model
      */
     public function resolveRouteBinding($value, $field = null): ?Model
     {
-        if (Str::isUuid($value)) {
+        if (\Illuminate\Support\Str::isUuid($value)) {
             return $this->where('uuid', $value)->firstOrFail();
         }
 
@@ -223,6 +217,7 @@ class Call extends Model
         return $this->belongsTo(VehicleType::class);
     }
 
+
     public function statusHistory(): HasMany
     {
         return $this->hasMany(CallStatusHistory::class);
@@ -308,24 +303,22 @@ class Call extends Model
     public function getDisplayTigerAttribute(): ?string
     {
         $rawCode = $this->tiger_id;
-        if (! $rawCode && $this->inprogress_remarks && preg_match('/\[Allocated (?:Static )?Asset: (.*?)\]/i', $this->inprogress_remarks, $matches)) {
+        if (!$rawCode && $this->inprogress_remarks && preg_match('/\[Allocated (?:Static )?Asset: (.*?)\]/i', $this->inprogress_remarks, $matches)) {
             $rawCode = trim($matches[1]);
         }
 
-        if (! $rawCode) {
+        if (!$rawCode) {
             return null;
         }
 
         if (str_starts_with(strtoupper($rawCode), 'ST')) {
             $num = ltrim(substr($rawCode, 2), '- ');
-
-            return 'Special Tiger-'.$num;
+            return 'Special Tiger-' . $num;
         }
 
         if (str_starts_with(strtoupper($rawCode), 'T')) {
             $num = ltrim(substr($rawCode, 1), '- ');
-
-            return 'Tiger-'.$num;
+            return 'Tiger-' . $num;
         }
 
         return $rawCode;

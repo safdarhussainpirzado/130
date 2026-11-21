@@ -2,18 +2,13 @@
 
 namespace App\Services;
 
-use App\Events\CallLogged;
+use App\Events\CallLogged; 
 use App\Models\Call;
 use App\Models\CallStatusHistory;
-use App\Models\CallSubType;
-use App\Models\CallType;
 use App\Models\User;
-use App\Services\Analytics\CallRollupService;
-use App\Services\Notifications\PushDispatcher;
-use Illuminate\Database\QueryException;
-use Illuminate\Database\UniqueConstraintViolationException;
+use App\Models\CallType;
+use App\Models\CallSubType;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class CallService
 {
@@ -46,12 +41,12 @@ class CallService
             if ($isAutomated) {
                 $data['completed_at'] = now();
                 $data['completed_status_by'] = $agent->id;
-                $data['completed_remarks'] = 'Automated completion for '.$type->category.' call';
+                $data['completed_remarks'] = 'Automated completion for ' . $type->category . ' call';
                 $data['resolution_time_sec'] = 0;
             }
 
             // Resolve priority from call type/sub type
-            if (! isset($data['priority'])) {
+            if (!isset($data['priority'])) {
                 $data['priority'] = $this->resolvePriority($data);
             }
 
@@ -62,18 +57,18 @@ class CallService
             $call = null;
 
             for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-                if (! isset($data['call_number']) || $attempt > 1) {
+                if (!isset($data['call_number']) || $attempt > 1) {
                     $data['call_number'] = $this->generateCallNumber();
                 }
 
                 try {
                     $call = Call::create($data);
                     break;
-                } catch (UniqueConstraintViolationException|QueryException $e) {
-                    $isCollision = ($e instanceof UniqueConstraintViolationException) ||
+                } catch (\Illuminate\Database\UniqueConstraintViolationException|\Illuminate\Database\QueryException $e) {
+                    $isCollision = ($e instanceof \Illuminate\Database\UniqueConstraintViolationException) ||
                         (isset($e->errorInfo[1]) && $e->errorInfo[1] === 1062);
 
-                    if (! $isCollision) {
+                    if (!$isCollision) {
                         throw $e;
                     }
 
@@ -85,7 +80,7 @@ class CallService
                         ->value('max_seq');
                     DB::table('call_sequences')->updateOrInsert(['year' => $year], ['current_seq' => $maxSeq]);
 
-                    Log::warning("Call number collision on attempt {$attempt}/{$maxAttempts} for {$data['call_number']}. Resynchronized call_sequences to {$maxSeq}.");
+                    \Illuminate\Support\Facades\Log::warning("Call number collision on attempt {$attempt}/{$maxAttempts} for {$data['call_number']}. Resynchronized call_sequences to {$maxSeq}.");
                     if ($attempt === $maxAttempts) {
                         throw $e;
                     }
@@ -98,14 +93,14 @@ class CallService
                 'old_status' => null,
                 'new_status' => $initialStatus,
                 'changed_by' => $agent->id,
-                'remarks' => $isAutomated ? 'Automated completion for '.$type->category.' call' : 'Help inserted',
+                'remarks' => $isAutomated ? 'Automated completion for ' . $type->category . ' call' : 'Help inserted',
             ]);
 
             // Transactional Outbox Event for High-Speed Analytics Rollups
             try {
-                app(CallRollupService::class)->recordOutboxEvent($call, 'call_created');
+                app(\App\Services\Analytics\CallRollupService::class)->recordOutboxEvent($call, 'call_created');
             } catch (\Throwable $e) {
-                Log::warning("Outbox recording failed on createCall for {$call->id}: ".$e->getMessage());
+                \Illuminate\Support\Facades\Log::warning("Outbox recording failed on createCall for {$call->id}: " . $e->getMessage());
             }
 
             // Fire events
@@ -113,7 +108,7 @@ class CallService
 
             // Desk Unified Push Notification for Pending Help (short-circuits if disabled)
             if ($call->status === 'pending') {
-                PushDispatcher::dispatchHelpPending($call);
+                \App\Services\Notifications\PushDispatcher::dispatchHelpPending($call);
             }
 
             return $call;
@@ -129,7 +124,7 @@ class CallService
 
         $allowed = $validTransitions[$call->status] ?? [];
 
-        if (! in_array($newStatus, $allowed)) {
+        if (!in_array($newStatus, $allowed)) {
             throw new \InvalidArgumentException("Invalid state transition: {$call->status} -> {$newStatus}");
         }
 
@@ -149,14 +144,14 @@ class CallService
                 if (isset($data['tiger_id']) && $data['tiger_id'] !== '') {
                     $assetCode = $data['tiger_id'];
                     $updateData['tiger_id'] = $assetCode;
-                    $updateData['inprogress_remarks'] = ($updateData['inprogress_remarks'] ? $updateData['inprogress_remarks'].' ' : '')."[Allocated Asset: {$assetCode}]";
-                    $data['remarks'] = ($data['remarks'] ?? '')." [Asset: {$assetCode}]";
+                    $updateData['inprogress_remarks'] = ($updateData['inprogress_remarks'] ? $updateData['inprogress_remarks'] . " " : "") . "[Allocated Asset: {$assetCode}]";
+                    $data['remarks'] = ($data['remarks'] ?? '') . " [Asset: {$assetCode}]";
                 }
                 if (isset($data['patrol_officer_id']) && $data['patrol_officer_id'] !== '') {
                     $officerInfo = $data['patrol_officer_id'];
                     $updateData['patrol_officer_id'] = $officerInfo;
-                    $updateData['inprogress_remarks'] = ($updateData['inprogress_remarks'] ? $updateData['inprogress_remarks'].' ' : '')."[Patrol Officer: {$officerInfo}]";
-                    $data['remarks'] = ($data['remarks'] ?? '')." [Officer: {$officerInfo}]";
+                    $updateData['inprogress_remarks'] = ($updateData['inprogress_remarks'] ? $updateData['inprogress_remarks'] . " " : "") . "[Patrol Officer: {$officerInfo}]";
+                    $data['remarks'] = ($data['remarks'] ?? '') . " [Officer: {$officerInfo}]";
                 }
             }
 
@@ -188,11 +183,11 @@ class CallService
                 $updateData['followup_needed'] = $data['followup_needed'] ?? false;
 
                 // If tiger_reached_at was never marked, but directly completed from in_progress
-                if (! $call->tiger_reached_at && $call->inprogress_at) {
+                if (!$call->tiger_reached_at && $call->inprogress_at) {
                     $updateData['tiger_reached_at'] = now();
                     $updateData['tiger_response_time_sec'] = max(0, (int) $call->inprogress_at->diffInSeconds(now()));
                     $updateData['response_time_sec'] = $updateData['tiger_response_time_sec'];
-                } elseif ($call->tiger_response_time_sec && ! $call->response_time_sec) {
+                } elseif ($call->tiger_response_time_sec && !$call->response_time_sec) {
                     $updateData['response_time_sec'] = $call->tiger_response_time_sec;
                 }
 
@@ -224,13 +219,13 @@ class CallService
             // Transactional Outbox Event for Analytics Rollup Delta
             try {
                 $freshCall = $call->fresh();
-                app(CallRollupService::class)->recordOutboxEvent(
+                app(\App\Services\Analytics\CallRollupService::class)->recordOutboxEvent(
                     $freshCall,
                     'status_changed',
                     ['status' => $oldStatus, 'office_id' => $call->office_id]
                 );
             } catch (\Throwable $e) {
-                Log::warning("Outbox recording failed on updateStatus for {$call->id}: ".$e->getMessage());
+                \Illuminate\Support\Facades\Log::warning("Outbox recording failed on updateStatus for {$call->id}: " . $e->getMessage());
             }
 
             return $call->fresh();
@@ -248,11 +243,11 @@ class CallService
 
             // Record this trigger in status history for audit
             CallStatusHistory::create([
-                'call_id' => $call->id,
+                'call_id'    => $call->id,
                 'old_status' => $call->status,
                 'new_status' => $call->status, // Status remains the same
                 'changed_by' => $user->id,
-                'remarks' => "Call reminder #{$call->call_reminder_count} sent to field units.",
+                'remarks'    => "Call reminder #{$call->call_reminder_count} sent to field units.",
             ]);
 
             // Re-fire event to trigger notifications via polling/broadcast
@@ -283,16 +278,16 @@ class CallService
 
         // Fast path: Atomic increment on existing sequence row.
         // Executes in <0.1ms using primary key index without scanning calls table.
-        $affected = $connection->affectingStatement('
+        $affected = $connection->affectingStatement("
             UPDATE call_sequences 
             SET current_seq = LAST_INSERT_ID(current_seq + 1) 
             WHERE year = ?
-        ', [$year]);
+        ", [$year]);
 
         if ($affected > 0) {
             // Guarantee write PDO connection affinity for LAST_INSERT_ID()
             $pdo = $connection->getPdo();
-            $nextSeq = (int) $pdo->query('SELECT LAST_INSERT_ID()')->fetchColumn();
+            $nextSeq = (int) $pdo->query("SELECT LAST_INSERT_ID()")->fetchColumn();
 
             if ($nextSeq > 0) {
                 return sprintf('CRM-%d-%05d', $year, $nextSeq);
@@ -341,16 +336,12 @@ class CallService
     {
         if (isset($data['call_sub_type_id'])) {
             $subType = CallSubType::find($data['call_sub_type_id']);
-            if ($subType) {
-                return $subType->priority;
-            }
+            if ($subType) return $subType->priority;
         }
 
         if (isset($data['call_type_id'])) {
             $type = CallType::find($data['call_type_id']);
-            if ($type) {
-                return $type->priority;
-            }
+            if ($type) return $type->priority;
         }
 
         return 3;

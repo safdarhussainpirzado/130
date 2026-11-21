@@ -1,0 +1,1 @@
+# Scope allowlist for gate.sh exceptions
