@@ -408,10 +408,10 @@
                             'applicant_username' => $req->requester?->username ?: ($req->requester?->employee_id ?: 'N/A'),
                             'applicant_email'    => $req->requester?->email ?? 'N/A',
                             'applicant_role'     => $req->requester?->getRoleTitle() ?: ($req->requester?->role?->display_name ?: 'Officer'),
-                            'applicant_office'   => $req->requester?->office?->name ?? '',
-                            'source_office'      => $req->sourceOffice?->name ?? 'National / Unassigned',
+                            'applicant_office'   => $req->requester ? $req->requester->getOfficeHierarchyString() : '',
+                            'source_office'      => $req->sourceOffice ? $req->sourceOffice->getHierarchyPath() : ($req->requester ? $req->requester->getOfficeHierarchyString() : 'IG Headquarter'),
                             'source_parent'      => $req->sourceOffice?->parent?->name ?? '',
-                            'destination_office' => $req->destinationOffice?->name ?? 'N/A',
+                            'destination_office' => $req->destinationOffice ? $req->destinationOffice->getHierarchyPath() : 'N/A',
                             'destination_parent' => $req->destinationOffice?->parent?->name ?? '',
                             'actions'            => $req->actions->map(fn($a) => [
                                 'type'    => $a->getActionLabel(),
@@ -445,10 +445,10 @@
                                     <span>{{ $req->requester->username ?: ($req->requester->employee_id ?: 'N/A') }}</span>
                                     <span>&bull;</span>
                                     <span class="text-blue-600 font-semibold">{{ $req->requester->getRoleTitle() ?: ($req->requester->role?->display_name ?: 'Officer') }}</span>
-                                    @if($req->requester->office)
+                                    @if($req->requester->office || $req->requester->role?->name === 'super_admin')
                                         <span>&bull;</span>
-                                        <span class="text-slate-500 font-medium" title="{{ $req->requester->office->name }}">
-                                            <i class="fa-solid fa-building text-[8px] mr-0.5"></i>{{ $req->requester->office->name }}
+                                        <span class="text-slate-500 font-medium" title="{{ $req->requester->getOfficeHierarchyString() }}">
+                                            <i class="fa-solid fa-building text-[8px] mr-0.5"></i>{{ $req->requester->getOfficeHierarchyString() }}
                                         </span>
                                     @endif
                                 </div>

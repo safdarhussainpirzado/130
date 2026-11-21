@@ -335,4 +335,38 @@ class Office extends Model
     {
         return $query->where('is_active', true);
     }
+
+    /**
+     * Get complete hierarchy path string (e.g. "North Zone > Sector N-5 North > Beat-02").
+     */
+    public function getHierarchyPath(): string
+    {
+        $parts = [];
+
+        if ($this->type === 'beat') {
+            $zone = $this->parent?->parent?->name;
+            $sector = $this->parent?->name;
+            $beat = $this->name;
+
+            if ($zone) $parts[] = $zone;
+            if ($sector) $parts[] = $sector;
+            if ($beat) $parts[] = $beat;
+        } elseif ($this->type === 'sector') {
+            $zone = $this->parent?->name;
+            $sector = $this->name;
+
+            if ($zone) $parts[] = $zone;
+            if ($sector) $parts[] = $sector;
+        } elseif ($this->type === 'zone') {
+            $parts[] = $this->name;
+        } elseif (in_array($this->type, ['plhq', 'region', 'hq', 'national'], true) || str_contains(strtolower($this->name), 'headquarter')) {
+            $parts[] = $this->name ?: 'IG Headquarter';
+        } else {
+            if ($this->parent?->parent) $parts[] = $this->parent->parent->name;
+            if ($this->parent) $parts[] = $this->parent->name;
+            $parts[] = $this->name;
+        }
+
+        return !empty($parts) ? implode(' > ', $parts) : ($this->name ?: 'IG Headquarter');
+    }
 }

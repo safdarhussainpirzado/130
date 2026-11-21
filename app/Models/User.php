@@ -641,9 +641,52 @@ class User extends Authenticatable
     }
 
     /**
+     * Get the full hierarchy office display string (e.g. "North Zone > Sector N-5 North > Beat-02").
+     */
+    public function getOfficeHierarchyString(): string
+    {
+        $role = $this->role?->name;
+
+        // 1. Super Admin & National Headquarters
+        if ($role === 'super_admin' || in_array($this->office?->type, ['plhq', 'region', 'hq', 'national'], true) || str_contains(strtolower($this->office?->name ?? ''), 'headquarter')) {
+            return 'IG Headquarter';
+        }
+
+        // 2. Call Center Agents & Supervisors
+        if (in_array($role, ['agent', 'agent_supervisor'], true)) {
+            return 'Helpline 130 Call Center';
+        }
+
+        // 3. Patrol Officer (check PatrolOfficerProfile first, then scopes)
+        if ($role === 'patrol_officer') {
+            $assignedBeat = $this->patrolOfficerProfile?->assignedBeat;
+            if ($assignedBeat) {
+                return $assignedBeat->getHierarchyPath();
+            }
+        }
+
+        // 4. Primary or scope-based office
+        $office = $this->office;
+        if (!$office) {
+            $scope = $this->activeScopes()->with(['office.parent.parent'])->first();
+            $office = $scope?->office;
+        }
+
+        if ($office) {
+            return $office->getHierarchyPath();
+        }
+
+        if (in_array($role, ['operation_admin', 'operation'], true)) {
+            return 'National Level Operations';
+        }
+
+        return 'IG Headquarter';
+    }
+
+    /**
      * Format an Office model into its complete Beat · Sector · Zone hierarchy.
      */
-    protected function formatUnitHierarchy(Office $office): string
+    public function formatUnitHierarchy(Office $office): string
     {
         if ($office->type === 'beat') {
             $beat = $office->name;

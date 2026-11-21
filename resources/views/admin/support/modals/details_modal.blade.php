@@ -56,14 +56,12 @@
                     <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
                         <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Current Source Unit</span>
                         <div class="font-black text-navy-900 text-xs" x-text="selectedRequest?.source_office"></div>
-                        <div class="text-[10px] text-slate-500" x-text="selectedRequest?.source_parent"></div>
                     </div>
 
                     {{-- Destination Unit --}}
                     <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
                         <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Destination Unit</span>
                         <div class="font-black text-navy-900 text-xs" x-text="selectedRequest?.destination_office"></div>
-                        <div class="text-[10px] text-slate-500" x-text="selectedRequest?.destination_parent"></div>
                     </div>
                 </div>
 
