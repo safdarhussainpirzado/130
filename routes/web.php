@@ -231,6 +231,33 @@ Route::middleware('auth')->group(function () {
         ->name('operations.support.requests.show');
 
     // Wireless Operator Rapid Incident Data Entry Hub & Management Grid
+    // ── Humsafar (staging only; permission-gated) ─────────────────────────────────
+    Route::prefix('humsafar')->name('humsafar.')->middleware('can:humsafar.view')->group(function () {
+        $c = \App\Http\Controllers\Humsafar\HumsafarAdminController::class;
+        Route::middleware('can:humsafar.survey.manage')->group(function () use ($c) {
+            Route::get('/surveys', [$c, 'surveys'])->name('surveys');
+            Route::post('/surveys/{location}/review', [$c, 'reviewSurvey'])->name('surveys.review');
+            Route::get('/catalog', [$c, 'catalog'])->name('catalog');
+            Route::post('/catalog/category/{category?}', [$c, 'saveCategory'])->name('catalog.category.save');
+            Route::post('/catalog/service/{service?}', [$c, 'saveService'])->name('catalog.service.save');
+            Route::post('/catalog/{type}/{id}/toggle', [$c, 'toggle'])->whereIn('type', ['category', 'service'])->name('catalog.toggle');
+        });
+        Route::middleware('can:humsafar.officers.view')->group(function () use ($c) {
+            Route::get('/officers', [$c, 'officers'])->name('officers');
+            Route::get('/officers/data', [$c, 'officersData'])->name('officers.data');
+        });
+        Route::middleware('can:humsafar.feedback.view')->get('/feedback', [$c, 'feedback'])->name('feedback');
+        Route::middleware('can:humsafar.commuters.view')->group(function () use ($c) {
+            Route::get('/commuters', [$c, 'commuters'])->name('commuters');
+            Route::post('/commuters/{user}/reveal', [$c, 'revealMobile'])->middleware('can:humsafar.commuters.reveal')->name('commuters.reveal');
+        });
+        Route::middleware('can:humsafar.commuters.monitor')->group(function () use ($c) {
+            Route::get('/monitor', [$c, 'monitor'])->name('monitor');
+            Route::get('/monitor/data', [$c, 'monitorData'])->name('monitor.data');
+        });
+    });
+    Route::get('/calls/{call}/evidence', [\App\Http\Controllers\Api\V1\CallEvidenceController::class, 'show'])->name('calls.evidence');
+
     Route::get('/ops/travel-advisory', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorIndex'])->name('ops.travel-advisory.index');
     Route::get('/ops/travel-advisory/create', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorCreate'])->name('ops.travel-advisory.create');
     Route::post('/ops/travel-advisory', [\App\Http\Controllers\TravelAdvisoryController::class, 'operatorStore'])->name('ops.travel-advisory.store');

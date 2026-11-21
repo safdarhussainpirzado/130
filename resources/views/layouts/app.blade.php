@@ -865,6 +865,34 @@
                         </a>
                     @endcanany
 
+                    @can('humsafar.view')
+                        <!-- HUMSAFAR -->
+                        <div class="nav-section">Humsafar</div>
+                        <div class="nav-section-divider"></div>
+                        @can('humsafar.survey.manage')
+                        <a href="{{ route('humsafar.surveys') }}" class="nav-item {{ request()->routeIs('humsafar.surveys') ? 'active' : '' }}">
+                            <span class="nav-icon text-emerald-500"><i class="fa-solid fa-map-location-dot"></i></span><span class="nav-label">Survey Locations</span><span class="nav-tooltip">Survey Locations</span></a>
+                        <a href="{{ route('humsafar.catalog') }}" class="nav-item {{ request()->routeIs('humsafar.catalog') ? 'active' : '' }}">
+                            <span class="nav-icon text-teal-500"><i class="fa-solid fa-layer-group"></i></span><span class="nav-label">Categories &amp; Services</span><span class="nav-tooltip">Categories &amp; Services</span></a>
+                        @endcan
+                        @can('humsafar.officers.view')
+                        <a href="{{ route('humsafar.officers') }}" class="nav-item {{ request()->routeIs('humsafar.officers*') ? 'active' : '' }}">
+                            <span class="nav-icon text-blue-500"><i class="fa-solid fa-user-shield"></i></span><span class="nav-label">Online Officers</span><span class="nav-tooltip">Online Officers</span></a>
+                        @endcan
+                        @can('humsafar.commuters.view')
+                        <a href="{{ route('humsafar.commuters') }}" class="nav-item {{ request()->routeIs('humsafar.commuters*') ? 'active' : '' }}">
+                            <span class="nav-icon text-violet-500"><i class="fa-solid fa-users"></i></span><span class="nav-label">Commuter Directory</span><span class="nav-tooltip">Commuter Directory</span></a>
+                        @endcan
+                        @can('humsafar.commuters.monitor')
+                        <a href="{{ route('humsafar.monitor') }}" class="nav-item {{ request()->routeIs('humsafar.monitor*') ? 'active' : '' }}">
+                            <span class="nav-icon text-rose-500"><i class="fa-solid fa-satellite-dish"></i></span><span class="nav-label">Live Commuters</span><span class="nav-tooltip">Live Commuter Monitoring</span></a>
+                        @endcan
+                        @can('humsafar.feedback.view')
+                        <a href="{{ route('humsafar.feedback') }}" class="nav-item {{ request()->routeIs('humsafar.feedback') ? 'active' : '' }}">
+                            <span class="nav-icon text-amber-500"><i class="fa-solid fa-star-half-stroke"></i></span><span class="nav-label">Help Feedback</span><span class="nav-tooltip">Help Feedback</span></a>
+                        @endcan
+                    @endcan
+
                     @can('reports.view')
                         <!-- REPORTS -->
                         <div class="nav-section">Analytical Reports</div>

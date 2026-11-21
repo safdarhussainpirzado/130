@@ -230,6 +230,21 @@ $showJson = json_encode([
 
             {{-- RIGHT COLUMN: TELEMETRY & ASSETS --}}
             <div class="lg:col-span-4 space-y-8">
+                @php($__ev = \App\Models\CallEvidence::where('call_id', $call->id)->first())
+                @if(\Illuminate\Support\Facades\Schema::hasTable('call_evidence'))
+                <div class="bg-white rounded-[2rem] border border-slate-100 shadow-[0_10px_40px_rgba(0,0,0,0.04)] p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500"><i class="fa-solid fa-camera text-indigo-500 mr-2"></i>Assistance Evidence</h3>
+                        @if($__ev)<span class="text-[10px] font-bold text-slate-400">{{ $__ev->uploaded_at?->format('d M, H:i') }}</span>@endif
+                    </div>
+                    @if($__ev)
+                        <a href="{{ route('calls.evidence', $call) }}" target="_blank" rel="noopener"><img src="{{ route('calls.evidence', $call) }}" alt="Assistance evidence" class="w-full rounded-2xl border border-slate-100 object-cover max-h-72"></a>
+                    @else
+                        <div class="rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center py-8 text-xs font-bold text-slate-400">No evidence photo uploaded yet.</div>
+                    @endif
+                </div>
+                @endif
+
                 
                 {{-- STATUS TELEMETRY TILE --}}
                 <div class="glass-panel rounded-[2.5rem] p-10 space-y-10 group">

@@ -160,6 +160,19 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->prefix('v1')->group(funct
         // Screen 04/05: Patrol Assigned Case Review
         Route::get('/cases/assigned', [\App\Http\Controllers\Api\V1\PatrolCaseController::class, 'assigned'])
             ->name('api.v1.patrol.cases.assigned');
+
+        // Humsafar Track B: surveys, presence heartbeat + availability
+        Route::prefix('surveys')->group(function () {
+            Route::get('/categories', [\App\Http\Controllers\Api\V1\PatrolSurveyController::class, 'categories'])->name('api.v1.patrol.surveys.categories');
+            Route::get('/', [\App\Http\Controllers\Api\V1\PatrolSurveyController::class, 'index'])->name('api.v1.patrol.surveys.index');
+            Route::post('/', [\App\Http\Controllers\Api\V1\PatrolSurveyController::class, 'store'])->name('api.v1.patrol.surveys.store');
+            Route::get('/{uuid}', [\App\Http\Controllers\Api\V1\PatrolSurveyController::class, 'show'])->name('api.v1.patrol.surveys.show');
+            Route::put('/{uuid}', [\App\Http\Controllers\Api\V1\PatrolSurveyController::class, 'update'])->name('api.v1.patrol.surveys.update');
+        });
+        Route::middleware('throttle:90,1')->post('/heartbeat', [\App\Http\Controllers\Api\V1\OfficerPresenceController::class, 'heartbeat'])->name('api.v1.patrol.heartbeat');
+        Route::get('/availability', [\App\Http\Controllers\Api\V1\OfficerPresenceController::class, 'status'])->name('api.v1.patrol.availability');
+        Route::put('/availability', [\App\Http\Controllers\Api\V1\OfficerPresenceController::class, 'setAvailability'])->name('api.v1.patrol.availability.set');
+        Route::post('/availability/return-to-duty', [\App\Http\Controllers\Api\V1\OfficerPresenceController::class, 'returnToDuty'])->name('api.v1.patrol.availability.return');
     });
 
     // ==========================================================================
@@ -187,6 +200,11 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->prefix('v1')->group(funct
         Route::post('/{uuid}/complete-assistance', [\App\Http\Controllers\Api\V1\PatrolCaseController::class, 'completeAssistance'])
             ->middleware('hamsafar.access:field')
             ->name('api.v1.cases.complete-assistance');
+        Route::post('/{uuid}/evidence', [\App\Http\Controllers\Api\V1\CallEvidenceController::class, 'store'])
+            ->middleware(['hamsafar.access:field', 'throttle:20,1'])
+            ->name('api.v1.cases.evidence.store');
+        Route::post('/{uuid}/feedback', [\App\Http\Controllers\Api\V1\HelpFeedbackController::class, 'store'])
+            ->name('api.v1.cases.feedback.store');
         Route::post('/{uuid}/close-and-release', [\App\Http\Controllers\Api\V1\PatrolCaseController::class, 'closeAndRelease'])
             ->middleware('hamsafar.access:field')
             ->name('api.v1.cases.close-and-release');
@@ -206,6 +224,8 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->prefix('v1')->group(funct
     // COMMUTER ROAD USER EMERGENCY & ASSISTANCE SERVICES (Views 01-14)
     // ==========================================================================
     Route::prefix('commuter')->group(function () {
+        Route::get('/nearby-locations', \App\Http\Controllers\Api\V1\NearbyLocationsController::class)->middleware('throttle:30,1')->name('api.v1.commuter.nearby-locations');
+        Route::post('/presence', \App\Http\Controllers\Api\V1\CommuterPresenceController::class)->middleware('throttle:30,1')->name('api.v1.commuter.presence');
         Route::post('/sos', [\App\Http\Controllers\Api\V1\CommuterServicesController::class, 'triggerSos'])
             ->name('api.v1.commuter.sos');
         Route::get('/cases/active', [\App\Http\Controllers\Api\V1\CommuterServicesController::class, 'activeCase'])
